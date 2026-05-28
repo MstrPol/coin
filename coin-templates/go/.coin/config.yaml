@@ -1,0 +1,40 @@
+version: 1
+
+coin:
+  template: go
+  templateVersion: "1.0.0"
+  mode: standard
+  versioning:
+    mode: corporate
+    tagPrefix: "v"
+
+project:
+  name: my-service
+  stack: go
+
+runtime:
+  go: "1.22"
+
+container:
+  port: 8080
+  command: ["/app/app"]
+
+pipeline:
+  test:
+    enabled: true
+  build:
+    enabled: true
+    target: container
+    dockerfileTemplate: go
+  publish:
+    enabled: true
+    registry: nexus-docker
+    when: tag
+
+quality:
+  sonar:
+    enabled: false
+    projectKey: my-service
+
+deploy:
+  enabled: false

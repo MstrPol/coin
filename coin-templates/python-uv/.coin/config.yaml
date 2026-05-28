@@ -1,0 +1,48 @@
+version: 1
+
+coin:
+  template: python-uv
+  templateVersion: "1.0.0"
+  mode: standard
+  versioning:
+    mode: corporate
+    tagPrefix: "v"
+
+project:
+  name: my-service
+  stack: python-uv
+
+runtime:
+  python: "3.13"
+
+container:
+  port: 8080
+  # Команда будет подставлена в managed Dockerfile из Coin.
+  command: "python -m my_service"
+
+pipeline:
+  test:
+    enabled: true
+    # Стандарт Coin: uv sync --frozen --all-groups && uv run pytest.
+    # Для расширения используйте preCommands/postCommands, для полной замены — commands.
+    # postCommands:
+    #   - uv run ruff check .
+  build:
+    enabled: true
+    # package   — uv build → dist/*.whl (библиотека / пакет в PyPI/Nexus)
+    # container — docker build по managed Dockerfile из Coin → образ в registry
+    target: container
+    dockerfileTemplate: python-uv
+  publish:
+    enabled: true
+    # nexus-pypi для target: package | nexus-docker для target: container
+    registry: nexus-docker
+    when: tag
+
+quality:
+  sonar:
+    enabled: false
+    projectKey: my-service
+
+deploy:
+  enabled: false
