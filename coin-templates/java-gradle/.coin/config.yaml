@@ -3,17 +3,20 @@ version: 1
 coin:
   template: java-gradle
   templateVersion: "1.0.0"
-  mode: standard
   versioning:
     mode: corporate
     tagPrefix: "v"
 
+# ── Jenkins читает только эту секцию ────────────────────────────────────────
+agent:
+  stack: java-gradle
+  runtime:
+    java: "17"
+  publishRegistry: nexus-docker
+
+# ── coin CLI ─────────────────────────────────────────────────────────────────
 project:
   name: my-service
-  stack: java-gradle
-
-runtime:
-  java: "17"
 
 container:
   port: 8080
@@ -28,13 +31,9 @@ pipeline:
     dockerfileTemplate: java-gradle
   publish:
     enabled: true
-    registry: nexus-docker
     when: tag
 
 quality:
   sonar:
     enabled: false
     projectKey: my-service
-
-deploy:
-  enabled: false

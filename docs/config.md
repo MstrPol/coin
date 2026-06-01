@@ -2,7 +2,12 @@
 
 Контракт между продуктовой командой и платформой Coin CI.
 
-## Минимальный пример
+Файл разделён на две явные зоны:
+
+- **`agent:`** — читает **Jenkins (coin-lib)**: выбор образа агента и binding credentials.
+- **Остальное** — читает только **coin CLI**: версионирование, сборка, публикация.
+
+## Пример
 
 ```yaml
 version: 1
@@ -10,111 +15,106 @@ version: 1
 coin:
   template: python-uv
   templateVersion: "1.0.0"
-  mode: standard
   versioning:
     mode: corporate
     tagPrefix: "v"
 
+# ── Jenkins читает только эту секцию ──────────────────────────────
+agent:
+  stack: python-uv             # стек → выбор образа K8s-агента
+  runtime:
+    python: "3.13"             # версия toolchain → выбор тега образа
+  publishRegistry: nexus-docker  # Jenkins Credential ID для публикации
+
+# ── coin CLI ───────────────────────────────────────────────────────
 project:
   name: my-service
-  stack: python-uv
-
-runtime:
-  python: "3.13"
 
 container:
   port: 8080
-  command: "python -m my_service"
+  command: ["python", "-m", "my_service"]
 
 pipeline:
   test:
     enabled: true
   build:
     enabled: true
-    target: container   # или package
+    target: container          # package | container
     dockerfileTemplate: python-uv
   publish:
     enabled: true
-    registry: nexus-docker   # или nexus-pypi для package
-    when: tag
+    when: tag                  # tag | branch | always | never
 ```
 
-## Сборка: package vs container
-
-- **`package`** — библиотека или pip-пакет: `uv build` → `dist/*.whl`, publish через `uv publish`. Dockerfile не нужен.
-- **`container`** — микросервис: сборка контейнера по Dockerfile.
-  - В компании может быть включена политика **централизованных Dockerfile**: Dockerfile‑шаблон берётся из `coin` и подкладывается в workspace при сборке.
-  - В этом режиме разработчик **не ведёт Dockerfile в сервисе**, а выбирает `dockerfileTemplate` и параметры.
-
-## Поля
+## Секция `agent` (Jenkins)
 
 | Поле | Описание |
 |------|----------|
-| `version` | Версия схемы (сейчас только `1`) |
+| `agent.stack` | Стек: `python-uv`, `python-pip`, `java-maven`, `java-gradle`, `go`, `node` |
+| `agent.runtime.*` | Версия toolchain (`python: "3.13"`, `java: "17"`, `go: "1.22"`) |
+| `agent.publishRegistry` | Jenkins Credential ID (`nexus-docker`, `nexus-pypi`, …) |
+
+## Секция `coin`
+
+| Поле | Описание |
+|------|----------|
 | `coin.template` | Имя golden path (например `python-uv`) |
-| `coin.templateVersion` | Версия шаблона (SemVer `X.Y.Z`) — нужна для политики обязательных обновлений |
-| `coin.mode` | `standard` (скрипты в проекте) или `strict` (зарезервировано) |
-| `coin.versioning.mode` | `corporate`: версия вычисляется Coin, а не Gradle/Maven/uv |
+| `coin.templateVersion` | Версия шаблона (SemVer) — для политики обязательных обновлений |
+| `coin.versioning.mode` | `corporate`: версия вычисляется Coin из Git |
 | `coin.versioning.tagPrefix` | Префикс релизного тега, по умолчанию `v` |
-| `project.name` | Имя сервиса (отображение, Sonar) |
-| `project.stack` | Стек: `python-uv`, `python-pip`, `java-maven`, `java-gradle`, `go`, `node` |
-| `runtime.*` | Версия toolchain (ключ зависит от stack: `python`, `java`, …) |
-| `container.port` | Порт приложения, подставляется в managed Dockerfile |
-| `container.command` | Команда запуска, подставляется в managed Dockerfile |
-| `pipeline.test.enabled` | Запуск тестов (по умолчанию `true`) |
+
+## Секция `project` и `container`
+
+| Поле | Описание |
+|------|----------|
+| `project.name` | Имя сервиса (используется в image ref, Sonar) |
+| `container.port` | Порт приложения — подставляется в managed Dockerfile |
+| `container.command` | Команда запуска — подставляется в managed Dockerfile |
+
+## Секция `pipeline`
+
+| Поле | Описание |
+|------|----------|
+| `pipeline.<stage>.enabled` | Включить/выключить стадию |
 | `pipeline.<stage>.preCommands` | Команды перед стандартным сценарием Coin |
-| `pipeline.<stage>.commands` | Полная замена стандартного сценария stage |
+| `pipeline.<stage>.commands` | Полная замена стандартного сценария |
 | `pipeline.<stage>.postCommands` | Команды после стандартного сценария Coin |
-| `pipeline.build.enabled` | Сборка артефакта |
-| `pipeline.build.target` | `package` (wheel, `uv build`) или `container` (managed Dockerfile из Coin) |
-| `pipeline.build.dockerfileTemplate` | (для `target: container`) имя централизованного шаблона Dockerfile (например `python-uv`, `java-spring`) |
-| `pipeline.publish.enabled` | Публикация |
-| `pipeline.publish.registry` | Имя credential: `nexus-pypi`, … |
+| `pipeline.build.target` | `package` (wheel/jar/binary) или `container` (managed Dockerfile) |
+| `pipeline.build.dockerfileTemplate` | Шаблон Dockerfile из Coin (например `python-uv`) |
 | `pipeline.publish.when` | `tag` \| `branch` \| `always` \| `never` |
 
 ## Publish: `when`
 
-- **`tag`** — только для тегов вида `v*` (или веток `v*`)
-- **`branch`** — ветки `main` / `master`
+- **`tag`** — только релизные теги `v*` (рекомендуется)
+- **`branch`** — ветка `main` / `master` (snapshot-канал)
 - **`always`** — каждый билд
-- **`never`** — отключить, даже если `enabled: true`
+- **`never`** — отключить
 
 ## Единое версионирование
 
-Версию ведёт **Coin**, а не сборщик проекта. В проектах не настраиваем версионирование через Gradle plugins, Nebula, Maven release plugins, `uv version` и аналогичные механизмы.
+Версию ведёт **Coin CLI**, а не сборщик проекта.
+Полные правила — в [docs/branching.md](branching.md).
 
-Правила по умолчанию (полностью — в [docs/branching.md](branching.md)):
-
-- tag `v1.2.3` → `COIN_VERSION=1.2.3`, image tag `1.2.3`;
-- ветка `release/1.4` → `COIN_VERSION=1.4.0-rc.<build>+<shortSha>` (release candidate);
-- `main` → `COIN_VERSION=0.0.0-main.<build>+<shortSha>` (snapshot);
-- прочие ветки → `COIN_VERSION=0.0.0-<branch>.<build>+<shortSha>`, image tag без `+`.
-
-Coin прокидывает:
-
-- `COIN_VERSION` — корпоративная версия артефакта;
-- `COIN_VERSION_SOURCE` — источник версии (`tag:...` или `branch:...`);
-- `COIN_IMAGE_TAG` — безопасный Docker tag;
-- `COIN_IMAGE_REF` — полный ref образа.
-
-Managed Dockerfile получает `COIN_VERSION` как build arg и пишет его в `org.opencontainers.image.version`.
+Coin прокидывает в сборку:
+- `COIN_VERSION` — корпоративная версия артефакта
+- `COIN_VERSION_SOURCE` — источник (`tag:...` или `branch:...`)
+- `COIN_IMAGE_TAG` — безопасный Docker tag
+- `COIN_IMAGE_REF` — полный ref образа
 
 ## Стандартные команды и расширения
 
-По умолчанию проект **не хранит shell-скрипты**. Coin запускает стандартные сценарии из `coin-lib/resources/scripts/<stack>/`.
+По умолчанию проект **не хранит shell-скрипты**. Coin CLI запускает стандартные
+сценарии, встроенные в бинарь.
 
-Пример расширения тестов:
-
+Расширение тестов:
 ```yaml
 pipeline:
   test:
-    enabled: true
     postCommands:
       - uv run ruff check .
 ```
 
-Пример полной замены stage (использовать только если стандарт не подходит):
-
+Полная замена (только если стандарт не подходит):
 ```yaml
 pipeline:
   test:
@@ -122,7 +122,3 @@ pipeline:
       - uv sync --frozen --all-groups
       - uv run pytest tests/integration
 ```
-
-## JSON Schema
-
-См. [`coin-lib/resources/config.schema.json`](../coin-lib/resources/config.schema.json).

@@ -3,17 +3,20 @@ version: 1
 coin:
   template: go
   templateVersion: "1.0.0"
-  mode: standard
   versioning:
     mode: corporate
     tagPrefix: "v"
 
+# ── Jenkins читает только эту секцию ────────────────────────────────────────
+agent:
+  stack: go
+  runtime:
+    go: "1.22"
+  publishRegistry: nexus-docker
+
+# ── coin CLI ─────────────────────────────────────────────────────────────────
 project:
   name: my-service
-  stack: go
-
-runtime:
-  go: "1.22"
 
 container:
   port: 8080
@@ -28,13 +31,9 @@ pipeline:
     dockerfileTemplate: go
   publish:
     enabled: true
-    registry: nexus-docker
     when: tag
 
 quality:
   sonar:
     enabled: false
     projectKey: my-service
-
-deploy:
-  enabled: false

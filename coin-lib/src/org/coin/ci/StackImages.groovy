@@ -1,16 +1,20 @@
 package org.coin.ci
 
+/**
+ * Разрешает образ K8s-агента по agent.stack и agent.runtime из config.
+ * Читает только секцию agent: — всё остальное в конфиге не касается Jenkins.
+ */
 class StackImages implements Serializable {
 
     private static final long serialVersionUID = 1L
 
     private static final Map<String, String> DEFAULT_RUNTIME = [
-        'python-uv': '3.13',
-        'python-pip': '3.13',
-        'java-maven': '17',
+        'python-uv'  : '3.13',
+        'python-pip' : '3.13',
+        'java-maven' : '17',
         'java-gradle': '17',
-        'go': '1.22',
-        'node': '20',
+        'go'         : '1.22',
+        'node'       : '20',
     ]
 
     private final def steps
@@ -20,29 +24,29 @@ class StackImages implements Serializable {
         this.steps = steps
     }
 
-    private Map catalog() {
-        if (!imagesCatalog) {
-            imagesCatalog = steps.readYaml(text: steps.libraryResource('images.yaml'))
-        }
-        return imagesCatalog
-    }
-
     String jnlpImage() {
         return catalog().jnlp.image
     }
 
     String resolveStackImage(Map cfg) {
-        def stack = cfg.project.stack
-        def version = Config.runtimeVersion(cfg, runtimeKey(stack), DEFAULT_RUNTIME[stack])
-        def stackEntry = catalog().stacks?."${stack}"?."${version}"
-        if (!stackEntry?.image) {
-            steps.error("No image for stack=${stack} version=${version} in coin-lib/resources/images.yaml")
+        def stack = cfg.agent?.stack
+        if (!stack) {
+            steps.error('agent.stack не задан в .coin/config.yaml')
         }
-        def ref = stackEntry.image
-        if (stackEntry.digest) {
-            ref = "${ref}@${stackEntry.digest}"
+        def runtimeKey = runtimeKey(stack)
+        def version = cfg.agent?.runtime?."${runtimeKey}" ?: DEFAULT_RUNTIME[stack]
+        def entry = catalog().stacks?."${stack}"?."${version}"
+        if (!entry?.image) {
+            steps.error("Образ не найден для stack=${stack} version=${version} в images.yaml")
         }
-        return ref
+        return entry.digest ? "${entry.image}@${entry.digest}" : entry.image
+    }
+
+    private Map catalog() {
+        if (!imagesCatalog) {
+            imagesCatalog = steps.readYaml(text: steps.libraryResource('images.yaml'))
+        }
+        return imagesCatalog
     }
 
     private static String runtimeKey(String stack) {

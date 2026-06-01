@@ -3,21 +3,24 @@ version: 1
 coin:
   template: python-pip
   templateVersion: "1.0.0"
-  mode: standard
   versioning:
     mode: corporate
     tagPrefix: "v"
 
+# ── Jenkins читает только эту секцию ────────────────────────────────────────
+agent:
+  stack: python-pip
+  runtime:
+    python: "3.13"
+  publishRegistry: nexus-docker
+
+# ── coin CLI ─────────────────────────────────────────────────────────────────
 project:
   name: my-service
-  stack: python-pip
-
-runtime:
-  python: "3.13"
 
 container:
   port: 8080
-  command: "python -m my_service"
+  command: ["python", "-m", "my_service"]
 
 pipeline:
   test:
@@ -28,13 +31,9 @@ pipeline:
     dockerfileTemplate: python-pip
   publish:
     enabled: true
-    registry: nexus-docker
     when: tag
 
 quality:
   sonar:
     enabled: false
     projectKey: my-service
-
-deploy:
-  enabled: false

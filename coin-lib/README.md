@@ -1,8 +1,31 @@
 # coin-lib
 
-Jenkins Shared Library для Coin CI.
+Jenkins Shared Library — **тонкий оркестратор** Coin CI.
 
-## Entry point
+## Ответственность
+
+`coin-lib` выполняет ровно две задачи:
+
+1. **Подготовка динамического агента** — читает `project.stack` и `runtime` из `.coin/config.yaml`, выбирает нужный K8s toolchain-образ из `resources/images.yaml`, запускает pod.
+2. **Подготовка credentials** — биндит Jenkins Credentials перед вызовом `coin CLI`.
+
+Вся остальная логика (версионирование, валидация, сборка, публикация, release notes) — в `coin-cli`.
+
+## Структура
+
+```
+coin-lib/
+├── vars/
+│   └── coinPipeline.groovy      # единая точка входа
+├── src/org/coin/ci/
+│   ├── Config.groovy            # минимальное чтение config.yaml для оркестрации
+│   ├── StackImages.groovy       # выбор образа агента из images.yaml
+│   └── PodTemplate.groovy       # генерация K8s pod spec
+└── resources/
+    └── images.yaml              # каталог: stack → образ агента → версия coin CLI
+```
+
+## Использование в проекте
 
 ```groovy
 @Library('coin-lib@1') _
@@ -10,41 +33,9 @@ Jenkins Shared Library для Coin CI.
 coinPipeline()
 ```
 
-## Параметры `coinPipeline`
+Конфигурация — в `.coin/config.yaml`.
 
-| Параметр | По умолчанию | Описание |
-|----------|--------------|----------|
-| `configPath` | `.coin/config.yaml` | Путь к конфигу |
-| `kubernetes` | `true` | K8s pod template |
-| `cloud` | — | Имя K8s cloud в Jenkins |
-| `prepareAgent` | любой агент | Label для stage Prepare (чтение config) |
+## Что НЕ добавлять в coin-lib
 
-## Ресурсы
-
-- `resources/images.yaml` — stack → Docker image (CI agent)
-- `resources/config.schema.json` — схема конфига
-- `resources/scripts/<stack>/` — стандартные сценарии test/build/publish
-- `resources/dockerfiles/<template>/` — managed Dockerfile templates
-- `resources/dockerignore/<template>/` — managed `.dockerignore` для build context
-
-Проект может расширить стандартные сценарии через `pipeline.<stage>.preCommands/postCommands`
-или полностью заменить stage через `pipeline.<stage>.commands`.
-
-## Версионирование
-
-Версия вычисляется в Coin (`Versioning`) и прокидывается в stage как:
-
-- `COIN_VERSION`
-- `COIN_VERSION_SOURCE`
-- `COIN_IMAGE_TAG`
-- `COIN_IMAGE_REF`
-
-Сборщики проектов (Gradle/Maven/uv/Go tooling) не управляют корпоративной версией.
-
-## Классы (`src/org/coin/ci/`)
-
-- `Config` — загрузка и валидация YAML
-- `Versioning` — единая корпоративная версия из Git/Jenkins
-- `StackImages` — выбор образа
-- `PodTemplate` — YAML pod для K8s
-- `StackExecutor` — stages Test / Build / Publish
+См. правило `.cursor/rules/coin-lib-scope.mdc`:
+любая полезная логика идёт в `coin-cli`, не в Groovy.

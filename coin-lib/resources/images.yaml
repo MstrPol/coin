@@ -1,5 +1,9 @@
 # Маппинг stack → образ для K8s dynamic agents.
 # Обновляйте digest после релиза образов (make -C coin-images push).
+# coinCli: версия coin CLI, встроенная в образ (должна быть >= minCoinCli).
+
+coinCli:
+  min: "0.1.0"          # минимальная совместимая версия CLI
 
 jnlp:
   image: jenkins/inbound-agent:3327.v868139a_d00e0-8
@@ -9,31 +13,37 @@ stacks:
     "3.13":
       image: coin/ci-python-uv:3.13
       digest: ""
+      coinCli: "0.1.0"
 
   python-pip:
     "3.13":
       image: coin/ci-python-pip:3.13
       digest: ""
+      coinCli: "0.1.0"
 
   java-maven:
     "17":
       image: coin/ci-jvm-maven:17
       digest: ""
+      coinCli: "0.1.0"
 
   java-gradle:
     "17":
       image: coin/ci-jvm-gradle:17
       digest: ""
+      coinCli: "0.1.0"
 
   go:
     "1.22":
       image: coin/ci-go:1.22
       digest: ""
+      coinCli: "0.1.0"
 
   node:
     "20":
       image: coin/ci-node:20
       digest: ""
+      coinCli: "0.1.0"
 
 tooling:
   image: coin/ci-tooling:latest

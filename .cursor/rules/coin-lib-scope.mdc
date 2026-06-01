@@ -1,0 +1,52 @@
+---
+description: Архитектурное правило: coin-lib — только оркестратор, вся логика — в coin-cli
+alwaysApply: true
+---
+
+# Граница coin-lib и coin-cli
+
+## Правило
+
+**Вся полезная логика пишется только в `coin-cli` (Go).**
+
+`coin-lib` (Groovy) выполняет ровно две задачи:
+1. **Подготовка динамического агента** — выбор K8s pod template, образа, ресурсов.
+2. **Подготовка credentials** — Jenkins Credentials binding перед вызовом `coin`.
+
+Всё остальное — вызов `coin` CLI:
+
+```groovy
+// ✅ ПРАВИЛЬНО — coin-lib
+stage('Test')    { sh 'coin run test' }
+stage('Build')   { sh 'coin run build' }
+stage('Publish') { withCredentials([...]) { sh 'coin run publish' } }
+```
+
+```groovy
+// ❌ НЕПРАВИЛЬНО — логика в Groovy
+stage('Build') {
+    def version = computeVersion()   // нельзя — это задача coin-cli
+    sh "docker build -t app:${version} ."
+}
+```
+
+## Что НЕЛЬЗЯ добавлять в coin-lib
+
+- Расчёт версий, тегов, image ref
+- Валидацию config.yaml
+- Рендер Dockerfile / .dockerignore
+- Запуск тестов, сборки, публикации напрямую (минуя `coin`)
+- Бизнес-логику release notes, bump-версии
+- Парсинг git-метаданных
+
+## Если что-то планируется добавить в coin-lib
+
+**Обязательно уведомить:** «Это нарушает правило coin-lib-scope. Логика должна идти в coin-cli.»
+
+Исключение возможно только если функциональность **технически невозможна вне Jenkins** (например, Jenkins plugin API, Credentials binding, parallel DSL). В этом случае:
+1. Пользователь осознанно подтверждает решение.
+2. Правило обновляется — добавляется новый разрешённый пункт с обоснованием.
+
+## Разрешённые исключения (актуализируется вручную)
+
+_Пока исключений нет._
