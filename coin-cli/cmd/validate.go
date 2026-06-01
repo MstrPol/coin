@@ -28,7 +28,7 @@ var validateCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("✓ config valid: project=%s stack=%s\n", cfg.Project.Name, cfg.Project.Stack)
+		fmt.Printf("✓ config valid: project=%s stack=%s\n", cfg.Project.Name, cfg.Agent.Stack)
 		return nil
 	},
 }

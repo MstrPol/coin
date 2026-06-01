@@ -26,7 +26,7 @@ func Render(cfg *config.Config) (string, error) {
 
 	templateName := cfg.Pipeline.Build.DockerfileTemplate
 	if templateName == "" {
-		templateName = cfg.Project.Stack
+		templateName = cfg.Agent.Stack
 	}
 
 	tmpl, err := embed.DockerfileTemplate(templateName)
@@ -48,18 +48,9 @@ func Render(cfg *config.Config) (string, error) {
 }
 
 func render(tmpl string, cfg *config.Config) string {
-	pythonVersion := cfg.Runtime["python"]
-	if pythonVersion == "" {
-		pythonVersion = "3.13"
-	}
-	javaVersion := cfg.Runtime["java"]
-	if javaVersion == "" {
-		javaVersion = "21"
-	}
-	goVersion := cfg.Runtime["go"]
-	if goVersion == "" {
-		goVersion = "1.22"
-	}
+	pythonVersion := cfg.RuntimeVersion("python", "3.13")
+	javaVersion := cfg.RuntimeVersion("java", "21")
+	goVersion := cfg.RuntimeVersion("go", "1.22")
 
 	port := "8080"
 	if cfg.Container.Port > 0 {

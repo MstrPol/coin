@@ -72,7 +72,7 @@ func (e *Executor) Run(stage string) error {
 func (e *Executor) runStandardScript(stage string, env []string) error {
 	scriptContent, err := embed.Script(e.cfg.Stack(), stage)
 	if err != nil {
-		return fmt.Errorf("no standard script for %s/%s: %w", e.cfg.Project.Stack, stage, err)
+		return fmt.Errorf("no standard script for %s/%s: %w", e.cfg.Stack(), stage, err)
 	}
 
 	tmp, err := os.CreateTemp("", "coin-*.sh")
