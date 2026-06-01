@@ -20,11 +20,17 @@ var releaseCmd = &cobra.Command{
 
 var releaseBumpCmd = &cobra.Command{
 	Use:   "bump",
-	Short: "Bump version tag on HEAD of current branch (patch|minor|major)",
+	Short: "Bump version tag on HEAD of current branch (patch|minor|major|rc)",
+	Long: `Создать и запушить следующий тег версии.
+
+  patch  — v1.4.1 → v1.4.2   (баг-фикс, ПСИ-фикс после финального релиза)
+  minor  — v1.4.x → v1.5.0   (новая фича)
+  major  — v1.x.x → v2.0.0   (breaking change)
+  rc     — v1.5.0-rc.1 → v1.5.0-rc.2   (итерация ПСИ; базовая версия берётся из --base)`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		bumpType, _ := cmd.Flags().GetString("type")
-		if bumpType != "patch" && bumpType != "minor" && bumpType != "major" {
-			return fmt.Errorf("--type must be patch, minor or major")
+		if bumpType != "patch" && bumpType != "minor" && bumpType != "major" && bumpType != "rc" {
+			return fmt.Errorf("--type должен быть patch, minor, major или rc")
 		}
 
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
@@ -37,7 +43,12 @@ var releaseBumpCmd = &cobra.Command{
 
 		prefix := cfg.TagPrefix()
 
-		// Найти последний релизный тег
+		// ── RC: отдельная ветка логики ───────────────────────────────────────
+		if bumpType == "rc" {
+			return bumpRC(cmd, prefix, dryRun)
+		}
+
+		// ── patch / minor / major ─────────────────────────────────────────────
 		latest, err := versioning.LatestReleaseTag(prefix, "")
 		if err != nil {
 			return err
@@ -45,7 +56,6 @@ var releaseBumpCmd = &cobra.Command{
 
 		var nextVersion string
 		if latest == "" {
-			// Первый релиз
 			switch bumpType {
 			case "major":
 				nextVersion = "1.0.0"
@@ -55,14 +65,20 @@ var releaseBumpCmd = &cobra.Command{
 				nextVersion = "0.0.1"
 			}
 		} else {
-			nextVersion, err = bump(strings.TrimPrefix(latest, prefix), bumpType)
+			// Для bump берём только финальные теги (без -rc.N)
+			baseVersion := strings.TrimPrefix(latest, prefix)
+			// Если последний тег — RC, используем его базу
+			if rcBase := rcBaseVersion(baseVersion); rcBase != "" {
+				baseVersion = rcBase
+			}
+			nextVersion, err = bump(baseVersion, bumpType)
 			if err != nil {
 				return err
 			}
 		}
 
 		nextTag := prefix + nextVersion
-		fmt.Printf("Предыдущий тег: %s\n", latest)
+		fmt.Printf("Предыдущий тег: %s\n", orNone(latest))
 		fmt.Printf("Следующий тег:  %s\n", nextTag)
 
 		if dryRun {
@@ -70,7 +86,6 @@ var releaseBumpCmd = &cobra.Command{
 			return nil
 		}
 
-		// Создать и запушить тег
 		if err := gitTag(nextTag); err != nil {
 			return fmt.Errorf("не удалось создать тег %s: %w", nextTag, err)
 		}
@@ -79,10 +94,58 @@ var releaseBumpCmd = &cobra.Command{
 	},
 }
 
+// bumpRC создаёт следующий release candidate для заданной базовой версии.
+// Базовая версия берётся из --base (например 1.5.0), или вычисляется из последнего тега.
+func bumpRC(cmd *cobra.Command, prefix string, dryRun bool) error {
+	base, _ := cmd.Flags().GetString("base")
+
+	if base == "" {
+		// Вычислить базу: bump minor от последнего финального тега
+		latest, err := versioning.LatestReleaseTag(prefix, "")
+		if err != nil {
+			return err
+		}
+		if latest == "" {
+			base = "0.1.0"
+		} else {
+			raw := strings.TrimPrefix(latest, prefix)
+			if b := rcBaseVersion(raw); b != "" {
+				base = b
+			} else {
+				base, err = bump(raw, "minor")
+				if err != nil {
+					return err
+				}
+			}
+		}
+		fmt.Printf("База RC (вычислена): %s\n", base)
+	}
+
+	n, err := versioning.NextRCNumber(prefix, base)
+	if err != nil {
+		return err
+	}
+
+	nextTag := fmt.Sprintf("%s%s-rc.%d", prefix, base, n)
+	fmt.Printf("Следующий RC тег: %s\n", nextTag)
+
+	if dryRun {
+		fmt.Println("[dry-run] тег не создан")
+		return nil
+	}
+
+	if err := gitTag(nextTag); err != nil {
+		return fmt.Errorf("не удалось создать тег %s: %w", nextTag, err)
+	}
+	fmt.Printf("✓ тег %s создан и запушен\n", nextTag)
+	return nil
+}
+
 func init() {
-	releaseBumpCmd.Flags().String("type", "", "bump type: patch, minor or major (required)")
+	releaseBumpCmd.Flags().String("type", "", "bump type: patch, minor, major или rc (required)")
 	_ = releaseBumpCmd.MarkFlagRequired("type")
 	releaseBumpCmd.Flags().Bool("dry-run", false, "показать следующий тег без создания")
+	releaseBumpCmd.Flags().String("base", "", "базовая версия для RC (например 1.5.0); вычисляется автоматически если не задана")
 	releaseBumpCmd.Flags().String("config", config.DefaultPath, "path to .coin/config.yaml")
 	releaseCmd.AddCommand(releaseBumpCmd)
 }
@@ -122,4 +185,23 @@ func gitTag(tag string) error {
 		return err
 	}
 	return run("push", "origin", tag)
+}
+
+// rcBaseVersion возвращает базовую версию из RC-строки (например "1.5.0-rc.2" → "1.5.0").
+// Возвращает пустую строку если строка не является RC.
+var rcRe = regexp.MustCompile(`^(\d+\.\d+\.\d+)-rc\.\d+$`)
+
+func rcBaseVersion(version string) string {
+	m := rcRe.FindStringSubmatch(version)
+	if m == nil {
+		return ""
+	}
+	return m[1]
+}
+
+func orNone(s string) string {
+	if s == "" {
+		return "(нет тегов)"
+	}
+	return s
 }

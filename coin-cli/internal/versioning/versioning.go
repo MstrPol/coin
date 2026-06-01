@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/go-git/go-git/v5"
@@ -94,6 +95,38 @@ func Compute(tagPrefix string) (*Result, error) {
 		ImageTag: dockerTag(version),
 		Source:   fmt.Sprintf("branch:%s:%s", branch, sha),
 	}, nil
+}
+
+// NextRCNumber возвращает следующий номер release candidate для baseVersion.
+// Например, если уже есть v1.5.0-rc.1 и v1.5.0-rc.2, вернёт 3.
+func NextRCNumber(tagPrefix, baseVersion string) (int, error) {
+	repo, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: true})
+	if err != nil {
+		return 1, nil
+	}
+
+	pattern := regexp.MustCompile(
+		`^` + regexp.QuoteMeta(tagPrefix+baseVersion+"-rc.") + `(\d+)$`,
+	)
+
+	tags, err := repo.Tags()
+	if err != nil {
+		return 1, err
+	}
+
+	max := 0
+	_ = tags.ForEach(func(ref *plumbing.Reference) error {
+		m := pattern.FindStringSubmatch(ref.Name().Short())
+		if m == nil {
+			return nil
+		}
+		n, _ := strconv.Atoi(m[1])
+		if n > max {
+			max = n
+		}
+		return nil
+	})
+	return max + 1, nil
 }
 
 // LatestReleaseTag возвращает последний релизный тег, достижимый из HEAD,
