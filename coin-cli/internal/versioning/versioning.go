@@ -130,15 +130,20 @@ func NextRCNumber(tagPrefix, baseVersion string) (int, error) {
 }
 
 // LatestReleaseTag возвращает последний релизный тег, достижимый из HEAD,
-// с другим minor/major относительно currentMinor (используется в coinRelease).
+// с другим minor/major относительно excludeMinor (используется в coinRelease).
+//
+// Совместим с Вариантом 2: RC-теги (vX.Y.Z-rc.N) являются финальными артефактами,
+// поэтому функция ищет как чистые теги (v1.0.0), так и RC-теги (v1.0.0-rc.5).
+// При сравнении двух тегов одной версии (v1.0.0 и v1.0.0-rc.5) побеждает чистый тег.
 func LatestReleaseTag(tagPrefix, excludeMinor string) (string, error) {
 	repo, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: true})
 	if err != nil {
 		return "", fmt.Errorf("не git-репозиторий: %w", err)
 	}
 
+	// Матчим как чистые теги (v1.0.0), так и RC (v1.0.0-rc.5)
 	releasePattern := regexp.MustCompile(
-		`^` + regexp.QuoteMeta(tagPrefix) + `(\d+)\.(\d+)\.(\d+)$`,
+		`^` + regexp.QuoteMeta(tagPrefix) + `(\d+)\.(\d+)\.(\d+)(-rc\.(\d+))?$`,
 	)
 
 	tags, err := repo.Tags()
@@ -147,28 +152,67 @@ func LatestReleaseTag(tagPrefix, excludeMinor string) (string, error) {
 	}
 
 	var best string
-	var bestParsed [3]int
+	var bestParsed [4]int // maj, min, pat, rc (0 = чистый релиз → выше RC)
 	_ = tags.ForEach(func(ref *plumbing.Reference) error {
 		name := ref.Name().Short()
-		if !releasePattern.MatchString(name) {
+		m := releasePattern.FindStringSubmatch(name)
+		if m == nil {
 			return nil
 		}
 		// Пропускаем теги из того же minor-потока
 		if excludeMinor != "" && strings.HasPrefix(name, tagPrefix+excludeMinor+".") {
 			return nil
 		}
-		var maj, min, pat int
-		fmt.Sscanf(strings.TrimPrefix(name, tagPrefix), "%d.%d.%d", &maj, &min, &pat)
-		if best == "" ||
-			maj > bestParsed[0] ||
-			(maj == bestParsed[0] && min > bestParsed[1]) ||
-			(maj == bestParsed[0] && min == bestParsed[1] && pat > bestParsed[2]) {
+		maj, _ := strconv.Atoi(m[1])
+		min, _ := strconv.Atoi(m[2])
+		pat, _ := strconv.Atoi(m[3])
+		// rc = 0 означает чистый тег (выше любого RC), иначе номер RC
+		rc := 0
+		if m[5] != "" {
+			n, _ := strconv.Atoi(m[5])
+			rc = n
+		}
+		// rc=0 (чистый тег) считаем выше rc>0; для сравнения инвертируем:
+		// используем "maxRC - rc" чтобы меньший rc.N не вытеснял больший
+		parsed := [4]int{maj, min, pat, rc}
+		if best == "" || compareSemverRC(parsed, bestParsed) > 0 {
 			best = name
-			bestParsed = [3]int{maj, min, pat}
+			bestParsed = parsed
 		}
 		return nil
 	})
 	return best, nil
+}
+
+// compareSemverRC сравнивает [maj, min, pat, rc] где rc=0 означает финальный тег
+// (превосходит любой rc>0 той же версии).
+func compareSemverRC(a, b [4]int) int {
+	for i := 0; i < 3; i++ {
+		if a[i] != b[i] {
+			if a[i] > b[i] {
+				return 1
+			}
+			return -1
+		}
+	}
+	// Одинаковые maj.min.pat — сравниваем rc: 0 (финальный) > любой rc>0
+	aRC, bRC := a[3], b[3]
+	if aRC == 0 && bRC == 0 {
+		return 0
+	}
+	if aRC == 0 {
+		return 1 // финальный выше RC
+	}
+	if bRC == 0 {
+		return -1
+	}
+	if aRC > bRC {
+		return 1
+	}
+	if aRC < bRC {
+		return -1
+	}
+	return 0
 }
 
 func safeName(s string) string {

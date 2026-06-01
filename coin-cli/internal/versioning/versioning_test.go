@@ -270,6 +270,150 @@ func TestNextRCNumber_WithExisting(t *testing.T) {
 	}
 }
 
+// ── LatestReleaseTag ─────────────────────────────────────────────────────────
+
+func TestLatestReleaseTag_NoTags(t *testing.T) {
+	_, restore := initRepo(t)
+	defer restore()
+
+	got, err := LatestReleaseTag("v", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "" {
+		t.Errorf("expected empty, got %q", got)
+	}
+}
+
+func TestLatestReleaseTag_OnlyRCTags(t *testing.T) {
+	dir, restore := initRepo(t)
+	defer restore()
+
+	for _, tag := range []string{"v1.0.0-rc.1", "v1.0.0-rc.3", "v1.0.0-rc.2"} {
+		cmd := exec.Command("git", "tag", tag)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git tag %s: %v\n%s", tag, err, out)
+		}
+	}
+
+	got, err := LatestReleaseTag("v", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "v1.0.0-rc.3" {
+		t.Errorf("LatestReleaseTag = %q, want v1.0.0-rc.3", got)
+	}
+}
+
+func TestLatestReleaseTag_CleanTagWinsOverRC(t *testing.T) {
+	dir, restore := initRepo(t)
+	defer restore()
+
+	for _, tag := range []string{"v1.0.0-rc.5", "v1.0.0"} {
+		cmd := exec.Command("git", "tag", tag)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git tag %s: %v\n%s", tag, err, out)
+		}
+	}
+
+	got, err := LatestReleaseTag("v", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "v1.0.0" {
+		t.Errorf("LatestReleaseTag = %q, want v1.0.0 (clean beats RC)", got)
+	}
+}
+
+func TestLatestReleaseTag_PicksLatestAcrossSeries(t *testing.T) {
+	dir, restore := initRepo(t)
+	defer restore()
+
+	// Несколько серий — должен вернуть самую старшую
+	for _, tag := range []string{"v1.0.0-rc.2", "v1.1.0-rc.1", "v0.9.0-rc.3"} {
+		cmd := exec.Command("git", "tag", tag)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git tag %s: %v\n%s", tag, err, out)
+		}
+	}
+
+	got, err := LatestReleaseTag("v", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "v1.1.0-rc.1" {
+		t.Errorf("LatestReleaseTag = %q, want v1.1.0-rc.1", got)
+	}
+}
+
+func TestLatestReleaseTag_ExcludeMinor(t *testing.T) {
+	dir, restore := initRepo(t)
+	defer restore()
+
+	for _, tag := range []string{"v1.4.0-rc.2", "v1.5.0-rc.1", "v1.5.0-rc.3"} {
+		cmd := exec.Command("git", "tag", tag)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git tag %s: %v\n%s", tag, err, out)
+		}
+	}
+
+	// Исключаем серию 1.5 — должен вернуть предыдущую
+	got, err := LatestReleaseTag("v", "1.5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "v1.4.0-rc.2" {
+		t.Errorf("LatestReleaseTag(excludeMinor=1.5) = %q, want v1.4.0-rc.2", got)
+	}
+}
+
+func TestLatestReleaseTag_NonReleaseTagIgnored(t *testing.T) {
+	dir, restore := initRepo(t)
+	defer restore()
+
+	for _, tag := range []string{"latest", "v1.0.0-rc.1", "nightly"} {
+		cmd := exec.Command("git", "tag", tag)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git tag %s: %v\n%s", tag, err, out)
+		}
+	}
+
+	got, err := LatestReleaseTag("v", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "v1.0.0-rc.1" {
+		t.Errorf("LatestReleaseTag = %q, want v1.0.0-rc.1", got)
+	}
+}
+
+// ── compareSemverRC ──────────────────────────────────────────────────────────
+
+func TestCompareSemverRC(t *testing.T) {
+	cases := []struct {
+		a, b [4]int
+		want int
+	}{
+		{[4]int{1, 1, 0, 0}, [4]int{1, 0, 0, 0}, 1},   // 1.1.0 > 1.0.0
+		{[4]int{1, 0, 0, 0}, [4]int{1, 0, 0, 5}, 1},   // 1.0.0 (финал) > 1.0.0-rc.5
+		{[4]int{1, 0, 0, 3}, [4]int{1, 0, 0, 1}, 1},   // rc.3 > rc.1
+		{[4]int{1, 0, 0, 1}, [4]int{1, 0, 0, 3}, -1},  // rc.1 < rc.3
+		{[4]int{1, 0, 0, 0}, [4]int{1, 0, 0, 0}, 0},   // одинаковые финальные
+		{[4]int{1, 0, 0, 2}, [4]int{1, 0, 0, 2}, 0},   // одинаковые RC
+	}
+	for _, c := range cases {
+		got := compareSemverRC(c.a, c.b)
+		if got != c.want {
+			t.Errorf("compareSemverRC(%v, %v) = %d, want %d", c.a, c.b, got, c.want)
+		}
+	}
+}
+
 func TestNextRCNumber_DifferentBaseIgnored(t *testing.T) {
 	dir, restore := initRepo(t)
 	defer restore()
