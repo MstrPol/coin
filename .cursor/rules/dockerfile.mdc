@@ -1,0 +1,18 @@
+---
+description: >-
+  При работе с Dockerfile и .dockerignore следовать skill dockerfile
+  (best practices Habr + конвенции Coin CI).
+globs: "**/Dockerfile*,**/.dockerignore,**/dockerfiles/**"
+alwaysApply: false
+---
+
+# Dockerfile в репозитории Coin
+
+Перед созданием или правкой Dockerfile / `.dockerignore`:
+
+1. **Прочитай и примени** skill [.cursor/skills/dockerfile/SKILL.md](../skills/dockerfile/SKILL.md).
+2. Различай **stack-образы** (`coin-images/`) и **managed runtime** (`coin-lib/resources/dockerfiles/`).
+3. Не добавляй Dockerfile в `coin-templates/` сервисов как артефакт для prod — runtime централизован в Coin (см. `docs/responsibilities.md`).
+4. Сверяйся с существующим Dockerfile того же стека в репозитории.
+
+При запросе «создай Dockerfile» без уточнения — уточни контекст (agent image vs managed template vs локальный эксперимент).
