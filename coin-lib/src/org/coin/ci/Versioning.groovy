@@ -22,9 +22,20 @@ class Versioning implements Serializable {
         def sha = (steps.env.GIT_COMMIT ?: 'local').take(8)
         def build = steps.env.BUILD_NUMBER ?: '0'
 
+        // Релизную версию даёт только тег vX.Y.Z (единственный источник релиза).
         if (tag && tag ==~ /^${java.util.regex.Pattern.quote(tagPrefix)}\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$/) {
             def version = tag.replaceFirst("^${java.util.regex.Pattern.quote(tagPrefix)}", '')
             return [version: version, imageTag: dockerTag(version), source: "tag:${tag}"]
+        }
+
+        // Стабилизационная ветка release/<JIRA-ID> → release candidate.
+        if (branch ==~ /^release\/.+/) {
+            def safeId = branch.replaceFirst('^release/', '')
+                .toLowerCase()
+                .replaceAll(/[^0-9a-z.-]+/, '-')
+                .replaceAll(/^-+|-+$/, '')
+            def version = "0.0.0-rc.${safeId}.${build}+${sha}"
+            return [version: version, imageTag: dockerTag(version), source: "release-branch:${branch}"]
         }
 
         def safeBranch = branch

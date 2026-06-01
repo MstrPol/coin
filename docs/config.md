@@ -83,10 +83,12 @@ pipeline:
 
 Версию ведёт **Coin**, а не сборщик проекта. В проектах не настраиваем версионирование через Gradle plugins, Nebula, Maven release plugins, `uv version` и аналогичные механизмы.
 
-Правила по умолчанию:
+Правила по умолчанию (полностью — в [docs/branching.md](branching.md)):
 
 - tag `v1.2.3` → `COIN_VERSION=1.2.3`, image tag `1.2.3`;
-- обычная ветка → `COIN_VERSION=0.0.0-<branch>.<build>+<shortSha>`, image tag без `+`.
+- ветка `release/1.4` → `COIN_VERSION=1.4.0-rc.<build>+<shortSha>` (release candidate);
+- `main` → `COIN_VERSION=0.0.0-main.<build>+<shortSha>` (snapshot);
+- прочие ветки → `COIN_VERSION=0.0.0-<branch>.<build>+<shortSha>`, image tag без `+`.
 
 Coin прокидывает:
 
