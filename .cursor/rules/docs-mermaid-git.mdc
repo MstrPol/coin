@@ -1,0 +1,42 @@
+---
+description: В документации для диаграмм ветвления всегда использовать mermaid gitGraph
+globs: docs/**/*.md
+alwaysApply: false
+---
+
+# Диаграммы ветвления — только mermaid gitGraph
+
+При описании Git-flow, жизненного цикла веток, cherry-pick и релизных потоков **всегда** используй mermaid gitGraph.
+
+## ❌ Нельзя — ASCII-арт
+
+```
+main:  ──●──●──●──
+          1  2  3
+release:  └── rc-1 ── rc-2 → ПРОД
+```
+
+## ✅ Нужно — mermaid gitGraph
+
+```mermaid
+gitGraph
+  commit id: "feat-1"
+  commit id: "feat-2"
+  commit id: "feat-3"
+  branch release/PROJ-404
+  commit id: "rc-1" tag: "v1.5.0-PROJ-404-rc-1"
+  commit id: "rc-2" tag: "v1.5.0-PROJ-404-rc-2 → ПРОД"
+  checkout main
+  cherry-pick id: "fix-1"
+```
+
+## Шпаргалка синтаксиса
+
+- `commit id: "..."` — коммит с меткой
+- `commit id: "..." tag: "..."` — коммит с Git-тегом
+- `branch <name>` — создать и переключиться на ветку
+- `checkout <name>` — переключиться на существующую ветку
+- `cherry-pick id: "..."` — cherry-pick конкретного коммита (id должен быть объявлен ранее)
+- `merge <name>` — merge ветки
+
+Чисто текстовые последовательности (версии, команды) оформляй code-блоком без mermaid — они не являются диаграммами ветвления.
