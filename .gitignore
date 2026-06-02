@@ -10,6 +10,7 @@ dist/
 .idea/
 .vscode/
 *.swp
+.cursorrules
 
 # OS
 .DS_Store
