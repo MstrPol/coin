@@ -46,5 +46,4 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(dockerfileCmd)
-	rootCmd.AddCommand(releaseCmd)
 }

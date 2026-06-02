@@ -8,275 +8,299 @@ import (
 	"testing"
 )
 
-// ── чистые функции ──────────────────────────────────────────────────────────
+// ── helpers ───────────────────────────────────────────────────────────────────
 
-func TestSafeName(t *testing.T) {
-	cases := []struct {
-		in   string
-		want string
-	}{
-		{"feature/PROJ-101", "feature-proj-101"},
-		{"Feature/My Cool Branch", "feature-my-cool-branch"},
-		{"release/PROJ-404", "release-proj-404"},
-		{"main", "main"},
-		{"---foo---", "foo"},
-		{"UPPER_CASE", "upper-case"},
-		{"already-safe.v2", "already-safe.v2"},
-	}
-	for _, c := range cases {
-		got := safeName(c.in)
-		if got != c.want {
-			t.Errorf("safeName(%q) = %q, want %q", c.in, got, c.want)
-		}
-	}
-}
-
-func TestDockerTag(t *testing.T) {
-	cases := []struct {
-		in   string
-		want string
-	}{
-		{"1.2.3", "1.2.3"},
-		{"0.0.0-main.7+abc1234", "0.0.0-main.7-abc1234"},
-		{"0.0.0-feature-proj-101.3+def5678", "0.0.0-feature-proj-101.3-def5678"},
-		{"1.5.0-rc.2", "1.5.0-rc.2"},
-	}
-	for _, c := range cases {
-		got := dockerTag(c.in)
-		if got != c.want {
-			t.Errorf("dockerTag(%q) = %q, want %q", c.in, got, c.want)
-		}
-	}
-}
-
-// ── тесты с git-репозиторием ─────────────────────────────────────────────────
-
-// initRepo создаёт временный git-репозиторий и переключает CWD в него.
-// Возвращает restore-функцию — обязательно вызывать через defer.
 func initRepo(t *testing.T) (dir string, restore func()) {
 	t.Helper()
-
 	dir = t.TempDir()
-	oldDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
+	oldDir, _ := os.Getwd()
 
 	run := func(args ...string) {
 		t.Helper()
 		cmd := exec.Command("git", args...)
 		cmd.Dir = dir
-		out, err := cmd.CombinedOutput()
-		if err != nil {
+		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v\n%s", args, err, out)
 		}
 	}
-
 	run("init")
 	run("config", "user.email", "ci@coin.local")
 	run("config", "user.name", "Coin CI")
 
-	// начальный коммит
 	f := filepath.Join(dir, "README.md")
-	if err := os.WriteFile(f, []byte("# test"), 0644); err != nil {
-		t.Fatal(err)
-	}
+	_ = os.WriteFile(f, []byte("# test"), 0644)
 	run("add", ".")
 	run("commit", "-m", "init")
 
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
-
-	restore = func() {
-		_ = os.Chdir(oldDir)
-	}
+	_ = os.Chdir(dir)
+	restore = func() { _ = os.Chdir(oldDir) }
 	return dir, restore
 }
 
-func TestCompute_NoRepo(t *testing.T) {
+func gitTagIn(t *testing.T, dir, tag string) {
+	t.Helper()
+	cmd := exec.Command("git", "tag", tag)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git tag %s: %v\n%s", tag, err, out)
+	}
+}
+
+func checkoutBranch(t *testing.T, dir, branch string) {
+	t.Helper()
+	cmd := exec.Command("git", "checkout", "-b", branch)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git checkout -b %s: %v\n%s", branch, err, out)
+	}
+}
+
+func addCommit(t *testing.T, dir, msg string) {
+	t.Helper()
+	f := filepath.Join(dir, msg+".txt")
+	_ = os.WriteFile(f, []byte(msg), 0644)
+	run := func(args ...string) {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	run("add", ".")
+	run("commit", "-m", msg)
+}
+
+// ── BranchJiraID ─────────────────────────────────────────────────────────────
+
+func TestBranchJiraID(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"release/PROJ-404", "PROJ-404"},
+		{"feature/PROJ-101", "PROJ-101"},
+		{"feature/PROJ-101-login", "PROJ-101"},
+		{"bugfix/ABC-202-fix-null", "ABC-202"},
+		{"main", "main"},
+		{"master", "master"},
+		{"detached", "detached"},
+	}
+	for _, c := range cases {
+		if got := BranchJiraID(c.in); got != c.want {
+			t.Errorf("BranchJiraID(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+// ── CurrentVersion ────────────────────────────────────────────────────────────
+
+func TestCurrentVersion_NoTags(t *testing.T) {
+	_, restore := initRepo(t)
+	defer restore()
+
+	v, err := CurrentVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v != "0.0.1" {
+		t.Errorf("CurrentVersion() = %q, want 0.0.1", v)
+	}
+}
+
+func TestCurrentVersion_NoRepo(t *testing.T) {
 	dir := t.TempDir()
 	old, _ := os.Getwd()
 	defer func() { _ = os.Chdir(old) }()
 	_ = os.Chdir(dir)
 
-	r, err := Compute("v")
+	v, err := CurrentVersion()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Source != "local" {
-		t.Errorf("source = %q, want local", r.Source)
-	}
-	if !strings.HasPrefix(r.Version, "0.0.0-local.") {
-		t.Errorf("version = %q, want 0.0.0-local.*", r.Version)
+	if v != "0.0.1" {
+		t.Errorf("CurrentVersion() = %q, want 0.0.1", v)
 	}
 }
 
-func TestCompute_Branch(t *testing.T) {
+func TestCurrentVersion_HeadTagged(t *testing.T) {
 	dir, restore := initRepo(t)
 	defer restore()
+	gitTagIn(t, dir, "v1.5.0-PROJ-404-rc-2")
 
-	// Создаём реальную ветку — ветка берётся из git HEAD, не из BRANCH_NAME
-	cmd := exec.Command("git", "checkout", "-b", "feature/PROJ-101")
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git checkout -b: %v\n%s", err, out)
-	}
-
-	t.Setenv("BUILD_NUMBER", "42")
-
-	r, err := Compute("v")
+	v, err := CurrentVersion()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(r.Version, "0.0.0-feature-proj-101.42+") {
-		t.Errorf("version = %q, expected prefix 0.0.0-feature-proj-101.42+", r.Version)
-	}
-	if !strings.HasPrefix(r.Source, "branch:feature/PROJ-101:") {
-		t.Errorf("source = %q", r.Source)
-	}
-	// DockerTag не должен содержать '+'
-	if strings.Contains(r.ImageTag, "+") {
-		t.Errorf("imageTag %q contains '+'", r.ImageTag)
+	if v != "1.5.0-PROJ-404-rc-2" {
+		t.Errorf("CurrentVersion() = %q, want 1.5.0-PROJ-404-rc-2", v)
 	}
 }
 
-func TestCompute_ReleaseBranch(t *testing.T) {
+func TestCurrentVersion_LatestTag(t *testing.T) {
 	dir, restore := initRepo(t)
 	defer restore()
+	gitTagIn(t, dir, "v1.5.0-PROJ-404-rc-1")
+	addCommit(t, dir, "work")
+	gitTagIn(t, dir, "v1.5.0-PROJ-404-rc-2")
+	addCommit(t, dir, "more-work")
+	// HEAD is not tagged; latest tag is rc-2
 
-	cmd := exec.Command("git", "checkout", "-b", "release/PROJ-404")
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git checkout -b: %v\n%s", err, out)
-	}
-
-	t.Setenv("BUILD_NUMBER", "7")
-
-	r, err := Compute("v")
+	v, err := CurrentVersion()
 	if err != nil {
 		t.Fatal(err)
 	}
-	// код: safeName(strings.TrimPrefix("release/PROJ-404","release/")) → "proj-404"
-	if !strings.HasPrefix(r.Version, "0.0.0-rc.proj-404.7+") {
-		t.Errorf("version = %q, expected prefix 0.0.0-rc.proj-404.7+", r.Version)
-	}
-	if r.Source != "release-branch:release/PROJ-404" {
-		t.Errorf("source = %q", r.Source)
+	if v != "1.5.0-PROJ-404-rc-2" {
+		t.Errorf("CurrentVersion() = %q, want 1.5.0-PROJ-404-rc-2", v)
 	}
 }
 
-func TestCompute_ReleaseTag(t *testing.T) {
-	dir, restore := initRepo(t)
+// ── NextVersionTag ────────────────────────────────────────────────────────────
+
+func TestNextVersionTag_NewSeriesSnapshot(t *testing.T) {
+	_, restore := initRepo(t)
 	defer restore()
+	// No tags → base = 0.0.0, bump patch → 0.0.1, snapshot-1
 
-	// Ставим тег на HEAD
-	cmd := exec.Command("git", "tag", "v1.5.0")
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git tag: %v\n%s", err, out)
-	}
-
-	r, err := Compute("v")
+	tag, err := NextVersionTag("PROJ-101", "patch", "snapshot")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Version != "1.5.0" {
-		t.Errorf("version = %q, want 1.5.0", r.Version)
-	}
-	if r.ImageTag != "1.5.0" {
-		t.Errorf("imageTag = %q, want 1.5.0", r.ImageTag)
-	}
-	if r.Source != "tag:v1.5.0" {
-		t.Errorf("source = %q, want tag:v1.5.0", r.Source)
+	if tag != "v0.0.1-PROJ-101-snapshot-1" {
+		t.Errorf("NextVersionTag = %q, want v0.0.1-PROJ-101-snapshot-1", tag)
 	}
 }
 
-func TestCompute_RCTag(t *testing.T) {
-	dir, restore := initRepo(t)
-	defer restore()
-
-	cmd := exec.Command("git", "tag", "v1.5.0-rc.2")
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git tag: %v\n%s", err, out)
-	}
-
-	r, err := Compute("v")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if r.Version != "1.5.0-rc.2" {
-		t.Errorf("version = %q, want 1.5.0-rc.2", r.Version)
-	}
-	if r.Source != "tag:v1.5.0-rc.2" {
-		t.Errorf("source = %q", r.Source)
-	}
-}
-
-func TestCompute_NonReleaseTagIgnored(t *testing.T) {
-	dir, restore := initRepo(t)
-	defer restore()
-
-	// Тег без соответствующего формата — должен игнорироваться
-	cmd := exec.Command("git", "tag", "latest")
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git tag: %v\n%s", err, out)
-	}
-
-	t.Setenv("BRANCH_NAME", "main")
-	r, err := Compute("v")
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Должен вернуть snapshot, а не тег
-	if !strings.HasPrefix(r.Version, "0.0.0-main.") {
-		t.Errorf("version = %q, should be snapshot", r.Version)
-	}
-}
-
-func TestNextRCNumber_NoExisting(t *testing.T) {
+func TestNextVersionTag_NewSeriesMinor(t *testing.T) {
 	_, restore := initRepo(t)
 	defer restore()
 
-	n, err := NextRCNumber("v", "1.5.0")
+	tag, err := NextVersionTag("PROJ-101", "minor", "snapshot")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 1 {
-		t.Errorf("NextRCNumber = %d, want 1", n)
+	if tag != "v0.1.0-PROJ-101-snapshot-1" {
+		t.Errorf("NextVersionTag = %q, want v0.1.0-PROJ-101-snapshot-1", tag)
 	}
 }
 
-func TestNextRCNumber_WithExisting(t *testing.T) {
+func TestNextVersionTag_ContinueSnapshotSeries(t *testing.T) {
 	dir, restore := initRepo(t)
 	defer restore()
+	gitTagIn(t, dir, "v0.0.1-PROJ-101-snapshot-1")
+	gitTagIn(t, dir, "v0.0.1-PROJ-101-snapshot-2")
 
-	for _, tag := range []string{"v1.5.0-rc.1", "v1.5.0-rc.2"} {
-		cmd := exec.Command("git", "tag", tag)
-		cmd.Dir = dir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git tag %s: %v\n%s", tag, err, out)
-		}
-	}
-
-	n, err := NextRCNumber("v", "1.5.0")
+	tag, err := NextVersionTag("PROJ-101", "patch", "snapshot")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 3 {
-		t.Errorf("NextRCNumber = %d, want 3", n)
+	// Series v0.0.1-PROJ-101-snapshot-* exists with max N=2 → continue with N=3
+	if tag != "v0.0.1-PROJ-101-snapshot-3" {
+		t.Errorf("NextVersionTag = %q, want v0.0.1-PROJ-101-snapshot-3", tag)
 	}
 }
 
-// ── LatestReleaseTag ─────────────────────────────────────────────────────────
+func TestNextVersionTag_NewRCSeries(t *testing.T) {
+	dir, restore := initRepo(t)
+	defer restore()
+	// Already have a 1.5.0 snapshot series; first RC on release branch
+	gitTagIn(t, dir, "v1.5.0-PROJ-404-snapshot-3")
+
+	tag, err := NextVersionTag("PROJ-404", "patch", "rc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// No rc series for PROJ-404 yet → bump patch from 1.5.0 → 1.5.1, rc-1
+	if tag != "v1.5.1-PROJ-404-rc-1" {
+		t.Errorf("NextVersionTag = %q, want v1.5.1-PROJ-404-rc-1", tag)
+	}
+}
+
+func TestNextVersionTag_ContinueRCSeries(t *testing.T) {
+	dir, restore := initRepo(t)
+	defer restore()
+	gitTagIn(t, dir, "v1.5.0-PROJ-404-rc-1")
+	gitTagIn(t, dir, "v1.5.0-PROJ-404-rc-2")
+
+	// PSI iteration — bump level is irrelevant, series continues
+	tag, err := NextVersionTag("PROJ-404", "patch", "rc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tag != "v1.5.0-PROJ-404-rc-3" {
+		t.Errorf("NextVersionTag = %q, want v1.5.0-PROJ-404-rc-3", tag)
+	}
+}
+
+func TestNextVersionTag_RCNotAffectedBySnapshotSeries(t *testing.T) {
+	dir, restore := initRepo(t)
+	defer restore()
+	// snapshot series for PROJ-404, no RC yet
+	gitTagIn(t, dir, "v0.0.1-PROJ-404-snapshot-5")
+
+	tag, err := NextVersionTag("PROJ-404", "minor", "rc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// latest base = 0.0.1, bump minor → 0.1.0, rc-1
+	if tag != "v0.1.0-PROJ-404-rc-1" {
+		t.Errorf("NextVersionTag = %q, want v0.1.0-PROJ-404-rc-1", tag)
+	}
+}
+
+func TestNextVersionTag_OtherJiraIDNotAffected(t *testing.T) {
+	dir, restore := initRepo(t)
+	defer restore()
+	gitTagIn(t, dir, "v1.5.0-PROJ-999-rc-5")
+
+	tag, err := NextVersionTag("PROJ-404", "patch", "rc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// PROJ-999 should not affect PROJ-404 counter
+	if tag != "v1.5.1-PROJ-404-rc-1" {
+		t.Errorf("NextVersionTag = %q, want v1.5.1-PROJ-404-rc-1", tag)
+	}
+}
+
+// ── bump (pure function) ──────────────────────────────────────────────────────
+
+func TestBump(t *testing.T) {
+	cases := []struct {
+		in, level, want string
+	}{
+		{"1.0.0", "patch", "1.0.1"},
+		{"1.4.3", "patch", "1.4.4"},
+		{"1.0.0", "minor", "1.1.0"},
+		{"1.4.3", "minor", "1.5.0"},
+		{"1.0.0", "major", "2.0.0"},
+		{"1.4.3", "major", "2.0.0"},
+		{"0.0.0", "patch", "0.0.1"},
+		{"0.0.0", "minor", "0.1.0"},
+	}
+	for _, c := range cases {
+		got, err := bump(c.in, c.level)
+		if err != nil {
+			t.Errorf("bump(%q, %q): %v", c.in, c.level, err)
+			continue
+		}
+		if got != c.want {
+			t.Errorf("bump(%q, %q) = %q, want %q", c.in, c.level, got, c.want)
+		}
+	}
+}
+
+func TestBump_Invalid(t *testing.T) {
+	for _, in := range []string{"1.0", "v1.0.0", "latest", ""} {
+		if _, err := bump(in, "patch"); err == nil {
+			t.Errorf("bump(%q): expected error", in)
+		}
+	}
+}
+
+// ── LatestReleaseTag ──────────────────────────────────────────────────────────
 
 func TestLatestReleaseTag_NoTags(t *testing.T) {
 	_, restore := initRepo(t)
 	defer restore()
 
-	got, err := LatestReleaseTag("v", "")
+	got, err := LatestReleaseTag("")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,151 +309,65 @@ func TestLatestReleaseTag_NoTags(t *testing.T) {
 	}
 }
 
-func TestLatestReleaseTag_OnlyRCTags(t *testing.T) {
+func TestLatestReleaseTag_PicksLatest(t *testing.T) {
 	dir, restore := initRepo(t)
 	defer restore()
-
-	for _, tag := range []string{"v1.0.0-rc.1", "v1.0.0-rc.3", "v1.0.0-rc.2"} {
-		cmd := exec.Command("git", "tag", tag)
-		cmd.Dir = dir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git tag %s: %v\n%s", tag, err, out)
-		}
+	for _, tag := range []string{"v1.0.0-PROJ-100-rc-1", "v1.1.0-PROJ-200-rc-1", "v0.9.0-PROJ-50-rc-3"} {
+		gitTagIn(t, dir, tag)
 	}
 
-	got, err := LatestReleaseTag("v", "")
+	got, err := LatestReleaseTag("")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "v1.0.0-rc.3" {
-		t.Errorf("LatestReleaseTag = %q, want v1.0.0-rc.3", got)
+	if got != "v1.1.0-PROJ-200-rc-1" {
+		t.Errorf("LatestReleaseTag = %q, want v1.1.0-PROJ-200-rc-1", got)
 	}
 }
 
-func TestLatestReleaseTag_CleanTagWinsOverRC(t *testing.T) {
+func TestLatestReleaseTag_ExcludeBase(t *testing.T) {
 	dir, restore := initRepo(t)
 	defer restore()
-
-	for _, tag := range []string{"v1.0.0-rc.5", "v1.0.0"} {
-		cmd := exec.Command("git", "tag", tag)
-		cmd.Dir = dir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git tag %s: %v\n%s", tag, err, out)
-		}
+	for _, tag := range []string{"v1.4.0-PROJ-300-rc-2", "v1.5.0-PROJ-404-rc-1", "v1.5.0-PROJ-404-rc-3"} {
+		gitTagIn(t, dir, tag)
 	}
 
-	got, err := LatestReleaseTag("v", "")
+	got, err := LatestReleaseTag("1.5.0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "v1.0.0" {
-		t.Errorf("LatestReleaseTag = %q, want v1.0.0 (clean beats RC)", got)
+	if got != "v1.4.0-PROJ-300-rc-2" {
+		t.Errorf("LatestReleaseTag(exclude=1.5.0) = %q, want v1.4.0-PROJ-300-rc-2", got)
 	}
 }
 
-func TestLatestReleaseTag_PicksLatestAcrossSeries(t *testing.T) {
-	dir, restore := initRepo(t)
-	defer restore()
+// ── safeName ─────────────────────────────────────────────────────────────────
 
-	// Несколько серий — должен вернуть самую старшую
-	for _, tag := range []string{"v1.0.0-rc.2", "v1.1.0-rc.1", "v0.9.0-rc.3"} {
-		cmd := exec.Command("git", "tag", tag)
-		cmd.Dir = dir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git tag %s: %v\n%s", tag, err, out)
-		}
-	}
-
-	got, err := LatestReleaseTag("v", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != "v1.1.0-rc.1" {
-		t.Errorf("LatestReleaseTag = %q, want v1.1.0-rc.1", got)
-	}
-}
-
-func TestLatestReleaseTag_ExcludeMinor(t *testing.T) {
-	dir, restore := initRepo(t)
-	defer restore()
-
-	for _, tag := range []string{"v1.4.0-rc.2", "v1.5.0-rc.1", "v1.5.0-rc.3"} {
-		cmd := exec.Command("git", "tag", tag)
-		cmd.Dir = dir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git tag %s: %v\n%s", tag, err, out)
-		}
-	}
-
-	// Исключаем серию 1.5 — должен вернуть предыдущую
-	got, err := LatestReleaseTag("v", "1.5")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != "v1.4.0-rc.2" {
-		t.Errorf("LatestReleaseTag(excludeMinor=1.5) = %q, want v1.4.0-rc.2", got)
-	}
-}
-
-func TestLatestReleaseTag_NonReleaseTagIgnored(t *testing.T) {
-	dir, restore := initRepo(t)
-	defer restore()
-
-	for _, tag := range []string{"latest", "v1.0.0-rc.1", "nightly"} {
-		cmd := exec.Command("git", "tag", tag)
-		cmd.Dir = dir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git tag %s: %v\n%s", tag, err, out)
-		}
-	}
-
-	got, err := LatestReleaseTag("v", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != "v1.0.0-rc.1" {
-		t.Errorf("LatestReleaseTag = %q, want v1.0.0-rc.1", got)
-	}
-}
-
-// ── compareSemverRC ──────────────────────────────────────────────────────────
-
-func TestCompareSemverRC(t *testing.T) {
-	cases := []struct {
-		a, b [4]int
-		want int
-	}{
-		{[4]int{1, 1, 0, 0}, [4]int{1, 0, 0, 0}, 1},   // 1.1.0 > 1.0.0
-		{[4]int{1, 0, 0, 0}, [4]int{1, 0, 0, 5}, 1},   // 1.0.0 (финал) > 1.0.0-rc.5
-		{[4]int{1, 0, 0, 3}, [4]int{1, 0, 0, 1}, 1},   // rc.3 > rc.1
-		{[4]int{1, 0, 0, 1}, [4]int{1, 0, 0, 3}, -1},  // rc.1 < rc.3
-		{[4]int{1, 0, 0, 0}, [4]int{1, 0, 0, 0}, 0},   // одинаковые финальные
-		{[4]int{1, 0, 0, 2}, [4]int{1, 0, 0, 2}, 0},   // одинаковые RC
+func TestSafeName(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"PROJ-101", "proj-101"},
+		{"Feature/My Cool Branch", "feature-my-cool-branch"},
+		{"main", "main"},
+		{"---foo---", "foo"},
 	}
 	for _, c := range cases {
-		got := compareSemverRC(c.a, c.b)
-		if got != c.want {
-			t.Errorf("compareSemverRC(%v, %v) = %d, want %d", c.a, c.b, got, c.want)
+		if got := safeName(c.in); got != c.want {
+			t.Errorf("safeName(%q) = %q, want %q", c.in, got, c.want)
 		}
 	}
 }
 
-func TestNextRCNumber_DifferentBaseIgnored(t *testing.T) {
-	dir, restore := initRepo(t)
-	defer restore()
+// ── dockerTag ────────────────────────────────────────────────────────────────
 
-	// Теги другой базовой версии не должны влиять на счётчик
-	cmd := exec.Command("git", "tag", "v1.4.0-rc.5")
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git tag: %v\n%s", err, out)
+func TestDockerTag(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"1.2.3", "1.2.3"},
+		{"1.5.0-PROJ-404-rc-2", "1.5.0-PROJ-404-rc-2"},
+		{"0.0.0-PROJ-101-snapshot-3", "0.0.0-PROJ-101-snapshot-3"},
 	}
-
-	n, err := NextRCNumber("v", "1.5.0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 1 {
-		t.Errorf("NextRCNumber = %d, want 1 (should ignore v1.4.0-rc.5)", n)
+	for _, c := range cases {
+		if got := dockerTag(c.in); !strings.EqualFold(got, c.want) {
+			t.Errorf("dockerTag(%q) = %q, want %q", c.in, got, c.want)
+		}
 	}
 }

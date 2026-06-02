@@ -178,24 +178,52 @@ go clean -testcache && go test ./...
 После `go build -o coin .` (или через `go run .`):
 
 ```
-coin validate                           Проверить .coin/config.yaml
-coin version                            Вычислить COIN_VERSION из git
-coin run test                           Запустить стадию тестирования
-coin run build                          Запустить стадию сборки
-coin run publish                        Запустить стадию публикации
-coin dockerfile render                  Сгенерировать .coin/generated/Dockerfile
-coin release bump --type patch          Создать тег следующего patch-релиза
-coin release bump --type minor          Создать тег следующего minor-релиза
-coin release bump --type major          Создать тег следующего major-релиза
-coin release bump --type rc             Создать следующий release candidate тег
-coin release bump --type patch --dry-run  Показать тег без создания
+coin validate                                   Проверить .coin/config.yaml
+coin version                                    Показать текущую версию
+coin version bump patch|minor|major             Создать следующий snapshot-тег
+coin version bump patch|minor|major --type rc   Создать следующий RC-тег (только release/*)
+coin version bump patch --dry-run               Показать тег без создания
+coin run test                                   Запустить стадию тестирования
+coin run build                                  Запустить стадию сборки
+coin run publish                                Запустить стадию публикации
+coin dockerfile render                          Сгенерировать .coin/generated/Dockerfile
 ```
 
-Флаги, общие для большинства команд:
+### `coin version`
+
+Выводит последнюю версию из git-тегов. Нет тегов — `0.0.1`.
+
+```bash
+$ coin version
+1.5.0-PROJ-404-rc-2          # HEAD помечен RC-тегом
+0.0.1-PROJ-101-snapshot-2    # последний snapshot в репо
+0.0.1                        # тегов нет (новый проект)
+```
+
+Используется в CI: `COIN_VERSION=$(coin version)`
+
+### `coin version bump`
+
+Создаёт следующий тег и пушит. По умолчанию `--type snapshot`.
+
+```bash
+coin version bump patch                  # → v0.0.1-PROJ-101-snapshot-1 (новая серия)
+coin version bump patch                  # → v0.0.1-PROJ-101-snapshot-2 (продолжение)
+coin version bump minor --type rc        # → v0.1.0-PROJ-404-rc-1 (только release/*)
+coin version bump minor --type rc        # → v0.1.0-PROJ-404-rc-2 (итерация ПСИ)
+coin version bump patch --dry-run        # показать тег без создания
+```
+
+Логика выбора базовой версии:
+- Серия для текущего (JIRA-ID + тип) уже есть → продолжить (same base, N+1).
+- Серии нет → взять последний base из репо + bump → N=1.
+
+Флаги:
 
 ```
---config <path>   Путь к config.yaml (по умолчанию: .coin/config.yaml)
---dry-run         Показать что будет сделано, не делая этого (только для release bump)
+--type <snapshot|rc>   Тип тега (по умолчанию: snapshot)
+--dry-run              Показать тег без создания
+--config <path>        Путь к config.yaml (по умолчанию: .coin/config.yaml)
 ```
 
 ---
@@ -211,11 +239,10 @@ coin-cli/
 ├── cmd/                           Cobra-команды (то, что вызывает пользователь)
 │   ├── root.go                    Корневая команда `coin`
 │   ├── validate.go                `coin validate`
-│   ├── version.go                 `coin version`
+│   ├── version.go                 `coin version` — вычисление версии и RC-тегирование
+│   ├── version_test.go            Тесты вспомогательных функций
 │   ├── run.go                     `coin run <stage>`
-│   ├── dockerfile.go              `coin dockerfile render`
-│   ├── release.go                 `coin release bump`
-│   └── release_test.go            Тесты чистых функций release-логики
+│   └── dockerfile.go              `coin dockerfile render`
 │
 ├── internal/                      Внутренняя логика (недоступна снаружи модуля)
 │   ├── config/

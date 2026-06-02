@@ -32,12 +32,48 @@ Jenkins **не вычисляет** версии, **не рендерит** Dock
 ### Команды
 
 ```
-coin validate                               # валидация .coin/config.yaml
-coin version                                # вычислить COIN_VERSION из git
-coin run test|build|publish                 # запустить стандартную стадию
-coin dockerfile render                      # сгенерировать managed Dockerfile
-coin release bump --type patch|minor|major  # поднять тег и запушить
+coin validate                                  # валидация .coin/config.yaml
+coin version                                   # показать текущую версию (read-only)
+coin version bump patch|minor|major            # создать следующий snapshot-тег
+coin version bump patch|minor|major --type rc  # создать следующий RC-тег (только release/*)
+coin version bump patch --dry-run              # показать тег без создания
+coin run test|build|publish                    # запустить стандартную стадию
+coin dockerfile render                         # сгенерировать managed Dockerfile
 ```
+
+#### `coin version` — read-only
+
+Выводит последнюю версию из git-тегов. Нет тегов → `0.0.1`.
+
+```bash
+$ coin version
+1.5.0-PROJ-404-rc-2          # HEAD помечен RC-тегом
+0.0.1-PROJ-101-snapshot-3    # последний snapshot-тег в репо
+0.0.1                        # тегов нет (новый проект)
+```
+
+Используется в CI для инъекции версии в сборку:
+
+```groovy
+stage('Build') {
+    sh 'COIN_VERSION=$(coin version) coin run build'
+}
+```
+
+#### `coin version bump` — создание тега
+
+Вычисляет и создаёт следующий тег. По умолчанию `--type snapshot`.
+
+```bash
+coin version bump patch            # → v0.0.1-PROJ-101-snapshot-1 (новая серия)
+coin version bump patch            # → v0.0.1-PROJ-101-snapshot-2 (продолжение серии)
+coin version bump minor --type rc  # → v0.1.0-PROJ-404-rc-1 (только на release/*)
+coin version bump minor --type rc  # → v0.1.0-PROJ-404-rc-2 (итерация ПСИ)
+```
+
+Логика выбора базовой версии:
+- Для данного (JIRA-ID, тип) уже есть серия → продолжить её (same base, N+1).
+- Нет серии → взять последний base из любых тегов, применить bump, N=1.
 
 ### Как попадает в образ агента
 
@@ -54,7 +90,7 @@ coin-cli CI  →  Go build  →  coin_linux_amd64  →  Nexus/Artifactory
 
 ```bash
 coin validate        # проверить config.yaml
-coin version         # посмотреть что будет COIN_VERSION
+coin version         # посмотреть что будет COIN_VERSION на текущей ветке
 coin run test        # запустить тесты локально как в CI
 ```
 
@@ -63,11 +99,18 @@ coin run test        # запустить тесты локально как в 
 `coinPipeline.groovy` (целевое состояние):
 
 ```groovy
+// Стандартный пайплайн (feature/bugfix/release ветки):
 stage('Validate') { sh 'coin validate' }
 stage('Test')     { sh 'coin run test' }
-stage('Build')    { sh 'coin run build' }
+stage('Build')    { sh 'COIN_VERSION=$(coin version) coin run build' }
 stage('Publish')  {
-    withCredentials([...]) { sh 'coin run publish' }
+    withCredentials([...]) { sh 'COIN_VERSION=$(coin version) coin run publish' }
+}
+
+// coinRelease job (только release/* → создать RC-тег):
+stage('Tag RC') {
+    sh 'coin version bump ${BUMP_LEVEL} --type rc'
+    // BUMP_LEVEL = patch | minor | major — параметр Jenkins job
 }
 ```
 

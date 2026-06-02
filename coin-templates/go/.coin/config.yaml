@@ -3,9 +3,6 @@ version: 1
 coin:
   template: go
   templateVersion: "1.0.0"
-  versioning:
-    mode: corporate
-    tagPrefix: "v"
 
 # ── Jenkins читает только эту секцию ────────────────────────────────────────
 agent:

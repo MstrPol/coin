@@ -32,13 +32,7 @@ type Agent struct {
 
 type CoinMeta struct {
 	Template        string     `yaml:"template"`
-	TemplateVersion string     `yaml:"templateVersion"`
-	Versioning      Versioning `yaml:"versioning"`
-}
-
-type Versioning struct {
-	Mode      string `yaml:"mode"`
-	TagPrefix string `yaml:"tagPrefix"`
+	TemplateVersion string `yaml:"templateVersion"`
 }
 
 type Project struct {
@@ -130,13 +124,6 @@ func (cfg *Config) RuntimeVersion(key, defaultVersion string) string {
 
 func (s *Stage) IsEnabled() bool {
 	return s.Enabled == nil || *s.Enabled
-}
-
-func (cfg *Config) TagPrefix() string {
-	if cfg.Coin.Versioning.TagPrefix != "" {
-		return cfg.Coin.Versioning.TagPrefix
-	}
-	return "v"
 }
 
 func (cfg *Config) BuildTarget() string {

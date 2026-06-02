@@ -22,7 +22,7 @@ func New(cfg *config.Config) *Executor {
 // Run выполняет stage: preCommands → standard script → postCommands.
 // Если в config.yaml задан commands — заменяет standard script.
 func (e *Executor) Run(stage string) error {
-	ver, err := versioning.Compute(e.cfg.TagPrefix())
+	ver, err := versioning.Compute("")
 	if err != nil {
 		return err
 	}

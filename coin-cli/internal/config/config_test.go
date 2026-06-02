@@ -22,9 +22,6 @@ version: 1
 coin:
   template: python-uv
   templateVersion: "1.0.0"
-  versioning:
-    mode: corporate
-    tagPrefix: "v"
 
 agent:
   stack: python-uv
@@ -62,15 +59,12 @@ func TestLoad_Valid(t *testing.T) {
 	if cfg.Agent.PublishRegistry != "nexus-docker" {
 		t.Errorf("agent.publishRegistry = %q, want nexus-docker", cfg.Agent.PublishRegistry)
 	}
-	if cfg.TagPrefix() != "v" {
-		t.Errorf("TagPrefix = %q, want v", cfg.TagPrefix())
-	}
 	if cfg.BuildTarget() != "container" {
 		t.Errorf("BuildTarget = %q, want container", cfg.BuildTarget())
 	}
 }
 
-func TestLoad_DefaultTagPrefix(t *testing.T) {
+func TestLoad_DefaultBuildTarget(t *testing.T) {
 	path := writeConfig(t, `
 version: 1
 agent:
@@ -81,9 +75,6 @@ project:
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if cfg.TagPrefix() != "v" {
-		t.Errorf("default TagPrefix = %q, want v", cfg.TagPrefix())
 	}
 	if cfg.BuildTarget() != "package" {
 		t.Errorf("default BuildTarget = %q, want package", cfg.BuildTarget())
