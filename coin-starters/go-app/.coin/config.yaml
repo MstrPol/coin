@@ -1,0 +1,22 @@
+version: 1
+
+coin:
+  template: go-app
+  templateVersion: v1
+
+jenkins:
+  credentials:
+    docker: nexus-docker
+    qgm: qgm-svc-account
+
+project:
+  name: my-service
+  groupId: com.example.team
+  repository: Nexus_PROD
+
+container:
+  port: 8080
+  command: ["/app/app"]
+
+rn:
+  serviceUrl: https://qgm.example.com

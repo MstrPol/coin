@@ -11,8 +11,8 @@ alwaysApply: false
 Перед созданием или правкой Dockerfile / `.dockerignore`:
 
 1. **Прочитай и примени** skill [.cursor/skills/dockerfile/SKILL.md](../skills/dockerfile/SKILL.md).
-2. Различай **stack-образы** (`coin-images/`) и **managed runtime** (`coin-lib/resources/dockerfiles/`).
-3. Не добавляй Dockerfile в `coin-templates/` сервисов как артефакт для prod — runtime централизован в Coin (см. `docs/responsibilities.md`).
+2. Различай **образы Jenkins dynamic agents** (`coin-jenkins-agents/`) и **managed runtime приложений** (`coin-golden-paths/*-app/vN/Dockerfile`).
+3. Не добавляй Dockerfile в репозитории сервисов — managed runtime живёт в `coin-golden-paths/*-app/vN/` (см. `docs/responsibilities.md`).
 4. Сверяйся с существующим Dockerfile того же стека в репозитории.
 
 При запросе «создай Dockerfile» без уточнения — уточни контекст (agent image vs managed template vs локальный эксперимент).

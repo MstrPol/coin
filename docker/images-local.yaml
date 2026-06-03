@@ -1,0 +1,55 @@
+# Локальный стенд → coin-lib/resources/images.yaml (push-coin.sh)
+# tag/digest/rev синхронизируются из coin-jenkins-agents/catalog.yaml (sync-agent-images.sh)
+
+coinCli:
+  min: "0.1.0"
+
+templates:
+  go-app:
+    stack: go
+  java-gradle-app:
+    stack: java-gradle
+  java-maven-app:
+    stack: java-maven
+  python-uv-app:
+    stack: python-uv
+  python-pip-app:
+    stack: python-pip
+
+jnlp:
+  image: jenkins/inbound-agent:3327.v868139a_d00e0-8
+
+stacks:
+  python-uv:
+    "3.13":
+      image: localhost:5050/coin/ci-python-uv:3.13-r0
+      digest: ""
+      rev: 0
+
+  python-pip:
+    "3.13":
+      image: localhost:5050/coin/ci-python-pip:3.13-r0
+      digest: ""
+      rev: 0
+
+  java-maven:
+    "17":
+      image: localhost:5050/coin/ci-jvm-maven:17-r0
+      digest: ""
+      rev: 0
+
+  java-gradle:
+    "17":
+      image: localhost:5050/coin/ci-jvm-gradle:17-r0
+      digest: ""
+      rev: 0
+
+  go:
+    "1.22":
+      image: localhost:5050/coin/ci-go:1.22-r0
+      digest: ""
+      rev: 0
+
+tooling:
+  image: localhost:5050/coin/ci-tooling:latest
+  digest: ""

@@ -3,10 +3,11 @@ package org.coin.ci
 /**
  * Минимальное чтение .coin/config.yaml — только для оркестрации Jenkins.
  *
- * Jenkins читает исключительно секцию agent:
- *   agent.stack           — для выбора образа динамического агента
- *   agent.runtime         — для выбора версии образа
- *   agent.publishRegistry — для binding credentials перед публикацией
+ * Jenkins читает:
+ *   coin.template          — golden path (stack выводится из images.yaml)
+ *   jenkins.stack          — optional override образа агента
+ *   jenkins.runtime        — optional override версии toolchain
+ *   jenkins.credentials    — binding credentials перед публикацией
  *
  * Валидация, версионирование и вся бизнес-логика — в coin CLI.
  */

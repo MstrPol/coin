@@ -1,0 +1,18 @@
+# CI agent: coin-jenkins-agents/stacks/java-maven/17
+agent:
+  stack: java-maven
+  runtime:
+    java: "17"
+build:
+  type: container
+  dockerfile: Dockerfile
+publish:
+  kind: registry
+  when: tag
+pipeline:
+  test:
+    enabled: true
+  build:
+    enabled: true
+  publish:
+    enabled: true

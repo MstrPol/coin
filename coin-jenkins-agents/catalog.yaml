@@ -1,0 +1,51 @@
+# CI agent images — manifest (будущий отдельный repo coin-jenkins-agents).
+# tag = {runtime}-r{N}; digest — pin текущего артефакта (обновляет Jenkins job).
+# GP: profile.agent.stack + runtime → ключ stacks.<stack>.<runtime>
+# Promote в coin-lib: images.yaml (отдельный шаг / sync-agent-images.sh на local стенде).
+
+registry:
+  default: registry:5000/coin
+  credentialsId: nexus-docker
+
+stacks:
+  go:
+    "1.22":
+      image: ci-go
+      rev: 0
+      tag: ""
+      digest: ""
+      dockerfile: coin-jenkins-agents/stacks/go/1.22/Dockerfile
+
+  python-uv:
+    "3.13":
+      image: ci-python-uv
+      rev: 0
+      tag: ""
+      digest: ""
+      dockerfile: coin-jenkins-agents/stacks/python-uv/3.13/Dockerfile
+      pins:
+        uv: "0.6.14"
+
+  python-pip:
+    "3.13":
+      image: ci-python-pip
+      rev: 0
+      tag: ""
+      digest: ""
+      dockerfile: coin-jenkins-agents/stacks/python-pip/3.13/Dockerfile
+
+  java-maven:
+    "17":
+      image: ci-jvm-maven
+      rev: 0
+      tag: ""
+      digest: ""
+      dockerfile: coin-jenkins-agents/stacks/java-maven/17/Dockerfile
+
+  java-gradle:
+    "17":
+      image: ci-jvm-gradle
+      rev: 0
+      tag: ""
+      digest: ""
+      dockerfile: coin-jenkins-agents/stacks/java-gradle/17/Dockerfile

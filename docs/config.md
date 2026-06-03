@@ -2,123 +2,193 @@
 
 Контракт между продуктовой командой и платформой Coin CI.
 
-Файл разделён на две явные зоны:
+Поведение сборки задаётся **golden path** (`coin.template` + `templateVersion`), а не полями в конфиге проекта.
 
-- **`agent:`** — читает **Jenkins (coin-lib)**: выбор образа агента и binding credentials.
-- **Остальное** — читает только **coin CLI**: версионирование, сборка, публикация.
+**Модель сборки `*-app`:** native compile в agent → runtime-only Dockerfile → registry. См. [agent-build-model.md](agent-build-model.md).
 
-## Пример
+Матрица golden paths — [golden-paths.md](golden-paths.md). Версионирование каталога — [golden-path-versioning.md](golden-path-versioning.md).
+
+Файл разделён на две явные зоны ответственности:
+
+| Зона | Кто читает | Что содержит |
+|------|-----------|--------------|
+| `jenkins:` | **Jenkins (coin-lib)** | Credentials, optional override runtime/stack |
+| Всё остальное | **coin CLI** | Координаты проекта, container, pipeline overrides, RN |
+
+---
+
+## Эталонный пример (python-uv-app)
 
 ```yaml
 version: 1
 
 coin:
-  template: python-uv
-  templateVersion: "1.0.0"
-  versioning:
-    mode: corporate
-    tagPrefix: "v"
+  template: python-uv-app
+  templateVersion: v1
 
-# ── Jenkins читает только эту секцию ──────────────────────────────
-agent:
-  stack: python-uv             # стек → выбор образа K8s-агента
-  runtime:
-    python: "3.13"             # версия toolchain → выбор тега образа
-  publishRegistry: nexus-docker  # Jenkins Credential ID для публикации
+# ── Jenkins (coin-lib) ───────────────────────────────────────────────────────
+jenkins:
+  runtime:                       # optional override версии toolchain
+    python: "3.13"
+  credentials:
+    docker: nexus-docker
+    qgm: qgm-svc-account
 
-# ── coin CLI ───────────────────────────────────────────────────────
+# ── coin CLI ─────────────────────────────────────────────────────────────────
 project:
   name: my-service
+  groupId: com.example.team
+  repository: Nexus_PROD
 
 container:
   port: 8080
   command: ["python", "-m", "my_service"]
 
-pipeline:
-  test:
-    enabled: true
-  build:
-    enabled: true
-    target: container          # package | container
-    dockerfileTemplate: python-uv
-  publish:
-    enabled: true
-    when: tag                  # tag | branch | always | never
-```
-
-## Секция `agent` (Jenkins)
-
-| Поле | Описание |
-|------|----------|
-| `agent.stack` | Стек: `python-uv`, `python-pip`, `java-maven`, `java-gradle`, `go`, `node` |
-| `agent.runtime.*` | Версия toolchain (`python: "3.13"`, `java: "17"`, `go: "1.22"`) |
-| `agent.publishRegistry` | Jenkins Credential ID (`nexus-docker`, `nexus-pypi`, …) |
-
-## Секция `coin`
-
-| Поле | Описание |
-|------|----------|
-| `coin.template` | Имя golden path (например `python-uv`) |
-| `coin.templateVersion` | Версия шаблона (SemVer) — для политики обязательных обновлений |
-| `coin.versioning.mode` | `corporate`: версия вычисляется Coin из Git |
-| `coin.versioning.tagPrefix` | Префикс релизного тега, по умолчанию `v` |
-
-## Секция `project` и `container`
-
-| Поле | Описание |
-|------|----------|
-| `project.name` | Имя сервиса (используется в image ref, Sonar) |
-| `container.port` | Порт приложения — подставляется в managed Dockerfile |
-| `container.command` | Команда запуска — подставляется в managed Dockerfile |
-
-## Секция `pipeline`
-
-| Поле | Описание |
-|------|----------|
-| `pipeline.<stage>.enabled` | Включить/выключить стадию |
-| `pipeline.<stage>.preCommands` | Команды перед стандартным сценарием Coin |
-| `pipeline.<stage>.commands` | Полная замена стандартного сценария |
-| `pipeline.<stage>.postCommands` | Команды после стандартного сценария Coin |
-| `pipeline.build.target` | `package` (wheel/jar/binary) или `container` (managed Dockerfile) |
-| `pipeline.build.dockerfileTemplate` | Шаблон Dockerfile из Coin (например `python-uv`) |
-| `pipeline.publish.when` | `tag` \| `branch` \| `always` \| `never` |
-
-## Publish: `when`
-
-- **`tag`** — только релизные теги `v*` (рекомендуется)
-- **`branch`** — ветка `main` / `master` (snapshot-канал)
-- **`always`** — каждый билд
-- **`never`** — отключить
-
-## Единое версионирование
-
-Версию ведёт **Coin CLI**, а не сборщик проекта.
-Полные правила — в [docs/branching.md](branching.md).
-
-Coin прокидывает в сборку:
-- `COIN_VERSION` — корпоративная версия артефакта
-- `COIN_VERSION_SOURCE` — источник (`tag:...` или `branch:...`)
-- `COIN_IMAGE_TAG` — безопасный Docker tag
-- `COIN_IMAGE_REF` — полный ref образа
-
-## Стандартные команды и расширения
-
-По умолчанию проект **не хранит shell-скрипты**. Coin CLI запускает стандартные
-сценарии, встроенные в бинарь.
-
-Расширение тестов:
-```yaml
-pipeline:
+pipeline:                        # optional overrides (см. ниже)
   test:
     postCommands:
       - uv run ruff check .
+
+rn:
+  serviceUrl: https://qgm.example.com
 ```
 
-Полная замена (только если стандарт не подходит):
+---
+
+## Секция `coin`
+
+| Поле | Обязательно | Описание |
+|------|-------------|----------|
+| `coin.template` | **Да** | Имя golden path: `python-uv-app`, `go-app`, … |
+| `coin.templateVersion` | Нет | Версия профиля: `v1`, `v2`. Пусто → `latest` из catalog |
+
+Stack (`python-uv`, `go`, …) **не** задаётся в проекте — coin-lib выводит его из `coin.template` через `images.yaml`.
+
+---
+
+## Секция `jenkins` — Jenkins
+
+Coin-lib читает эту секцию для выбора агента и credentials.
+
+```yaml
+jenkins:
+  stack: python-uv              # optional override (обычно не нужен)
+  runtime:
+    python: "3.13"              # optional override
+  credentials:
+    docker: nexus-docker
+    qgm: qgm-svc-account
+    nexus: nexus-maven          # для *-lib шаблонов
+```
+
+| Поле | Обязательно | Описание |
+|------|-------------|----------|
+| `jenkins.credentials.docker` | **Да** | Jenkins Credential ID для Docker registry |
+| `jenkins.credentials.qgm` | Нет | Credential ID для QGM API |
+| `jenkins.credentials.nexus` | Нет | Credential ID для Nexus (Maven/PyPI) |
+| `jenkins.runtime.*` | Нет | Override версии toolchain (ключ = `images.yaml` stacks) |
+| `jenkins.stack` | Нет | Override stack (если не выводится из template) |
+
+Runtime agent image: `images.yaml` → `stacks.<stack>.<version>` (tag `{runtime}-r{N}`, optional `digest`, `rev`).
+
+### Credentials → env
+
+| Назначение | Env-переменные |
+|------------|----------------|
+| `docker` | `COIN_REGISTRY_USER`, `COIN_REGISTRY_PASSWORD` |
+| `qgm` | `QGM_USER`, `QGM_PASSWORD` |
+| `nexus` | `NEXUS_USER`, `NEXUS_PASSWORD` |
+
+---
+
+## Секция `project`
+
+```yaml
+project:
+  name: my-service
+  groupId: com.example.team
+  repository: Nexus_PROD
+```
+
+| Поле | Обязательно | Описание |
+|------|-------------|----------|
+| `project.name` | **Да** | Имя сервиса / artifactId |
+| `project.groupId` | **Да** | Домен команды в реестре |
+| `project.repository` | **Да** | Логическое имя репозитория Nexus (RN, QGM) |
+
+---
+
+## Секция `container`
+
+Параметры для **runtime-only** managed Dockerfile (`*-app`). Dockerfile **не** хранится в репозитории — рендерится в `.coin/generated/Dockerfile` (`coin dockerfile render` / `coin run build`).
+
+Native compile выполняется в agent **до** pack; Dockerfile только копирует артефакты (`dist/`, `.venv/`, `*.jar`).
+
+```yaml
+container:
+  port: 8080
+  command: ["python", "-m", "my_service"]
+```
+
+---
+
+## Секция `pipeline` — overrides
+
+Переопределяет дефолты из `profile.yaml` шаблона. Поля `build.target`, `dockerfileTemplate`, `publish.when` **не задаются** в проекте — они platform-owned.
+
 ```yaml
 pipeline:
   test:
-    commands:
-      - uv sync --frozen --all-groups
-      - uv run pytest tests/integration
+    enabled: true
+    postCommands:
+      - uv run ruff check .
+  build:
+    enabled: true
+  publish:
+    enabled: false
 ```
+
+| Поле | Описание |
+|------|----------|
+| `enabled` | Включить/выключить стадию |
+| `preCommands` | Команды перед стандартным сценарием Coin |
+| `commands` | Полная замена стандартного сценария |
+| `postCommands` | Команды после стандартного сценария |
+
+---
+
+## Секция `rn` — Release Notes
+
+```yaml
+rn:
+  serviceUrl: https://qgm.example.com
+  codeRepository: ssh://git@bitbucket.example.com/team/my-service.git
+```
+
+Подробнее — [release-notes.md](release-notes.md).
+
+---
+
+## Версионирование артефакта
+
+Coin CLI передаёт в сборку:
+
+| Переменная | Описание |
+|------------|----------|
+| `COIN_VERSION` | Версия из git-тега |
+| `COIN_IMAGE_TAG` | Docker-тег |
+| `COIN_IMAGE_REF` | Полный ref образа |
+| `COIN_TEMPLATE` / `COIN_TEMPLATE_VERSION` | Golden path |
+
+Правила — [branching.md](branching.md).
+
+---
+
+## Что **не** задаётся в проекте
+
+| Поле | Где живёт |
+|------|-----------|
+| `build.type` | `profile.yaml` шаблона |
+| `agent.stack` | `profile.yaml` + `catalog.yaml` |
+| `dockerfileTemplate` | `profile.yaml` → runtime-only Dockerfile в `coin-golden-paths/<name>/vN/` |
+| `publish.when` | `profile.yaml` (override через `pipeline.publish.enabled`) |

@@ -43,7 +43,9 @@ func init() {
 	rootCmd.SetVersionTemplate(banner + "  " + gold + "CI Platform" + reset + "  •  {{.Version}}\n\n")
 
 	rootCmd.AddCommand(validateCmd)
+	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(dockerfileCmd)
+	rootCmd.AddCommand(rnCmd)
 }

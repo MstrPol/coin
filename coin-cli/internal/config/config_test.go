@@ -20,25 +20,20 @@ const validConfig = `
 version: 1
 
 coin:
-  template: python-uv
-  templateVersion: "1.0.0"
+  template: python-uv-app
+  templateVersion: v1
 
-agent:
-  stack: python-uv
+jenkins:
   runtime:
     python: "3.13"
-  publishRegistry: nexus-docker
+  credentials:
+    docker: nexus-docker
+    qgm: qgm-svc-account
 
 project:
   name: my-service
-
-pipeline:
-  test:
-    enabled: true
-  build:
-    target: container
-  publish:
-    when: tag
+  groupId: com.example.team
+  repository: Nexus_PROD
 `
 
 func TestLoad_Valid(t *testing.T) {
@@ -50,34 +45,20 @@ func TestLoad_Valid(t *testing.T) {
 	if cfg.Project.Name != "my-service" {
 		t.Errorf("project.name = %q, want my-service", cfg.Project.Name)
 	}
-	if cfg.Agent.Stack != "python-uv" {
-		t.Errorf("agent.stack = %q, want python-uv", cfg.Agent.Stack)
+	if cfg.Project.GroupID != "com.example.team" {
+		t.Errorf("project.groupId = %q, want com.example.team", cfg.Project.GroupID)
 	}
-	if cfg.Agent.Runtime["python"] != "3.13" {
-		t.Errorf("agent.runtime.python = %q, want 3.13", cfg.Agent.Runtime["python"])
+	if cfg.Project.Repository != "Nexus_PROD" {
+		t.Errorf("project.repository = %q, want Nexus_PROD", cfg.Project.Repository)
 	}
-	if cfg.Agent.PublishRegistry != "nexus-docker" {
-		t.Errorf("agent.publishRegistry = %q, want nexus-docker", cfg.Agent.PublishRegistry)
+	if cfg.Coin.Template != "python-uv-app" {
+		t.Errorf("coin.template = %q, want python-uv-app", cfg.Coin.Template)
 	}
-	if cfg.BuildTarget() != "container" {
-		t.Errorf("BuildTarget = %q, want container", cfg.BuildTarget())
+	if cfg.Jenkins.Runtime["python"] != "3.13" {
+		t.Errorf("jenkins.runtime.python = %q, want 3.13", cfg.Jenkins.Runtime["python"])
 	}
-}
-
-func TestLoad_DefaultBuildTarget(t *testing.T) {
-	path := writeConfig(t, `
-version: 1
-agent:
-  stack: go
-project:
-  name: svc
-`)
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if cfg.BuildTarget() != "package" {
-		t.Errorf("default BuildTarget = %q, want package", cfg.BuildTarget())
+	if cfg.Jenkins.Credentials.Docker != "nexus-docker" {
+		t.Errorf("jenkins.credentials.docker = %q, want nexus-docker", cfg.Jenkins.Credentials.Docker)
 	}
 }
 
@@ -99,8 +80,11 @@ func TestLoad_InvalidYAML(t *testing.T) {
 func TestLoad_WrongVersion(t *testing.T) {
 	path := writeConfig(t, `
 version: 99
-agent:
-  stack: go
+coin:
+  template: go-app
+jenkins:
+  credentials:
+    docker: nexus-docker
 project:
   name: svc
 `)
@@ -113,8 +97,11 @@ project:
 func TestLoad_MissingProjectName(t *testing.T) {
 	path := writeConfig(t, `
 version: 1
-agent:
-  stack: go
+coin:
+  template: go-app
+jenkins:
+  credentials:
+    docker: nexus-docker
 project:
   name: ""
 `)
@@ -124,43 +111,32 @@ project:
 	}
 }
 
-func TestLoad_MissingStack(t *testing.T) {
+func TestLoad_MissingTemplate(t *testing.T) {
 	path := writeConfig(t, `
 version: 1
-agent: {}
+jenkins:
+  credentials:
+    docker: nexus-docker
 project:
   name: my-service
 `)
 	_, err := Load(path)
 	if err == nil {
-		t.Fatal("expected error for missing agent.stack")
+		t.Fatal("expected error for missing coin.template")
 	}
 }
 
-func TestLoad_UnknownStack(t *testing.T) {
+func TestLoad_MissingDockerCredential(t *testing.T) {
 	path := writeConfig(t, `
 version: 1
-agent:
-  stack: rust
+coin:
+  template: go-app
 project:
-  name: my-service
+  name: svc
 `)
 	_, err := Load(path)
 	if err == nil {
-		t.Fatal("expected error for unknown stack")
-	}
-}
-
-func TestLoad_AllStacks(t *testing.T) {
-	stacks := []string{"python-uv", "python-pip", "java-maven", "java-gradle", "go", "node"}
-	for _, stack := range stacks {
-		t.Run(stack, func(t *testing.T) {
-			path := writeConfig(t, "version: 1\nagent:\n  stack: "+stack+"\nproject:\n  name: svc\n")
-			_, err := Load(path)
-			if err != nil {
-				t.Errorf("stack %q: unexpected error: %v", stack, err)
-			}
-		})
+		t.Fatal("expected error for missing jenkins.credentials.docker")
 	}
 }
 
@@ -172,7 +148,7 @@ func TestStageIsEnabled(t *testing.T) {
 		s    Stage
 		want bool
 	}{
-		{Stage{Enabled: nil}, true},   // nil → включена по умолчанию
+		{Stage{Enabled: nil}, true},
 		{Stage{Enabled: &trueVal}, true},
 		{Stage{Enabled: &falseVal}, false},
 	}
@@ -186,7 +162,7 @@ func TestStageIsEnabled(t *testing.T) {
 
 func TestRuntimeVersion(t *testing.T) {
 	cfg := &Config{
-		Agent: Agent{
+		Jenkins: JenkinsConfig{
 			Runtime: map[string]string{"python": "3.12"},
 		},
 	}

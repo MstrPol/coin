@@ -1,0 +1,20 @@
+# Profile golden path python-uv-app/v1 — platform-owned.
+# CI agent: coin-jenkins-agents/stacks/python-uv/3.13
+
+agent:
+  stack: python-uv
+  runtime:
+    python: "3.13"
+build:
+  type: container
+  dockerfile: Dockerfile
+publish:
+  kind: registry
+  when: tag
+pipeline:
+  test:
+    enabled: true
+  build:
+    enabled: true
+  publish:
+    enabled: true

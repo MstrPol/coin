@@ -1,0 +1,45 @@
+// Platform CI: coin CLI → Nexus raw (coin-cli/dev/coin_linux_<arch>).
+pipeline {
+    agent any
+
+    environment {
+        COIN_CLI_VERSION = 'dev'
+        NEXUS_RAW = 'http://nexus:8081/repository/coin-cli'
+    }
+
+    stages {
+        stage('Test') {
+            steps {
+                dir('coin-cli') {
+                    sh 'go test ./...'
+                }
+            }
+        }
+        stage('Build') {
+            steps {
+                script {
+                    env.GOARCH = sh(script: 'docker/scripts/detect-platform.sh --goarch', returnStdout: true).trim()
+                }
+                dir('coin-cli') {
+                    sh 'GOOS=linux GOARCH=${GOARCH} CGO_ENABLED=0 go build -ldflags "-X coin.local/coin-cli/cmd.Version=${COIN_CLI_VERSION}" -o coin .'
+                }
+            }
+        }
+        stage('Publish Nexus') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'nexus-admin',
+                    usernameVariable: 'NEXUS_USER',
+                    passwordVariable: 'NEXUS_PASSWORD',
+                )]) {
+                    sh '''
+                        curl -f -u "${NEXUS_USER}:${NEXUS_PASSWORD}" \
+                          --upload-file coin-cli/coin \
+                          "${NEXUS_RAW}/${COIN_CLI_VERSION}/coin_linux_${GOARCH}"
+                        echo "published ${NEXUS_RAW}/${COIN_CLI_VERSION}/coin_linux_${GOARCH}"
+                    '''
+                }
+            }
+        }
+    }
+}

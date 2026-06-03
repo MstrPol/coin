@@ -6,10 +6,10 @@ Jenkins Shared Library — **тонкий оркестратор** Coin CI.
 
 `coin-lib` выполняет ровно две задачи:
 
-1. **Подготовка динамического агента** — читает `project.stack` и `runtime` из `.coin/config.yaml`, выбирает нужный K8s toolchain-образ из `resources/images.yaml`, запускает pod.
-2. **Подготовка credentials** — биндит Jenkins Credentials перед вызовом `coin CLI`.
+1. **Подготовка dynamic agent** — по `coin.template` → stack, `jenkins.runtime` → version, lookup в `resources/images.yaml`, K8s pod (jnlp + stack).
+2. **Credentials** — bind Jenkins Credentials перед `coin run publish`.
 
-Вся остальная логика (версионирование, валидация, сборка, публикация, release notes) — в `coin-cli`.
+Вся логика (validate, version, test/build/publish, Dockerfile render) — в **coin-cli** + **coin-golden-paths**.
 
 ## Структура
 
@@ -18,24 +18,38 @@ coin-lib/
 ├── vars/
 │   └── coinPipeline.groovy      # единая точка входа
 ├── src/org/coin/ci/
-│   ├── Config.groovy            # минимальное чтение config.yaml для оркестрации
-│   ├── StackImages.groovy       # выбор образа агента из images.yaml
-│   └── PodTemplate.groovy       # генерация K8s pod spec
+│   ├── Config.groovy            # чтение .coin/config.yaml
+│   ├── StackImages.groovy       # template → stack → agent image
+│   └── PodTemplate.groovy       # K8s pod spec
 └── resources/
-    └── images.yaml              # каталог: stack → образ агента → версия coin CLI
+    └── images.yaml              # stacks, templates, jnlp, coinCli
 ```
 
-## Использование в проекте
+## Разрешение agent image
+
+```
+coin.template  →  images.yaml templates  →  stack
+profile defaults (GP) + jenkins.runtime  →  version key
+images.yaml stacks[stack][version]       →  image ref (+ optional digest)
+```
+
+Подробнее — [docs/agent-build-model.md](../docs/agent-build-model.md).
+
+## Использование в сервисе
 
 ```groovy
-@Library('coin-lib@1') _
+@Library('coin-lib') _
 
 coinPipeline()
 ```
 
-Конфигурация — в `.coin/config.yaml`.
+Конфигурация — `.coin/config.yaml` в репозитории **сервиса**.
 
 ## Что НЕ добавлять в coin-lib
 
-См. правило `.cursor/rules/coin-lib-scope.mdc`:
-любая полезная логика идёт в `coin-cli`, не в Groovy.
+См. `.cursor/rules/coin-lib-scope.mdc` — логика только в `coin-cli`.
+
+## Связанные документы
+
+- [docs/jenkins-setup.md](../docs/jenkins-setup.md)
+- [docs/architecture.md](../docs/architecture.md)

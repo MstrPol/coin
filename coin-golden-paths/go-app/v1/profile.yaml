@@ -1,0 +1,23 @@
+# Profile golden path go-app/v1 — platform-owned.
+# CI agent: coin-jenkins-agents/stacks/go/1.22
+
+agent:
+  stack: go
+  runtime:
+    go: "1.22"
+
+build:
+  type: container
+  dockerfile: Dockerfile
+
+publish:
+  kind: registry
+  when: tag
+
+pipeline:
+  test:
+    enabled: true
+  build:
+    enabled: true
+  publish:
+    enabled: true

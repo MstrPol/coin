@@ -1,0 +1,125 @@
+services:
+  registry:
+    image: registry:2
+    platform: ${DOCKER_PLATFORM:-linux/arm64}
+    restart: unless-stopped
+    ports:
+      - "${REGISTRY_PORT:-5050}:5000"
+    environment:
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+    volumes:
+      - registry-data:/var/lib/registry
+    networks:
+      - coin
+
+  nexus:
+    # 3.76.x — только amd64; для Apple Silicon нужен multi-arch тег (3.90+)
+    image: sonatype/nexus3:${NEXUS_IMAGE_TAG:-3.91.1-alpine}
+    platform: ${DOCKER_PLATFORM:-linux/arm64}
+    restart: unless-stopped
+    ports:
+      - "${NEXUS_HTTP_PORT:-8081}:8081"
+    volumes:
+      - nexus-data:/nexus-data
+    networks:
+      - coin
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  k3s:
+    image: rancher/k3s:v1.31.5-k3s1
+    platform: ${DOCKER_PLATFORM:-linux/arm64}
+    restart: unless-stopped
+    privileged: true
+    command:
+      - server
+      - --tls-san=k3s
+      - --tls-san=localhost
+      - --disable=traefik
+      - --disable=servicelb
+    environment:
+      K3S_KUBECONFIG_OUTPUT: /output/kubeconfig.yaml
+      K3S_KUBECONFIG_MODE: "666"
+    volumes:
+      - k3s-data:/var/lib/rancher/k3s
+      - k3s-kubeconfig:/output
+      - ./k3s/registries.yaml:/etc/rancher/k3s/registries.yaml:ro
+      - ./k3s/dashboard:/dashboard:ro
+      - ./k3s:/k3s:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "${K3S_API_PORT:-6443}:6443"
+      - "${K3S_DASHBOARD_PORT:-8443}:30443"
+    networks:
+      - coin
+
+  gitea:
+    image: gitea/gitea:1.22.6
+    platform: ${DOCKER_PLATFORM:-linux/arm64}
+    restart: unless-stopped
+    environment:
+      USER_UID: "1000"
+      USER_GID: "1000"
+      GITEA__repository__ROOT: /data/git/repositories
+      GITEA__server__DOMAIN: gitea
+      GITEA__server__HTTP_PORT: "3000"
+      GITEA__server__ROOT_URL: http://gitea:3000/
+      GITEA__server__DISABLE_SSH: "true"
+      GITEA__server__START_SSH_SERVER: "false"
+      GITEA__database__DB_TYPE: sqlite3
+      GITEA__database__PATH: /data/gitea/gitea.db
+      GITEA__security__INSTALL_LOCK: "true"
+      GITEA__security__SECRET_KEY: coin-local-gitea-secret-key-change-me
+      GITEA__service__DISABLE_REGISTRATION: "true"
+      GITEA__log__LEVEL: warn
+    volumes:
+      - gitea-data:/data
+    ports:
+      - "${GITEA_HTTP_PORT:-3000}:3000"
+    networks:
+      - coin
+
+  jenkins:
+    build:
+      context: ./jenkins
+      dockerfile: Dockerfile
+    platform: ${DOCKER_PLATFORM:-linux/arm64}
+    restart: unless-stopped
+    depends_on:
+      - registry
+      - k3s
+      - gitea
+    ports:
+      - "${JENKINS_HTTP_PORT:-8080}:8080"
+      - "50000:50000"
+    environment:
+      JENKINS_ADMIN_USER: ${JENKINS_ADMIN_USER:-admin}
+      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:-admin}
+      JENKINS_HTTP_PORT: ${JENKINS_HTTP_PORT:-8080}
+      GITEA_USER: ${GITEA_USER:-coin}
+      GITEA_PASSWORD: ${GITEA_PASSWORD:-coin}
+      KUBECONFIG_PATH: /kubeconfig/config
+      COIN_REGISTRY_PREFIX: localhost:${REGISTRY_PORT:-5050}
+    volumes:
+      - jenkins-home:/var/jenkins_home
+      - k3s-kubeconfig:/kubeconfig:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../coin-jenkins-agents/catalog.yaml:/var/jenkins_home/coin-agents-catalog.yaml:ro
+    networks:
+      - coin
+
+networks:
+  coin:
+    name: coin-net
+
+volumes:
+  registry-data:
+  nexus-data:
+  k3s-data:
+  k3s-kubeconfig:
+  gitea-data:
+  jenkins-home:

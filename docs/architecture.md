@@ -20,122 +20,115 @@ Jenkins **не вычисляет** версии, **не рендерит** Dock
 | Компонент | Язык | Назначение |
 |-----------|------|------------|
 | `coin-lib` | Groovy | Тонкий Jenkins-оркестратор |
-| `coin-cli` | Go | CLI с встроенными скриптами и шаблонами |
-| `coin-images` | Docker | Toolchain-образы агентов (содержат coin CLI) |
-| `coin-templates` | — | Golden path шаблоны для новых сервисов |
+| `coin-cli` | Go | CLI: validate, version, run, dockerfile render |
+| `coin-jenkins-agents` | Docker | CI agent images (toolchain + coin CLI + pack) |
+| `coin-golden-paths` | — | Golden paths: profile, scripts, runtime-only Dockerfile |
+| `coin-starters` | — | Скелетоны новых репозиториев |
+
+## Модель сборки
+
+**Native compile в agent → runtime-only Dockerfile → registry.**
+
+Подробно — [agent-build-model.md](agent-build-model.md).
+
+```
+coin run test   → native в stack container
+coin run build  → native compile → docker/kaniko pack
+coin run publish → push app image
+```
+
+Managed Dockerfile GP — **без** builder stage. Agent image — единственная CI-среда для test и compile.
 
 ## coin CLI
 
-Единый Go-бинарь без внешних зависимостей. Скрипты и Dockerfile-шаблоны
-вшиты через `go:embed` — образ агента получает один файл и он самодостаточен.
+Go-бинарь. Golden paths загружаются из `coin-golden-paths/` (local или Nexus tarball). См. [golden-path-versioning.md](golden-path-versioning.md).
 
 ### Команды
 
 ```
 coin validate                                  # валидация .coin/config.yaml
-coin version                                   # показать текущую версию (read-only)
-coin version bump patch|minor|major            # создать следующий snapshot-тег
-coin version bump patch|minor|major --type rc  # создать следующий RC-тег (только release/*)
-coin version bump patch --dry-run              # показать тег без создания
-coin run test|build|publish                    # запустить стандартную стадию
-coin dockerfile render                         # сгенерировать managed Dockerfile
+coin init                                      # новый проект (визард)
+coin version                                   # текущая версия (read-only)
+coin version bump patch|minor|major            # snapshot-тег
+coin version bump patch|minor|major --type rc  # RC-тег (release/*)
+coin run test|build|publish                    # стадии CI
+coin dockerfile render                         # .coin/generated/Dockerfile (runtime-only)
 ```
-
-#### `coin version` — read-only
-
-Выводит последнюю версию из git-тегов. Нет тегов → `0.0.1`.
-
-```bash
-$ coin version
-1.5.0-PROJ-404-rc-2          # HEAD помечен RC-тегом
-0.0.1-PROJ-101-snapshot-3    # последний snapshot-тег в репо
-0.0.1                        # тегов нет (новый проект)
-```
-
-Используется в CI для инъекции версии в сборку:
-
-```groovy
-stage('Build') {
-    sh 'COIN_VERSION=$(coin version) coin run build'
-}
-```
-
-#### `coin version bump` — создание тега
-
-Вычисляет и создаёт следующий тег. По умолчанию `--type snapshot`.
-
-```bash
-coin version bump patch            # → v0.0.1-PROJ-101-snapshot-1 (новая серия)
-coin version bump patch            # → v0.0.1-PROJ-101-snapshot-2 (продолжение серии)
-coin version bump minor --type rc  # → v0.1.0-PROJ-404-rc-1 (только на release/*)
-coin version bump minor --type rc  # → v0.1.0-PROJ-404-rc-2 (итерация ПСИ)
-```
-
-Логика выбора базовой версии:
-- Для данного (JIRA-ID, тип) уже есть серия → продолжить её (same base, N+1).
-- Нет серии → взять последний base из любых тегов, применить bump, N=1.
-
-### Как попадает в образ агента
-
-```
-coin-cli CI  →  Go build  →  coin_linux_amd64  →  Nexus/Artifactory
-                                                        │
-                                    coin-images/*/Dockerfile
-                                    ADD <nexus>/coin-cli/${COIN_CLI_VERSION} /usr/local/bin/coin
-```
-
-Версия CLI фиксируется в `coin-lib/resources/images.yaml` рядом с версией образа.
 
 ### Локальный запуск
 
 ```bash
-coin validate        # проверить config.yaml
-coin version         # посмотреть что будет COIN_VERSION на текущей ветке
-coin run test        # запустить тесты локально как в CI
+coin validate
+coin version
+coin run test
 ```
+
+Требуется toolchain стека на host (go, uv, …) и `COIN_GOLDEN_PATHS_DIR` при работе вне agent image.
+
+## Доставка coin CLI в agent
+
+```
+Jenkins job coin-cli  →  go build  →  Nexus raw/coin-cli/<ver>/coin_linux_<arch>
+                                              │
+                         coin-lib (service pipeline)  →  curl/wget → PATH
+```
+
+Agent image содержит только toolchain + GP; версия CLI — `images.yaml` → `coinCli.min`.
+
+## Выбор agent image (coin-lib)
+
+```
+coin.template  →  catalog.yaml  →  stack
+profile.agent.runtime  →  дефолт версии (GP)
+jenkins.runtime  →  optional override (проект)
+images.yaml stacks[stack][version]  →  image ref
+```
+
+Реализация: `StackImages.groovy` + `PodTemplate.groovy`.
 
 ## Как Jenkins вызывает CLI
 
-`coinPipeline.groovy` (целевое состояние):
+`coinPipeline.groovy`:
 
 ```groovy
-// Стандартный пайплайн (feature/bugfix/release ветки):
+// 1. Лёгкий agent: checkout + resolve stack image
+// 2. K8s pod (jnlp + stack container)
+// 3. В stack container:
 stage('Validate') { sh 'coin validate' }
 stage('Test')     { sh 'coin run test' }
-stage('Build')    { sh 'COIN_VERSION=$(coin version) coin run build' }
+stage('Build')    { sh 'coin run build' }
 stage('Publish')  {
-    withCredentials([...]) { sh 'COIN_VERSION=$(coin version) coin run publish' }
-}
-
-// coinRelease job (только release/* → создать RC-тег):
-stage('Tag RC') {
-    sh 'coin version bump ${BUMP_LEVEL} --type rc'
-    // BUMP_LEVEL = patch | minor | major — параметр Jenkins job
+    withCredentials([...]) { sh 'coin run publish' }
 }
 ```
 
-Groovy отвечает только за: выбор K8s pod template, binding credentials, управление стадиями, QG-пороги.
+Groovy: pod template, credentials, стадии. Вся логика стадий — в GP scripts + coin-cli.
+
+## Platform CI (monorepo `coin`)
+
+| Артефакт | Jenkins job | Jenkinsfile |
+|----------|-------------|-------------|
+| coin CLI | `coin-cli` | `coin-cli/Jenkinsfile` |
+| agent images | `coin-agents` | `coin-jenkins-agents/Jenkinsfile` |
+
+Сервисные репозитории — отдельный multibranch job с `Jenkinsfile` + `coinPipeline()`.
+
+Локальный стенд: [docker/README.md](../docker/README.md).
+
+## Хранилище бинарей CLI
+
+```
+<nexus>/repository/coin-cli/<version>/coin_linux_amd64
+<nexus>/repository/coin-cli/<version>/coin_linux_arm64
+```
 
 ## Совместимость lib ↔ CLI
 
-`coin-lib` объявляет минимальную совместимую версию CLI через переменную `COIN_MIN_CLI_VERSION`.
-При старте пайплайна `coin validate` проверяет версию бинаря — падает с понятным сообщением
-если образ устарел.
+`images.yaml` → `coinCli.min`. `coin validate --min-version` проверяет версию бинаря в PATH.
 
-## Миграция (переходный период)
+## Связанные документы
 
-Текущий `coin-lib` и Groovy-логика продолжают работать. CLI внедряется постепенно:
-
-1. CLI добавляется в образы агентов.
-2. Groovy-команды заменяются на `sh 'coin run ...'` поэтапно.
-3. Дублирующая Groovy-логика удаляется из `coin-lib`.
-
-## Хранилище бинарей
-
-Бинари публикуются в корпоративный Nexus/Artifactory:
-```
-artifacts.company.local/coin-cli/<version>/coin_linux_amd64
-artifacts.company.local/coin-cli/<version>/coin_darwin_amd64   # для локального запуска
-```
-
-Сборка и публикация — через CI самого `coin`-монорепо (`Jenkinsfile` в корне).
+- [agent-build-model.md](agent-build-model.md)
+- [golden-paths.md](golden-paths.md)
+- [jenkins-setup.md](jenkins-setup.md)
+- [config.md](config.md)

@@ -18,16 +18,17 @@ var dockerfileRenderCmd = &cobra.Command{
 	Short: "Render managed Dockerfile into .coin/generated/Dockerfile",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfgPath, _ := cmd.Flags().GetString("config")
-		cfg, err := config.Load(cfgPath)
+		cfg, bundle, err := loadConfigAndBundle(cfgPath)
 		if err != nil {
 			return err
 		}
 
-		if cfg.BuildTarget() != "container" {
-			return fmt.Errorf("dockerfile render requires pipeline.build.target: container")
+		if bundle.BuildType() != "container" {
+			return fmt.Errorf("template %s/%s build.type=%q — Dockerfile не требуется",
+				bundle.Name, bundle.Version, bundle.BuildType())
 		}
 
-		outPath, err := dockerfile.Render(cfg)
+		outPath, err := dockerfile.Render(cfg, bundle)
 		if err != nil {
 			return err
 		}

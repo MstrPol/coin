@@ -7,39 +7,37 @@ import (
 	"strconv"
 	"strings"
 
-	"coin.local/coin-cli/embed"
 	"coin.local/coin-cli/internal/config"
+	"coin.local/coin-cli/internal/goldenpaths"
 )
 
 const GeneratedDir = ".coin/generated"
 const GeneratedPath = ".coin/generated/Dockerfile"
 
-func Render(cfg *config.Config) (string, error) {
-	// Запрещаем Dockerfile в корне репозитория
+func Render(cfg *config.Config, bundle *goldenpaths.Bundle) (string, error) {
 	if _, err := os.Stat("Dockerfile"); err == nil {
 		return "", fmt.Errorf(
 			"Dockerfile найден в корне репозитория. " +
-				"При target: container Dockerfile управляется Coin централизованно. " +
-				"Удалите Dockerfile из репозитория сервиса.",
+				"При container-сборке Dockerfile управляется Coin. Удалите Dockerfile из репозитория.",
 		)
 	}
 
-	templateName := cfg.Pipeline.Build.DockerfileTemplate
-	if templateName == "" {
-		templateName = cfg.Agent.Stack
+	if bundle.BuildType() != "container" {
+		return "", fmt.Errorf("template %s/%s build.type=%q, container Dockerfile не требуется",
+			bundle.Name, bundle.Version, bundle.BuildType())
 	}
 
-	tmpl, err := embed.DockerfileTemplate(templateName)
+	tmpl, err := bundle.Dockerfile()
 	if err != nil {
-		return "", fmt.Errorf("dockerfile template %q not found: %w", templateName, err)
+		return "", fmt.Errorf("dockerfile template: %w", err)
 	}
 
-	rendered := render(tmpl, cfg)
+	rendered := render(tmpl, cfg, bundle)
 
-	if err := os.MkdirAll(GeneratedDir, 0755); err != nil {
+	if err := os.MkdirAll(GeneratedDir, 0o755); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(GeneratedPath, []byte(rendered), 0644); err != nil {
+	if err := os.WriteFile(GeneratedPath, []byte(rendered), 0o644); err != nil {
 		return "", err
 	}
 
@@ -47,10 +45,10 @@ func Render(cfg *config.Config) (string, error) {
 	return absPath, nil
 }
 
-func render(tmpl string, cfg *config.Config) string {
-	pythonVersion := cfg.RuntimeVersion("python", "3.13")
-	javaVersion := cfg.RuntimeVersion("java", "21")
-	goVersion := cfg.RuntimeVersion("go", "1.22")
+func render(tmpl string, cfg *config.Config, bundle *goldenpaths.Bundle) string {
+	pythonVersion := bundle.RuntimeVersion("python", cfg.RuntimeVersion("python", "3.13"))
+	javaVersion := bundle.RuntimeVersion("java", cfg.RuntimeVersion("java", "21"))
+	goVersion := bundle.RuntimeVersion("go", cfg.RuntimeVersion("go", "1.22"))
 
 	port := "8080"
 	if cfg.Container.Port > 0 {

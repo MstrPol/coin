@@ -1,0 +1,18 @@
+# CI agent: coin-jenkins-agents/stacks/python-pip/3.13
+agent:
+  stack: python-pip
+  runtime:
+    python: "3.13"
+build:
+  type: container
+  dockerfile: Dockerfile
+publish:
+  kind: registry
+  when: tag
+pipeline:
+  test:
+    enabled: true
+  build:
+    enabled: true
+  publish:
+    enabled: true

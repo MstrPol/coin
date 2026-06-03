@@ -1,0 +1,35 @@
+# Каталог golden paths — policy платформы.
+# coin validate читает этот файл при загрузке coin-golden-paths/.
+#
+# deprecated — список снятых с поддержки версий профиля (v0, v1, …).
+# v0 в примерах ниже — демонстрация формата; каталоги v0/ в репозитории нет.
+
+go-app:
+  stack: go
+  latest: v1
+  minimum: v1
+  deprecated: [v0]
+
+java-gradle-app:
+  stack: java-gradle
+  latest: v1
+  minimum: v1
+  deprecated: [v0]
+
+java-maven-app:
+  stack: java-maven
+  latest: v1
+  minimum: v1
+  deprecated: [v0]
+
+python-uv-app:
+  stack: python-uv
+  latest: v1
+  minimum: v1
+  deprecated: [v0]
+
+python-pip-app:
+  stack: python-pip
+  latest: v1
+  minimum: v1
+  deprecated: [v0]

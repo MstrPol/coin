@@ -19,12 +19,12 @@ var runCmd = &cobra.Command{
 		}
 
 		cfgPath, _ := cmd.Flags().GetString("config")
-		cfg, err := config.Load(cfgPath)
+		cfg, bundle, err := loadConfigAndBundle(cfgPath)
 		if err != nil {
 			return err
 		}
 
-		return executor.New(cfg).Run(stage)
+		return executor.New(cfg, bundle).Run(stage)
 	},
 }
 

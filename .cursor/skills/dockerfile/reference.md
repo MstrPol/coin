@@ -58,7 +58,9 @@ CI: `buildx --cache-from/--cache-to`, периодическая чистая п
 
 Builder — toolchain и сборка; runtime — артефакт + runtime only.
 
-Python: wheels в builder → `pip install --no-index --find-links=/wheels` в runtime, или перенос venv.
+> **Coin CI (managed GP):** compile в agent, Dockerfile app — **runtime-only** (`COPY` артефактов). Multi-stage builder в GP запрещён. См. [docs/agent-build-model.md](../../../docs/agent-build-model.md).
+
+Python: wheels в builder → runtime, или перенос `.venv` (native build в agent).
 
 ## 5. Секреты
 

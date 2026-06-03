@@ -15,13 +15,20 @@ def call(Map args = [:]) {
     def cloudName    = args.cloud ?: null
     def prepareLabel = args.prepareAgent ?: null
 
+    def coinSh = { String script ->
+        ansiColor('xterm') {
+            sh script
+        }
+    }
+
     // ── Шаг 1: лёгкий агент — читаем минимум конфига для выбора образа ──
     def stackImage
     node(prepareLabel) {
         checkout scm
         def cfg = new Config(this).load()
         stackImage = new StackImages(this).resolveStackImage(cfg)
-        echo "Coin: project=${cfg.project?.name} stack=${cfg.agent?.stack} agent=${stackImage}"
+        def stack = new StackImages(this).resolveStack(cfg)
+        echo "Coin: project=${cfg.project?.name} template=${cfg.coin?.template} stack=${stack} agent=${stackImage}"
     }
 
     // ── Шаг 2: K8s pod с нужным toolchain-образом ──
@@ -29,39 +36,44 @@ def call(Map args = [:]) {
         new StackImages(this).jnlpImage(),
         stackImage
     )
-    def podArgs = [yaml: podYaml, label: "coin-${env.BUILD_NUMBER}"]
+    def podLabel = "coin-${env.BUILD_NUMBER}"
+    def podArgs = [yaml: podYaml, label: podLabel]
     if (cloudName) { podArgs.cloud = cloudName }
 
     podTemplate(podArgs) {
-        node(POD_LABEL) {
+        node(podLabel) {
             checkout scm
 
             container('stack') {
+                stage('version') {
+                    coinSh 'coin --version'
+                }
+
                 // ── Шаг 3: валидация ──
                 stage('Validate') {
-                    sh 'coin validate'
+                    coinSh 'coin validate'
                 }
 
                 // ── Шаг 4: тесты ──
                 stage('Test') {
-                    sh 'coin run test'
+                    coinSh 'coin run test'
                 }
 
                 // ── Шаг 5: сборка ──
                 stage('Build') {
-                    sh 'coin run build'
+                    coinSh 'coin run build'
                 }
 
                 // ── Шаг 6: публикация — credentials подготавливает Jenkins ──
                 stage('Publish') {
                     def cfg       = new Config(this).load()
-                    def credId    = cfg.agent?.publishRegistry ?: 'coin-registry-default'
+                    def credId = cfg.jenkins?.credentials?.docker ?: 'coin-registry-default'
                     withCredentials([usernamePassword(
                         credentialsId: credId,
                         usernameVariable: 'COIN_REGISTRY_USER',
                         passwordVariable: 'COIN_REGISTRY_PASSWORD',
                     )]) {
-                        sh 'coin run publish'
+                        coinSh 'coin run publish'
                     }
                 }
             }

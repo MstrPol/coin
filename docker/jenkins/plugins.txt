@@ -1,0 +1,13 @@
+configuration-as-code
+kubernetes
+kubernetes-credentials
+workflow-aggregator
+pipeline-groovy-lib
+git
+credentials-binding
+pipeline-utility-steps
+job-dsl
+credentials
+scm-api
+ansicolor
+uno-choice

@@ -1,6 +1,8 @@
 # coin-cli
 
-CLI-утилита платформы Coin. Запускается внутри CI-агента и выполняет всю полезную логику сборки: валидацию конфига, вычисление версии, запуск стадий, рендеринг Dockerfile и управление тегами релизов.
+CLI-утилита платформы Coin. Запускается в **CI agent** и выполняет логику pipeline: validate, version, run stages, render runtime-only Dockerfile.
+
+Документация: [docs/agent-build-model.md](../docs/agent-build-model.md), [docs/architecture.md](../docs/architecture.md).
 
 > **Новичок в Go?** Раздел «[Первый запуск](#первый-запуск)» написан специально для тебя.
 
@@ -65,6 +67,8 @@ go build ./...
 ---
 
 ## Сборка бинаря
+
+Platform CI: Jenkins job `coin-cli` (`coin-cli/Jenkinsfile`) → Nexus. Локально:
 
 ### Локально (для текущей ОС и архитектуры)
 
@@ -183,11 +187,13 @@ coin version                                    Показать текущую 
 coin version bump patch|minor|major             Создать следующий snapshot-тег
 coin version bump patch|minor|major --type rc   Создать следующий RC-тег (только release/*)
 coin version bump patch --dry-run               Показать тег без создания
-coin run test                                   Запустить стадию тестирования
-coin run build                                  Запустить стадию сборки
-coin run publish                                Запустить стадию публикации
-coin dockerfile render                          Сгенерировать .coin/generated/Dockerfile
+coin run test                                   # native test (GP scripts/test.sh)
+coin run build                                  # native compile + pack
+coin run publish                                # publish
+coin dockerfile render                          # runtime-only → .coin/generated/Dockerfile
 ```
+
+Стадия `coin run build` для `*-app`: native compile в agent → render Dockerfile → `pack-image.sh`. См. [docs/agent-build-model.md](../docs/agent-build-model.md).
 
 ### `coin version`
 
@@ -251,15 +257,12 @@ coin-cli/
 │   ├── versioning/
 │   │   ├── versioning.go          Вычисление COIN_VERSION из git
 │   │   └── versioning_test.go
+│   ├── goldenpaths/               Golden paths из coin-golden-paths/
+│   ├── starters/                  coin init — скелетоны из coin-starters/
 │   ├── executor/
 │   │   └── executor.go            Запуск стадий (preCommands, script, postCommands)
 │   └── dockerfile/
-│       └── render.go              Рендеринг Dockerfile из embedded-шаблонов
-│
-└── embed/
-    ├── embed.go                   go:embed — встраивает scripts/ и dockerfiles/ в бинарь
-    ├── scripts/                   Shell-скрипты для стадий (test/build/publish по стекам)
-    └── dockerfiles/               Шаблоны Dockerfile по стекам
+│       └── render.go              Рендеринг Dockerfile из golden path
 ```
 
 ### Почему `internal/`?

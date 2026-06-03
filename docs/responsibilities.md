@@ -1,86 +1,64 @@
-# Разделение ответственности (каркас)
+# Разделение ответственности
 
-Этот документ фиксирует **границы владения** между командами разработки и DevOps/Platform (Coin).
-Цель — уменьшить размывание ответственности, ускорить поддержку L1/L2 и сделать возможными обязательные корпоративные изменения (QG, версионирование, security) без “100 PR во все репозитории”.
+Границы владения между командами разработки и DevOps/Platform (Coin).
 
 ## Принцип
 
-- **Проект** описывает *что именно он делает* (команды теста/сборки/паблиша, параметры сборки).
-- **Coin** описывает *как именно это запускается в компании* (оркестрация Jenkins, агенты/образы, секреты, QG, политика версий).
+- **Проект** — код, зависимости, optional overrides pipeline.
+- **Coin (platform)** — оркестрация Jenkins, agent images, golden paths, managed Dockerfile, политики версий и QG.
 
-## Что управляет разработчик в своём проекте
+## Что управляет разработчик
 
-- **Код и зависимости**: `pyproject.toml` / `pom.xml` / `package.json` / `go.mod`.
-- **Расширения CI-команд** в `.coin/config.yaml`.
-  - По умолчанию test/build/publish выполняются стандартными сценариями из Coin.
-  - Команда может добавить `preCommands`/`postCommands` или полностью заменить stage через `commands`.
-  - Команда отвечает за корректность своих дополнительных команд.
-- **Параметры контейнерной сборки** (если `pipeline.build.target: container`):
-  - команда передаёт параметры (порт, command/entrypoint, аргументы),
-  - команда **не управляет Dockerfile напрямую**: Dockerfile централизован в Coin.
-- **Локальные флаги пайплайна** в `.coin/config.yaml`:
-  - включить/выключить `test/build/publish` (в пределах разрешённого),
-  - выбрать `build.target: package|container`,
-  - указать дополнительные команды `pipeline.*.preCommands/postCommands` (если разрешено политикой).
+- **Код и зависимости**: `pyproject.toml` / `pom.xml` / `go.mod` / `requirements.txt`.
+- **`.coin/config.yaml`**: identity, credentials IDs, optional `jenkins.runtime`, pipeline overrides.
+- **Расширения CI** через `pipeline.*.preCommands` / `postCommands` / `commands` (если разрешено политикой).
+- **`container.port` / `container.command`** — параметры для managed runtime Dockerfile.
 
-## Что управляет DevOps/Platform через Coin
+## Что управляет Platform
 
-- **Оркестрация в Jenkins**: multibranch, K8s pod template, логирование, стандартные stage’и.
-- **CI‑образы (toolchain)**: `coin-images/*` (python/jdk/node/go и т.п.), политика обновлений.
-- **Registry/credentials/secrets**: naming, креды, Vault/Jenkins credentials, запрет секретов в коде.
-- **Корпоративные инварианты** (обязательные):
-  - **Модель версионирования ПО** (единая для всех стеков) и способ инжекта версии в сборку.
-    - версия вычисляется в Coin (`COIN_VERSION`) из Git/Jenkins;
-    - Gradle/Maven/uv/Go tooling не являются источником версии;
-    - плагины и настройки версионирования в проектах не используются как корпоративный механизм.
-  - **Модель ветвления** (`main` + короткоживущие ветки + релизные теги, опционально `release/X.Y`) — см. [docs/branching.md](branching.md).
-    - имя ветки/тег определяют `COIN_VERSION` и право на публикацию релиза.
-  - **Quality Gates**: что обязано выполняться (Sonar, SAST/DAST, лицензии и т.д.), пороги и включение по датам.
-  - **Security policies**: базовые образы allowlist, SBOM, подпись, сканирование, запреты.
-  - **Политика релиза**: какие теги релизные, approvals, promotion, “build once deploy many”.
-- **Централизованные Dockerfile** (если включено в компании):
-  - Dockerfile‑шаблоны живут в `coin` и версионируются,
-  - Coin генерирует/подкладывает Dockerfile и `.dockerignore` в workspace при сборке,
-  - проект не хранит Dockerfile; наличие `Dockerfile` в репозитории сервиса считается нарушением контракта.
-- **Политика обязательных обновлений**:
-  - минимальная допустимая версия golden path (`coin.templateVersion` ≥ `COIN_MIN_TEMPLATE_VERSION`),
-  - запрет запуска без pinning (template+version) — при включённой политике.
+- **Jenkins оркестрация**: multibranch, K8s pod, credentials binding, QG.
+- **CI agent images**: `coin-jenkins-agents/` — toolchain, coin CLI, docker/kaniko для pack.
+- **Golden paths**: `coin-golden-paths/` — profile, scripts, runtime-only Dockerfile, catalog policy.
+- **Platform CI jobs**: сборка coin-cli и agent images (Jenkinsfiles в monorepo).
+- **Каталог образов**: `coin-lib/resources/images.yaml` — stack → agent image ref.
+- **Версионирование**, **QG**, **security policies**, **managed Dockerfile** (генерируется в `.coin/generated/Dockerfile` при `coin run build`).
 
-## Что запрещено/ограничено в проекте (чтобы не было “обходов”)
+Модель сборки app: [agent-build-model.md](agent-build-model.md).
 
-Ровно набор ограничений зависит от режима компании, но каркас такой:
+## Что не задаётся / запрещено в проекте
 
-- **Нельзя менять модель версионирования** (если `coin.versioning.mode: corporate`).
-- **Нельзя отключать обязательные QG** (если они policy‑enforced в Coin).
-- **Нельзя хранить shell-скрипты CI как часть golden path** без необходимости: стандартные сценарии ведёт Coin.
-- **Нельзя хранить секреты** в `.coin/config.yaml`/переменных репо — только через Jenkins/Vault.
-- **Нельзя хранить Dockerfile** в репозитории сервиса при `pipeline.build.target: container`.
-- **Не нужно хранить `.dockerignore`** ради CI: managed `.dockerignore` генерирует Coin.
+| Запрет | Причина |
+|--------|---------|
+| `Dockerfile` в репо сервиса | Managed runtime-only GP |
+| `build.type`, `agent.stack` | Из `profile.yaml` golden path |
+| Shell CI scripts как стандарт | GP scripts platform-owned |
+| Секреты в config | Только Jenkins/Vault credential IDs |
+| Своя модель версионирования | Corporate `COIN_VERSION` |
 
-## Артефакты и “кто владеет чем”
+## Артефакты и владельцы
 
 | Артефакт | Где | Владелец |
-|---------|-----|----------|
-| `coin-lib` | monorepo `coin` | DevOps/Platform |
-| `coin-images/*` | monorepo `coin` | DevOps/Platform |
-| `coin-templates/*` | monorepo `coin` | DevOps/Platform (эталон) |
-| `coin-lib/resources/dockerfiles/*` | monorepo `coin` | DevOps/Platform |
-| `coin-lib/resources/dockerignore/*` | monorepo `coin` | DevOps/Platform |
-| `coin-lib/resources/scripts/*` | monorepo `coin` | DevOps/Platform |
-| `.coin/config.yaml` | репо сервиса | команда (но с enforced policy) |
-| `Dockerfile` runtime | генерируется Coin в CI | DevOps/Platform |
+|----------|-----|----------|
+| `coin-lib` | monorepo `coin` | Platform |
+| `coin-cli` | monorepo `coin` | Platform |
+| `coin-jenkins-agents/*` | monorepo `coin` | Platform |
+| `coin-golden-paths/*` | monorepo `coin` | Platform |
+| `coin-starters/*` | monorepo `coin` | Platform (эталон) |
+| `coin-lib/resources/images.yaml` | monorepo `coin` | Platform |
+| `.coin/config.yaml` | репо сервиса | Команда (policy-enforced) |
+| App runtime Dockerfile | `.coin/generated/` в CI | Platform (render из GP) |
+| App OCI image | registry | Артефакт сервиса |
 
-## Как поддержка отличает “сломали в проекте” от “сломали платформу”
+> **Legacy:** `coin-lib/resources/dockerfiles/` и `resources/scripts/` — устаревшие копии, **не используются**. Канонический источник — `coin-golden-paths/`.
 
-Минимальный стандарт диагностики:
+## Диагностика L1/L2
 
-1. В логе Coin печатает: `coin-lib@X`, `template@Y`, `stackImage`, `COIN_VERSION`.
-2. `Coin Validate` (перед стадиями) проверяет:
-   - schema config,
-   - допустимость project overrides (`commands`, `preCommands`, `postCommands`),
-   - pinning шаблона,
-   - минимальную версию шаблона.
+1. Лог: `template=`, `stack=`, `agent=`, `COIN_VERSION`.
+2. `coin validate` OK → проблема platform (agent, credentials, QG) или проектных overrides.
+3. `coin validate` FAIL → контракт проекта или версия GP.
 
-Если Validate не проходит — это **проблема проекта/контракта**.
-Если Validate проходит, но падает pod/образ/credentials/QG — это **platform**.
+## Связанные документы
 
+- [golden-paths.md](golden-paths.md)
+- [config.md](config.md)
+- [agent-build-model.md](agent-build-model.md)

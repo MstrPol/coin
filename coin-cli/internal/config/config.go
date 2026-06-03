@@ -9,34 +9,48 @@ import (
 
 const DefaultPath = ".coin/config.yaml"
 
-// Config — полная схема .coin/config.yaml.
+// Config — контракт .coin/config.yaml проекта.
 //
-// Секция agent: читается Jenkins (coin-lib) для подготовки динамического
-// агента и credentials. Всё остальное читает только coin CLI.
+// Поведение сборки задаётся golden path (coin.template + templateVersion).
+// Секция jenkins: — только для coin-lib (агент + credentials).
 type Config struct {
-	Version   int       `yaml:"version"`
-	Coin      CoinMeta  `yaml:"coin"`
-	Agent     Agent     `yaml:"agent"`     // → Jenkins (coin-lib)
-	Project   Project   `yaml:"project"`   // → coin CLI
-	Container Container `yaml:"container"` // → coin CLI
-	Pipeline  Pipeline  `yaml:"pipeline"`  // → coin CLI
+	Version   int           `yaml:"version"`
+	Coin      CoinMeta      `yaml:"coin"`
+	Jenkins   JenkinsConfig `yaml:"jenkins"`
+	Project   Project       `yaml:"project"`
+	Container Container     `yaml:"container"`
+	Pipeline  Pipeline      `yaml:"pipeline"` // optional overrides
+	RN        RNConfig      `yaml:"rn"`
 }
 
-// Agent — секция для Jenkins.
-// coin-lib читает только эти поля; разработчик видит явную границу в файле.
-type Agent struct {
-	Stack           string            `yaml:"stack"`           // стек (python-uv, go, java-maven, …)
-	Runtime         map[string]string `yaml:"runtime"`         // версии toolchain (python: "3.13")
-	PublishRegistry string            `yaml:"publishRegistry"` // Jenkins Credential ID для публикации
+// JenkinsConfig — секция для Jenkins (coin-lib): credentials и optional runtime override.
+type JenkinsConfig struct {
+	Stack       string            `yaml:"stack,omitempty"`
+	Runtime     map[string]string `yaml:"runtime,omitempty"`
+	Credentials Credentials       `yaml:"credentials"`
+}
+
+// Credentials — Jenkins Credential IDs.
+type Credentials struct {
+	Docker string `yaml:"docker"`
+	QGM    string `yaml:"qgm"`
+	Nexus  string `yaml:"nexus"`
 }
 
 type CoinMeta struct {
-	Template        string     `yaml:"template"`
+	Template        string `yaml:"template"`
 	TemplateVersion string `yaml:"templateVersion"`
 }
 
 type Project struct {
-	Name string `yaml:"name"`
+	Name       string `yaml:"name"`
+	GroupID    string `yaml:"groupId"`
+	Repository string `yaml:"repository"`
+}
+
+type RNConfig struct {
+	ServiceURL     string `yaml:"serviceUrl"`
+	CodeRepository string `yaml:"codeRepository"`
 }
 
 type Container struct {
@@ -45,9 +59,9 @@ type Container struct {
 }
 
 type Pipeline struct {
-	Test    Stage        `yaml:"test"`
-	Build   BuildStage   `yaml:"build"`
-	Publish PublishStage `yaml:"publish"`
+	Test    Stage `yaml:"test"`
+	Build   Stage `yaml:"build"`
+	Publish Stage `yaml:"publish"`
 }
 
 type Stage struct {
@@ -55,17 +69,6 @@ type Stage struct {
 	PreCommands  []string `yaml:"preCommands"`
 	Commands     []string `yaml:"commands"`
 	PostCommands []string `yaml:"postCommands"`
-}
-
-type BuildStage struct {
-	Stage              `yaml:",inline"`
-	Target             string `yaml:"target"`
-	DockerfileTemplate string `yaml:"dockerfileTemplate"`
-}
-
-type PublishStage struct {
-	Stage `yaml:",inline"`
-	When  string `yaml:"when"`
 }
 
 func Load(path string) (*Config, error) {
@@ -93,42 +96,28 @@ func validate(cfg *Config) error {
 	if cfg.Project.Name == "" {
 		return fmt.Errorf("project.name is required")
 	}
-	if cfg.Agent.Stack == "" {
-		return fmt.Errorf("agent.stack is required")
+	if cfg.Coin.Template == "" {
+		return fmt.Errorf("coin.template is required")
 	}
-
-	allowed := map[string]bool{
-		"python-uv": true, "python-pip": true,
-		"java-maven": true, "java-gradle": true,
-		"go": true, "node": true,
+	if cfg.Jenkins.Credentials.Docker == "" {
+		return fmt.Errorf("jenkins.credentials.docker is required")
 	}
-	if !allowed[cfg.Agent.Stack] {
-		return fmt.Errorf("unknown agent.stack %q", cfg.Agent.Stack)
-	}
-
 	return nil
 }
 
-// Stack — стек из agent-секции; используется как coin CLI, так и Jenkins.
-func (cfg *Config) Stack() string {
-	return cfg.Agent.Stack
-}
-
-// RuntimeVersion — версия toolchain для указанного ключа.
-func (cfg *Config) RuntimeVersion(key, defaultVersion string) string {
-	if v := cfg.Agent.Runtime[key]; v != "" {
-		return v
-	}
-	return defaultVersion
+// DockerCredentialID — Jenkins Credential ID для registry publish.
+func (cfg *Config) DockerCredentialID() string {
+	return cfg.Jenkins.Credentials.Docker
 }
 
 func (s *Stage) IsEnabled() bool {
 	return s.Enabled == nil || *s.Enabled
 }
 
-func (cfg *Config) BuildTarget() string {
-	if cfg.Pipeline.Build.Target != "" {
-		return cfg.Pipeline.Build.Target
+// RuntimeVersion — override из jenkins.runtime, иначе fallback.
+func (cfg *Config) RuntimeVersion(key, defaultVersion string) string {
+	if v := cfg.Jenkins.Runtime[key]; v != "" {
+		return v
 	}
-	return "package"
+	return defaultVersion
 }
