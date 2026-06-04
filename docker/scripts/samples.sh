@@ -40,6 +40,20 @@ patch_config() {
   rm -f "${cfg}.bak"
 }
 
+ensure_sample_git_repo() {
+  local dest="$1"
+  if [[ -d "${dest}/.git" ]] && ! git -C "${dest}" rev-parse --git-dir >/dev/null 2>&1; then
+    rm -rf "${dest}/.git"
+  fi
+  if ! git -C "${dest}" rev-parse --is-inside-work-tree >/dev/null 2>&1 || \
+     [[ "$(git -C "${dest}" rev-parse --show-toplevel)" != "${dest}" ]]; then
+    rm -rf "${dest}/.git"
+    git -C "${dest}" init -b main
+    git -C "${dest}" config user.email "coin@local"
+    git -C "${dest}" config user.name "Coin Local"
+  fi
+}
+
 render_multibranch_casc() {
   local out="$1"
   cat > "${out}" <<'EOF'
@@ -118,20 +132,15 @@ while IFS= read -r line; do
 
     url="http://${GITEA_USER}:${GITEA_PASSWORD}@localhost:${GITEA_HTTP_PORT}/coin/${repo}.git"
 
-    cd "${dest}"
-    if [[ ! -d .git ]]; then
-      git init -b main
-      git config user.email "coin@local"
-      git config user.name "Coin Local"
-    fi
-    if git remote get-url origin >/dev/null 2>&1; then
-      git remote set-url origin "${url}"
+    ensure_sample_git_repo "${dest}"
+    if git -C "${dest}" remote get-url origin >/dev/null 2>&1; then
+      git -C "${dest}" remote set-url origin "${url}"
     else
-      git remote add origin "${url}"
+      git -C "${dest}" remote add origin "${url}"
     fi
-    git add -A
-    git diff --staged --quiet || git commit -m "sample product repo (${starter})"
-    git push --force -u origin main
+    git -C "${dest}" add -A
+    git -C "${dest}" diff --staged --quiet || git -C "${dest}" commit -m "sample product repo (${starter})"
+    git -C "${dest}" push --force -u origin main
 
     echo "    http://localhost:${GITEA_HTTP_PORT}/coin/${repo}"
 
@@ -151,11 +160,6 @@ CASC="$(mktemp)"
 trap 'rm -f "${CASC}"' RETURN
 render_multibranch_casc "${CASC}"
 jenkins_casc_reload "${CASC}" /var/jenkins_home/casc-config/35-samples-jobs.yaml
-
-echo "==> Jenkins: branch scan"
-for repo in "${REPOS[@]}"; do
-  jenkins_build_job "${repo}"
-done
 
 echo "samples ready under ${SAMPLES_DIR}/"
 for repo in "${REPOS[@]}"; do

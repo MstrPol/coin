@@ -62,22 +62,3 @@ jenkins_casc_reload() {
     exit 1
   fi
 }
-
-jenkins_build_job() {
-  local job="$1"
-  local cookie
-  cookie="$(mktemp)"
-  local crumb
-  crumb="$(curl -sf -u "${JENKINS_USER}:${JENKINS_PASS}" -c "${cookie}" \
-    "http://localhost:${JENKINS_PORT}/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,\":\",//crumb)")"
-  local http_code
-  http_code="$(curl -s -u "${JENKINS_USER}:${JENKINS_PASS}" -b "${cookie}" -c "${cookie}" \
-    -H "${crumb}" -o /dev/null -w '%{http_code}' \
-    -X POST "http://localhost:${JENKINS_PORT}/job/${job}/build")"
-  rm -f "${cookie}"
-
-  if [[ "${http_code}" != "200" && "${http_code}" != "201" && "${http_code}" != "302" ]]; then
-    echo "Jenkins build trigger failed for ${job} (HTTP ${http_code})" >&2
-    return 1
-  fi
-}
