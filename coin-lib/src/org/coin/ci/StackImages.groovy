@@ -1,12 +1,11 @@
 package org.coin.ci
 
 /**
- * Разрешает образ K8s-агента: project .coin/config.yaml + coin-platform.
+ * Разрешает образ K8s-агента: GP profile (bundle) + agents/catalog.yaml.
  *
- * Источники (COIN_PLATFORM_DIR):
- *   golden-paths/<template>/<ver>/profile.yaml  → stack, runtime
- *   agents/catalog.yaml                           → image ref
- *   platform.yaml                                 → jnlp image
+ * profile.yaml — единственный platform pin для продукта:
+ *   agent.stack, agent.runtime, agent.rev  → image tag
+ *   coinCli.version                         → Nexus Maven (CoinCli.groovy)
  */
 class StackImages implements Serializable {
 
@@ -15,16 +14,17 @@ class StackImages implements Serializable {
     private final def steps
     private String platformDir
     private Map agentsCatalog
-    private Map platformConfig
 
     StackImages(def steps) {
         this.steps = steps
     }
 
     String jnlpImage() {
-        def jnlp = platformYaml().jenkins?.jnlp?.image
+        def path = "${platformRoot()}/platform.yaml"
+        def platform = steps.readYaml(file: path)
+        def jnlp = platform.jenkins?.jnlp?.image
         if (!jnlp) {
-                steps.error('platform.yaml: jenkins.jnlp.image не задан')
+            steps.error('platform.yaml: jenkins.jnlp.image не задан')
         }
         return jnlp
     }
@@ -43,9 +43,24 @@ class StackImages implements Serializable {
             return pin
         }
 
-        def stack = stackFromProfile(cfg)
+        def profile = new ProfileLoader(steps).load(cfg)
+        def stack = profile.agent?.stack
+        if (!stack) {
+            steps.error('profile: agent.stack не задан')
+        }
+
         def runtimeKey = runtimeKey(stack)
-        def runtime = cfg.jenkins?.runtime?."${runtimeKey}" ?: runtimeFromProfile(cfg, stack)
+        def runtime = cfg.jenkins?.runtime?."${runtimeKey}" ?: profile.agent?.runtime?."${runtimeKey}"
+        if (!runtime) {
+            steps.error("profile: agent.runtime.${runtimeKey} не задан")
+        }
+        runtime = runtime.toString()
+
+        def profileRev = profile.agent?.rev
+        if (profileRev == null) {
+            steps.error('profile: agent.rev не задан (platform bundle)')
+        }
+
         def entry = agentsCatalog().stacks?."${stack}"?."${runtime}"
         if (!entry?.image) {
             steps.error("agents/catalog.yaml: нет stacks.${stack}.${runtime}")
@@ -55,40 +70,26 @@ class StackImages implements Serializable {
         if (!registry) {
             steps.error('agents/catalog.yaml: registry.default не задан')
         }
-        def tag = entry.tag ?: "${runtime}-r${entry.rev ?: 0}"
-        def ref = "${registry}/${entry.image}:${tag}"
-        return entry.digest ? "${ref}@${entry.digest}" : ref
+
+        def tag = resolveTag(entry, runtime.toString(), profileRev as int)
+        return "${registry}/${entry.image}:${tag}"
+    }
+
+    private static String resolveTag(Map entry, String runtime, int profileRev) {
+        def catalogRev = entry.rev != null ? entry.rev as int : 0
+        if (entry.tag && catalogRev == profileRev) {
+            return entry.tag.toString()
+        }
+        return "${runtime}-r${profileRev}"
     }
 
     private String stackFromProfile(Map cfg) {
-        def template = cfg.coin?.template
-        if (!template) {
-            steps.error('coin.template не задан в .coin/config.yaml')
-        }
-        def version = cfg.coin?.templateVersion ?: 'v1'
-        def profilePath = "${platformRoot()}/golden-paths/${template}/${version}/profile.yaml"
-        if (!steps.fileExists(profilePath)) {
-            steps.error("profile не найден: ${profilePath}")
-        }
-        def profile = steps.readYaml(file: profilePath)
+        def profile = new ProfileLoader(steps).load(cfg)
         def stack = profile.agent?.stack
         if (!stack) {
-            steps.error("profile ${profilePath}: agent.stack не задан")
+            steps.error('profile: agent.stack не задан')
         }
         return stack
-    }
-
-    private String runtimeFromProfile(Map cfg, String stack) {
-        def template = cfg.coin?.template
-        def version = cfg.coin?.templateVersion ?: 'v1'
-        def profilePath = "${platformRoot()}/golden-paths/${template}/${version}/profile.yaml"
-        def profile = steps.readYaml(file: profilePath)
-        def runtimeKey = runtimeKey(stack)
-        def runtime = profile.agent?.runtime?."${runtimeKey}"
-        if (!runtime) {
-            steps.error("profile ${profilePath}: agent.runtime.${runtimeKey} не задан")
-        }
-        return runtime.toString()
     }
 
     private String platformRoot() {
@@ -110,17 +111,6 @@ class StackImages implements Serializable {
             agentsCatalog = steps.readYaml(file: path)
         }
         return agentsCatalog
-    }
-
-    private Map platformYaml() {
-        if (!platformConfig) {
-            def path = "${platformRoot()}/platform.yaml"
-            if (!steps.fileExists(path)) {
-                steps.error("platform.yaml не найден: ${path}")
-            }
-            platformConfig = steps.readYaml(file: path)
-        }
-        return platformConfig
     }
 
     private static String runtimeKey(String stack) {

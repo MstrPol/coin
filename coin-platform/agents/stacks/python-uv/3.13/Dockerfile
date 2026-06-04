@@ -8,7 +8,7 @@ ENV UV_LINK_MODE=copy \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git ca-certificates docker.io \
+    && apt-get install -y --no-install-recommends git ca-certificates docker.io curl unzip \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir "uv==${UV_VERSION}"

@@ -2,7 +2,7 @@
 FROM golang:1.22-bookworm
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git ca-certificates docker.io \
+    && apt-get install -y --no-install-recommends git ca-certificates docker.io curl unzip \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace

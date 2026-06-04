@@ -7,7 +7,11 @@ type Profile struct {
 	Agent struct {
 		Stack   string            `yaml:"stack"`
 		Runtime map[string]string `yaml:"runtime"`
+		Rev     int               `yaml:"rev"` // pin → agents/catalog.yaml (image tag …-rN)
 	} `yaml:"agent"`
+	CoinCli struct {
+		Version string `yaml:"version"` // pin → Nexus Maven coin-cli zip
+	} `yaml:"coinCli"`
 	Build struct {
 		Type       string `yaml:"type"`       // container | package
 		Dockerfile string `yaml:"dockerfile"` // имя файла в bundle, default Dockerfile

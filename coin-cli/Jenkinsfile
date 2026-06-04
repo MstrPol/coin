@@ -1,90 +1,103 @@
 // Platform CI: coin CLI → Nexus Maven (zip, classifier linux-<arch>).
-// Репозитории maven-releases / maven-snapshots — из коробки Nexus, bootstrap не трогаем.
+// Test/Build — K8s dynamic agent (ci-go из coin-platform/agents/catalog.yaml).
+@Library('coin-lib') _
+
+def goStackImage(catalog) {
+    def entry = catalog.stacks?.go?.'1.22'
+    if (!entry?.image) {
+        error('agents/catalog.yaml: нет stacks.go.1.22')
+    }
+    def registry = catalog.registry?.default ?: 'nexus:8082/coin-docker'
+    def tag = entry.tag ?: "1.22-r${entry.rev ?: 0}"
+    return "${registry}/${entry.image}:${tag}"
+}
+
 pipeline {
-    agent any
+    agent none
 
     environment {
         COIN_CLI_VERSION = '0.0.0-SNAPSHOT'
         MAVEN_GROUP = 'coin.platform'
         MAVEN_ARTIFACT = 'coin-cli'
         NEXUS_BASE = 'http://nexus:8081/repository'
-        GO_IMAGE = 'golang:1.22'
-        MVN_IMAGE = 'maven:3.9-eclipse-temurin-17'
     }
 
     stages {
-        stage('Test') {
-            steps {
-                sh '''
-                    docker run --rm -v "${WORKSPACE}:/w" -w /w ${GO_IMAGE} go test ./...
-                '''
-            }
-        }
-        stage('Build') {
+        stage('Test & Build') {
             steps {
                 script {
-                    env.GOARCH = sh(script: '''case "$(uname -m)" in
-                        arm64|aarch64) echo arm64 ;;
-                        x86_64|amd64) echo amd64 ;;
-                        *) echo "unsupported: $(uname -m)" >&2; exit 1 ;;
-                    esac''', returnStdout: true).trim()
+                    def stackImage
+                    def jnlpImage
+                    node('built-in') {
+                        checkout scm
+                        coinPlatformCheckout([:])
+                        def catalog = readYaml file: "${env.COIN_PLATFORM_DIR}/agents/catalog.yaml"
+                        def platform = readYaml file: "${env.COIN_PLATFORM_DIR}/platform.yaml"
+                        stackImage = goStackImage(catalog)
+                        jnlpImage = platform.jenkins?.jnlp?.image
+                        if (!jnlpImage) {
+                            error('platform.yaml: jenkins.jnlp.image не задан')
+                        }
+                        echo "coin-cli agent: ${stackImage}"
+                    }
+
+                    def podLabel = "coin-cli-${env.BUILD_NUMBER}"
+                    def podYaml = coinPodTemplate(jnlpImage, stackImage)
+                    podTemplate(yaml: podYaml, cloud: 'kubernetes', label: podLabel) {
+                        node(podLabel) {
+                            checkout scm
+                            coinPlatformCheckout([:])
+                            container('stack') {
+                                sh 'go test ./...'
+                                sh '''
+                                    set -eu
+                                    case "$(uname -m)" in
+                                        arm64|aarch64) GOARCH=arm64 ;;
+                                        x86_64|amd64) GOARCH=amd64 ;;
+                                        *) echo "unsupported: $(uname -m)" >&2; exit 1 ;;
+                                    esac
+                                    GOOS=linux CGO_ENABLED=0 GOARCH="${GOARCH}" go build \
+                                      -buildvcs=false \
+                                      -ldflags "-X coin.local/coin-cli/cmd.Version=${COIN_CLI_VERSION}" \
+                                      -o coin .
+                                    echo "${GOARCH}" > .goarch
+                                '''
+                                stash includes: 'coin,.goarch', name: 'coin-binary'
+                            }
+                        }
+                    }
                 }
-                sh '''
-                    docker run --rm \
-                      -e GOOS=linux -e GOARCH=${GOARCH} -e CGO_ENABLED=0 \
-                      -v "${WORKSPACE}:/w" -w /w ${GO_IMAGE} \
-                      go build -ldflags "-X coin.local/coin-cli/cmd.Version=${COIN_CLI_VERSION}" -o coin .
-                '''
             }
         }
+
         stage('Publish Maven') {
+            agent { label 'built-in' }
             steps {
+                unstash 'coin-binary'
+                script {
+                    env.GOARCH = readFile('.goarch').trim()
+                }
                 withCredentials([usernamePassword(
                     credentialsId: 'nexus-admin',
                     usernameVariable: 'NEXUS_USER',
                     passwordVariable: 'NEXUS_PASSWORD',
                 )]) {
                     sh '''
-                        set -euo pipefail
-                        zip -j "coin-cli-linux-${GOARCH}.zip" coin
+                        set -eu
+                        ZIP="coin-cli-linux-${GOARCH}.zip"
+                        zip -j "${ZIP}" coin
 
-                        if [[ "${COIN_CLI_VERSION}" == *SNAPSHOT ]]; then
-                          MAVEN_REPO="maven-snapshots"
-                        else
-                          MAVEN_REPO="maven-releases"
-                        fi
-                        MAVEN_URL="${NEXUS_BASE}/${MAVEN_REPO}/"
+                        case "${COIN_CLI_VERSION}" in
+                          *SNAPSHOT*) MAVEN_REPO=maven-snapshots ;;
+                          *) MAVEN_REPO=maven-releases ;;
+                        esac
 
-                        cat > settings.xml <<EOF
-<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
-          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
-                              https://maven.apache.org/xsd/settings-1.0.0.xsd">
-  <servers>
-    <server>
-      <id>nexus-maven</id>
-      <username>${NEXUS_USER}</username>
-      <password>${NEXUS_PASSWORD}</password>
-    </server>
-  </servers>
-</settings>
-EOF
+                        GAV_PATH="$(echo "${MAVEN_GROUP}" | tr "." "/")/${MAVEN_ARTIFACT}/${COIN_CLI_VERSION}"
+                        REMOTE="${NEXUS_BASE}/${MAVEN_REPO}/${GAV_PATH}/${MAVEN_ARTIFACT}-${COIN_CLI_VERSION}-linux-${GOARCH}.zip"
+                        curl -f -S -u "${NEXUS_USER}:${NEXUS_PASSWORD}" \
+                          -X PUT --upload-file "${ZIP}" "${REMOTE}"
 
-                        docker run --rm \
-                          -v "${WORKSPACE}:/w" -w /w \
-                          ${MVN_IMAGE} \
-                          mvn -s /w/settings.xml deploy:deploy-file \
-                            -DgroupId="${MAVEN_GROUP}" \
-                            -DartifactId="${MAVEN_ARTIFACT}" \
-                            -Dversion="${COIN_CLI_VERSION}" \
-                            -Dpackaging=zip \
-                            -Dclassifier="linux-${GOARCH}" \
-                            -Dfile="coin-cli-linux-${GOARCH}.zip" \
-                            -DrepositoryId=nexus-maven \
-                            -Durl="${MAVEN_URL}"
-
-                        GAV_PATH="${MAVEN_GROUP//./\/}/${MAVEN_ARTIFACT}/${COIN_CLI_VERSION}"
-                        echo "published ${MAVEN_URL}${GAV_PATH}/${MAVEN_ARTIFACT}-${COIN_CLI_VERSION}-linux-${GOARCH}.zip"
+                        echo "published ${REMOTE}"
                     '''
                 }
             }

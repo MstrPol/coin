@@ -4,7 +4,7 @@
 
 | Каталог | Назначение |
 |---------|------------|
-| `golden-paths/` | GP: profile, scripts, runtime Dockerfile, catalog policy |
+| `golden-paths/` | GP: profile (bundle), scripts, runtime Dockerfile, catalog policy |
 | `starters/` | Скелетоны для `coin init` |
 | `agents/` | CI agent images: `catalog.yaml`, `Jenkinsfile`, `stacks/` |
 

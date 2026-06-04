@@ -72,7 +72,13 @@ def buildOneAgent(catalog, stack, runtime) {
     }
 
     def digest = sh(
-        script: "docker inspect --format='{{.Id}}' '${ref}'",
+        script: """
+            set -euo pipefail
+            rd=\$(docker inspect --format='{{index .RepoDigests 0}}' '${ref}' 2>/dev/null || true)
+            if [[ "\${rd}" == *@sha256:* ]]; then
+              echo "\${rd#*@}"
+            fi
+        """,
         returnStdout: true,
     ).trim()
 

@@ -31,39 +31,25 @@ func Validate() error {
 
 	var errs []string
 
-	for name, raw := range gpCatalog {
-		entry, ok := raw.(map[string]any)
-		if !ok {
-			errs = append(errs, fmt.Sprintf("golden-paths/catalog.yaml: %q — неверный формат", name))
-			continue
-		}
-		latest, _ := entry["latest"].(string)
-		if latest == "" {
-			latest = "v1"
-		}
-		profilePath := filepath.Join(root, goldenPathsSubdir, name, latest, "profile.yaml")
-		profile, err := loadYAMLMap(profilePath)
-		if err != nil {
-			errs = append(errs, fmt.Sprintf("GP %q: profile %s: %v", name, profilePath, err))
-			continue
-		}
-		agent, _ := profile["agent"].(map[string]any)
-		stack, _ := agent["stack"].(string)
-		if stack == "" {
-			errs = append(errs, fmt.Sprintf("GP %q: agent.stack пуст", name))
-			continue
-		}
-		catalogStack, _ := entry["stack"].(string)
-		if catalogStack != "" && catalogStack != stack {
-			errs = append(errs, fmt.Sprintf("GP %q: catalog.stack=%q != profile.agent.stack=%q", name, catalogStack, stack))
-		}
-		runtime, err := runtimeFromProfile(stack, agent)
+	for name := range gpCatalog {
+		gpDir := filepath.Join(root, goldenPathsSubdir, name)
+		entries, err := os.ReadDir(gpDir)
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("GP %q: %v", name, err))
 			continue
 		}
-		if !agentStackExists(agentsCatalog, stack, runtime) {
-			errs = append(errs, fmt.Sprintf("GP %q: agents/catalog.yaml — нет stacks.%s.%q", name, stack, runtime))
+		foundProfile := false
+		for _, e := range entries {
+			if !e.IsDir() || !strings.HasPrefix(e.Name(), "v") {
+				continue
+			}
+			foundProfile = true
+			ver := e.Name()
+			profilePath := filepath.Join(gpDir, ver, "profile.yaml")
+			errs = append(errs, validateProfile(root, name, ver, profilePath, gpCatalog, agentsCatalog)...)
+		}
+		if !foundProfile {
+			errs = append(errs, fmt.Sprintf("GP %q: нет каталогов vN с profile.yaml", name))
 		}
 	}
 
@@ -114,6 +100,77 @@ func Validate() error {
 		return fmt.Errorf("platform validate failed:\n  - %s", strings.Join(errs, "\n  - "))
 	}
 	return nil
+}
+
+func validateProfile(root, name, version, profilePath string, gpCatalog, agentsCatalog map[string]any) []string {
+	var errs []string
+	label := fmt.Sprintf("GP %q/%s", name, version)
+
+	profile, err := loadYAMLMap(profilePath)
+	if err != nil {
+		return []string{fmt.Sprintf("%s: profile: %v", label, err)}
+	}
+
+	agent, _ := profile["agent"].(map[string]any)
+	stack, _ := agent["stack"].(string)
+	if stack == "" {
+		return []string{fmt.Sprintf("%s: agent.stack пуст", label)}
+	}
+
+	catalogEntry, _ := gpCatalog[name].(map[string]any)
+	catalogStack, _ := catalogEntry["stack"].(string)
+	if catalogStack != "" && catalogStack != stack {
+		errs = append(errs, fmt.Sprintf("%s: catalog.stack=%q != profile.agent.stack=%q", label, catalogStack, stack))
+	}
+
+	runtime, err := runtimeFromProfile(stack, agent)
+	if err != nil {
+		return append(errs, fmt.Sprintf("%s: %v", label, err))
+	}
+	if !agentStackExists(agentsCatalog, stack, runtime) {
+		errs = append(errs, fmt.Sprintf("%s: agents/catalog.yaml — нет stacks.%s.%q", label, stack, runtime))
+	}
+
+	rev, ok := intFromYAML(agent["rev"])
+	if !ok || rev < 0 {
+		errs = append(errs, fmt.Sprintf("%s: agent.rev обязателен (int >= 0)", label))
+	} else if catalogRev, ok := catalogRev(agentsCatalog, stack, runtime); ok && rev > catalogRev {
+		errs = append(errs, fmt.Sprintf("%s: agent.rev=%d выше catalog rev=%d (образ ещё не собран?)", label, rev, catalogRev))
+	}
+
+	coinCli, _ := profile["coinCli"].(map[string]any)
+	cliVersion, _ := coinCli["version"].(string)
+	if strings.TrimSpace(cliVersion) == "" {
+		errs = append(errs, fmt.Sprintf("%s: coinCli.version обязателен", label))
+	}
+
+	return errs
+}
+
+func intFromYAML(v any) (int, bool) {
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		return int(n), true
+	default:
+		return 0, false
+	}
+}
+
+func catalogRev(catalog map[string]any, stack, runtime string) (int, bool) {
+	stacks, _ := catalog["stacks"].(map[string]any)
+	runtimes, ok := stacks[stack].(map[string]any)
+	if !ok {
+		return 0, false
+	}
+	entry, ok := runtimes[runtime].(map[string]any)
+	if !ok {
+		return 0, false
+	}
+	return intFromYAML(entry["rev"])
 }
 
 func loadAgentsCatalog(path string) (map[string]any, error) {

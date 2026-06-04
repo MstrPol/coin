@@ -10,6 +10,9 @@ import (
 
 func startersRoot(t *testing.T) string {
 	t.Helper()
+	if root, err := Root(); err == nil {
+		return root
+	}
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("runtime.Caller failed")

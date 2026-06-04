@@ -1,14 +1,17 @@
 import org.coin.ci.Config
+import org.coin.ci.CoinCli
 import org.coin.ci.Platform
 import org.coin.ci.PodTemplate
+import org.coin.ci.ProfileLoader
 import org.coin.ci.StackImages
 
 /**
  * Единая точка входа Coin CI.
  *
  * Ответственность coin-lib:
- *   1. Checkout coin-platform + выбор K8s dynamic agent.
- *   2. Credentials binding перед coin CLI.
+ *   1. Checkout coin-platform + выбор K8s dynamic agent (GP profile bundle).
+ *   2. Bootstrap coin CLI из Nexus (profile coinCli.version).
+ *   3. Credentials binding перед coin run publish.
  */
 def call(Map args = [:]) {
     def cloudName    = args.cloud ?: null
@@ -20,9 +23,12 @@ def call(Map args = [:]) {
         credentialsId: args.platformCredentials ?: 'gitea-git',
     ]
 
+    def coinCli = new CoinCli(this)
+    def coinBin = coinCli.binDir()
+
     def coinSh = { String script ->
         ansiColor('xterm') {
-            sh script
+            sh "export PATH=\"${coinBin}:\$PATH\" && ${script}"
         }
     }
 
@@ -36,7 +42,8 @@ def call(Map args = [:]) {
         stackImage = images.resolveStackImage(cfg)
         jnlpImage = images.jnlpImage()
         def stack = images.resolveStack(cfg)
-        echo "Coin: project=${cfg.project?.name} template=${cfg.coin?.template} stack=${stack} agent=${stackImage}"
+        def profile = new ProfileLoader(this).load(cfg)
+        echo "Coin: project=${cfg.project?.name} template=${cfg.coin?.template}/${cfg.coin?.templateVersion ?: 'v1'} stack=${stack} agent=${stackImage} coinCli=${profile.coinCli?.version}"
     }
 
     def podYaml = new PodTemplate().build(jnlpImage, stackImage)
@@ -50,12 +57,20 @@ def call(Map args = [:]) {
             new Platform(this).checkout(platformOpts)
 
             container('stack') {
+                def cfg = new Config(this).load()
+                def profile = new ProfileLoader(this).load(cfg)
+                def minCLI = profile.coinCli?.version
+
+                stage('Bootstrap') {
+                    coinCli.bootstrap(cfg)
+                }
+
                 stage('version') {
                     coinSh 'coin --version'
                 }
 
                 stage('Validate') {
-                    coinSh 'coin validate'
+                    coinSh "coin validate --min-version ${minCLI}"
                 }
 
                 stage('Test') {
@@ -67,8 +82,8 @@ def call(Map args = [:]) {
                 }
 
                 stage('Publish') {
-                    def cfg = new Config(this).load()
-                    def credId = cfg.jenkins?.credentials?.docker ?: 'coin-registry-default'
+                    def pubCfg = new Config(this).load()
+                    def credId = pubCfg.jenkins?.credentials?.docker ?: 'coin-registry-default'
                     withCredentials([usernamePassword(
                         credentialsId: credId,
                         usernameVariable: 'COIN_REGISTRY_USER',

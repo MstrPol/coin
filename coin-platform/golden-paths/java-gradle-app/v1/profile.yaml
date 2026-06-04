@@ -3,6 +3,11 @@ agent:
   stack: java-gradle
   runtime:
     java: "17"
+  rev: 0
+
+coinCli:
+  version: "0.0.0-SNAPSHOT"
+
 build:
   type: container
   dockerfile: Dockerfile

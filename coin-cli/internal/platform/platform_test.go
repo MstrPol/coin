@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -8,6 +9,11 @@ import (
 
 func platformRoot(t *testing.T) string {
 	t.Helper()
+	if dir := os.Getenv("COIN_PLATFORM_DIR"); dir != "" {
+		if got, err := Root(); err == nil {
+			return got
+		}
+	}
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("runtime.Caller failed")
@@ -50,7 +56,14 @@ func TestGoldenPathsDir(t *testing.T) {
 
 func TestRoot_missingEnv(t *testing.T) {
 	t.Setenv("COIN_PLATFORM_DIR", "")
-	t.Chdir(t.TempDir())
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := Root(); err == nil {
 		t.Fatal("expected error without platform dir")
 	}

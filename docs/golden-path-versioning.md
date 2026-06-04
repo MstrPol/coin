@@ -6,11 +6,40 @@
 
 ## Три слоя доставки (пилот)
 
-| Слой | Частота обновлений | Источник |
-|------|-------------------|----------|
-| **Runtime agent image** | Редко | `coin-jenkins-agents` (toolchain + coin CLI + docker/kaniko) |
-| **coin-cli** | Часто | Nexus Maven (`coin/platform/coin-cli/<ver>/`, zip) |
-| **Golden paths catalog** | Очень часто | Nexus tarball или локальный `coin-golden-paths/` |
+| Слой | Частота обновлений | Источник | Pin для продукта |
+|------|-------------------|----------|------------------|
+| **Runtime agent image** | Редко | `agents/catalog.yaml` + `agents-build` | `profile.agent.rev` |
+| **coin-cli** | Часто | Nexus Maven zip | `profile.coinCli.version` |
+| **Golden paths catalog** | Очень часто | `coin-platform/golden-paths/` | `coin.templateVersion` |
+
+Продуктовый репозиторий задаёт только **`coin.template` + `coin.templateVersion`**.  
+Все platform pin'ы (CLI, agent rev, scripts, Dockerfile) — в **`golden-paths/<name>/<ver>/profile.yaml`**.
+
+### Platform bundle (profile.yaml)
+
+```yaml
+agent:
+  stack: python-uv
+  runtime:
+    python: "3.13"
+  rev: 0
+coinCli:
+  version: "0.0.0-SNAPSHOT"
+build:
+  type: container
+  ...
+```
+
+| Изменение | Действие |
+|-----------|----------|
+| Patch/minor CLI (совместимо) | bump `coinCli.version` в **текущем** `vN` |
+| Major CLI / breaking контракт | новый **`vN+1/`** + миграция `templateVersion` |
+| Пересборка agent (тот же runtime) | bump `agent.rev` в profile |
+| Смена runtime (Go 1.22→1.23) | обычно новый **`vN+1/`** |
+
+Rollout: `coin-cli` job → Nexus; `agents-build` → Docker + `catalog.yaml`; bump profile в `coin-platform`; продукты подхватывают на следующем build.
+
+`coin platform validate` проверяет `coinCli.version`, `agent.rev` и связь с `agents/catalog.yaml`.
 
 Golden paths **не** вшиваются в бинарь CLI — только внешний каталог (local / Nexus).
 

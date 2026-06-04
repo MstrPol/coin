@@ -6,10 +6,22 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"coin.local/coin-cli/internal/platform"
 )
 
 func goldenPathsRoot(t *testing.T) string {
 	t.Helper()
+	if dir := os.Getenv("COIN_GOLDEN_PATHS_DIR"); dir != "" {
+		if _, err := os.Stat(filepath.Join(dir, catalogFile)); err == nil {
+			return dir
+		}
+	}
+	if dir, err := platform.GoldenPathsDir(); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, catalogFile)); err == nil {
+			return dir
+		}
+	}
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("runtime.Caller failed")

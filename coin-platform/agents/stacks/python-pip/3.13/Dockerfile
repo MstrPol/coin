@@ -5,7 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git ca-certificates docker.io \
+    && apt-get install -y --no-install-recommends git ca-certificates docker.io curl unzip \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir pytest build twine
 

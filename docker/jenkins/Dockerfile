@@ -2,7 +2,7 @@ FROM jenkins/jenkins:lts-jdk17
 
 USER root
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git curl docker.io docker-cli ca-certificates \
+    && apt-get install -y --no-install-recommends git curl docker.io docker-cli ca-certificates zip \
     && rm -rf /var/lib/apt/lists/* \
     && usermod -aG docker jenkins
 
