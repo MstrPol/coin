@@ -34,18 +34,13 @@ fix: исправить NPE в обработчике MYTEAM-456 MYTEAM-457
 
 ## Конфигурация
 
-Координаты артефакта задаются в `project:` — они используются во всех интеграциях.
-Для release notes дополнительно нужна секция `rn:`.
+Координаты артефакта задаются в `project:` — они используются во всех интеграциях:
 
 ```yaml
 project:
   name: my-service              # → artifactId
   groupId: com.example.team     # → groupId в QGM
   repository: Nexus_PROD        # → repository в QGM
-
-rn:
-  serviceUrl: https://qgm.example.com
-  # codeRepository: ssh://git@bitbucket.example.com/team/my-service.git
 ```
 
 | Поле | Обязательно | Описание |
@@ -53,10 +48,26 @@ rn:
 | `project.name` | **Да** | Имя сервиса (`artifactId`). |
 | `project.groupId` | **Да** | Домен команды (`groupId` в QGM). |
 | `project.repository` | **Да** | Репозиторий Nexus (`repository` в QGM). |
-| `rn.serviceUrl` | Нет* | URL QGM API. Нужен для `coin rn publish` (запланировано). |
-| `rn.codeRepository` | Нет | URL git-репозитория. Авто из `git remote origin` если не задан. |
 
-*Версия берётся из `coin version` (текущий git-тег).
+**QGM в pipeline пока не подключён.** Когда интеграция появится:
+
+- URL QGM API и credentials — на уровне **platform** (не в каждом `.coin/config.yaml`);
+- `coin rn publish` будет использовать `project.*` + platform defaults.
+
+Опционально для локального `coin rn` (до platform defaults):
+
+```yaml
+rn:
+  serviceUrl: https://qgm.example.com
+  # codeRepository: ssh://git@bitbucket.example.com/team/my-service.git
+```
+
+| Поле | Описание |
+|------|----------|
+| `rn.serviceUrl` | URL QGM API (будет platform-owned). |
+| `rn.codeRepository` | URL git-репозитория. Авто из `git remote origin` если не задан. |
+
+*Версия берётся из `coin version` (текущий git-тег).*
 
 ---
 

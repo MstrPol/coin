@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -164,6 +165,27 @@ func (b *Bundle) RuntimeVersion(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// ContainerPort — EXPOSE в managed Dockerfile.
+func (b *Bundle) ContainerPort() string {
+	if b.Profile.Container.Port > 0 {
+		return strconv.Itoa(b.Profile.Container.Port)
+	}
+	return "8080"
+}
+
+// ContainerCommand — JSON-массив для CMD в managed Dockerfile.
+func (b *Bundle) ContainerCommand() string {
+	cmd := b.Profile.Container.Command
+	if len(cmd) == 0 {
+		cmd = []string{"python", "-m", "app"}
+	}
+	parts := make([]string, len(cmd))
+	for i, p := range cmd {
+		parts[i] = `"` + p + `"`
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
 }
 
 // StageEnabled — дефолт из profile (nil = true).

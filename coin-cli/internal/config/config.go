@@ -14,13 +14,11 @@ const DefaultPath = ".coin/config.yaml"
 // Поведение сборки задаётся golden path (coin.template + templateVersion).
 // Секция jenkins: — только для coin-lib (агент + credentials).
 type Config struct {
-	Version   int           `yaml:"version"`
-	Coin      CoinMeta      `yaml:"coin"`
-	Jenkins   JenkinsConfig `yaml:"jenkins"`
-	Project   Project       `yaml:"project"`
-	Container Container     `yaml:"container"`
-	Pipeline  Pipeline      `yaml:"pipeline"` // optional overrides
-	RN        RNConfig      `yaml:"rn"`
+	Coin     CoinMeta      `yaml:"coin"`
+	Jenkins  JenkinsConfig `yaml:"jenkins"`
+	Project  Project       `yaml:"project"`
+	Pipeline Pipeline      `yaml:"pipeline"` // optional overrides
+	RN       RNConfig      `yaml:"rn"`       // optional, для coin rn (пока без QGM в pipeline)
 }
 
 // JenkinsConfig — секция для Jenkins (coin-lib): credentials и optional runtime override.
@@ -51,11 +49,6 @@ type Project struct {
 type RNConfig struct {
 	ServiceURL     string `yaml:"serviceUrl"`
 	CodeRepository string `yaml:"codeRepository"`
-}
-
-type Container struct {
-	Port    int      `yaml:"port"`
-	Command []string `yaml:"command"`
 }
 
 type Pipeline struct {
@@ -90,9 +83,6 @@ func Load(path string) (*Config, error) {
 }
 
 func validate(cfg *Config) error {
-	if cfg.Version != 1 {
-		return fmt.Errorf("unsupported config version %d (expected 1)", cfg.Version)
-	}
 	if cfg.Project.Name == "" {
 		return fmt.Errorf("project.name is required")
 	}

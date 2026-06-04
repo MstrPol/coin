@@ -23,3 +23,7 @@ pipeline:
     enabled: true
   publish:
     enabled: true
+
+container:
+  port: 8080
+  command: ["python", "-m", "my_service"]

@@ -24,7 +24,6 @@ func RunWizard(root string) (Params, error) {
 		repositoryChoice = "Nexus_PROD"
 		customRepository string
 		dockerCred       = "nexus-docker"
-		qgmCred          = "qgm-svc-account"
 		destDir          string
 	)
 
@@ -77,11 +76,6 @@ func RunWizard(root string) (Params, error) {
 				Placeholder("nexus-docker").
 				Value(&dockerCred).
 				Validate(required("docker credential")),
-			huh.NewInput().
-				Title("Jenkins credential — QGM").
-				Description("jenkins.credentials.qgm (можно оставить пустым)").
-				Placeholder("qgm-svc-account").
-				Value(&qgmCred),
 		),
 		huh.NewGroup(
 			huh.NewInput().
@@ -175,7 +169,6 @@ func RunWizard(root string) (Params, error) {
 		GroupID:     strings.TrimSpace(groupID),
 		Repository:  repository,
 		DockerCred:  strings.TrimSpace(dockerCred),
-		QGMCred:     strings.TrimSpace(qgmCred),
 		DestDir:     destAbs,
 		Force:       force,
 	}, nil

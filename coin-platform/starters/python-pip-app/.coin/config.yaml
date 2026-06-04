@@ -1,5 +1,3 @@
-version: 1
-
 coin:
   template: python-pip-app
   templateVersion: v1
@@ -7,16 +5,8 @@ coin:
 jenkins:
   credentials:
     docker: nexus-docker
-    qgm: qgm-svc-account
 
 project:
   name: my-service
   groupId: com.example.team
   repository: Nexus_PROD
-
-container:
-  port: 8080
-  command: ["python", "-m", "my_service"]
-
-rn:
-  serviceUrl: https://qgm.example.com

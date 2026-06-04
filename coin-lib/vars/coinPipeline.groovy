@@ -89,7 +89,12 @@ def call(Map args = [:]) {
                         usernameVariable: 'COIN_REGISTRY_USER',
                         passwordVariable: 'COIN_REGISTRY_PASSWORD',
                     )]) {
-                        coinSh 'coin run publish'
+                        coinSh '''
+                          REG_HOST="${COIN_REGISTRY_PREFIX%%/*}"
+                          echo "${COIN_REGISTRY_PASSWORD}" | docker login "${REG_HOST}" \
+                            -u "${COIN_REGISTRY_USER}" --password-stdin
+                          coin run publish
+                        '''
                     }
                 }
             }

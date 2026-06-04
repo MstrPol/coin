@@ -9,64 +9,67 @@ import (
 	"testing"
 )
 
+const testAuthorEmail = "ci@coin.local"
+const testAuthorName = "Coin CI"
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-func initRepo(t *testing.T) (dir string, restore func()) {
+func gitEnv() []string {
+	return append(os.Environ(),
+		"GIT_AUTHOR_NAME="+testAuthorName,
+		"GIT_AUTHOR_EMAIL="+testAuthorEmail,
+		"GIT_COMMITTER_NAME="+testAuthorName,
+		"GIT_COMMITTER_EMAIL="+testAuthorEmail,
+	)
+}
+
+func runGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
-	dir = t.TempDir()
-	oldDir, _ := os.Getwd()
-
-	run := func(args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", args...)
-		cmd.Dir = dir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = gitEnv()
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
 	}
-	run("init")
-	run("config", "user.email", "ci@coin.local")
-	run("config", "user.name", "Coin CI")
+}
 
+func initRepo(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	runGit(t, dir, "init")
+	runGit(t, dir, "config", "user.email", testAuthorEmail)
+	runGit(t, dir, "config", "user.name", testAuthorName)
 	addCommitIn(t, dir, "init: initial commit", "README.md", "# test")
-
-	_ = os.Chdir(dir)
-	restore = func() { _ = os.Chdir(oldDir) }
-	return dir, restore
+	return dir
 }
 
 func addCommitIn(t *testing.T, dir, msg, file, content string) {
 	t.Helper()
 	f := filepath.Join(dir, file)
 	_ = os.WriteFile(f, []byte(content), 0644)
-	run := func(args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", args...)
-		cmd.Dir = dir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
-	run("add", ".")
-	run("commit", "-m", msg)
+	runGit(t, dir, "add", ".")
+	runGit(t, dir, "commit", "-m", msg)
 }
 
 func tagIn(t *testing.T, dir, tag string) {
 	t.Helper()
-	cmd := exec.Command("git", "tag", tag)
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git tag %s: %v\n%s", tag, err, out)
-	}
+	runGit(t, dir, "tag", tag)
 }
 
 func headSHAIn(t *testing.T, dir string) string {
 	t.Helper()
-	out, err := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
+	cmd := exec.Command("git", "-C", dir, "rev-parse", "HEAD")
+	cmd.Env = gitEnv()
+	out, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("rev-parse HEAD: %v", err)
 	}
-	return string(out[:len(out)-1]) // strip \n
+	return strings.TrimSpace(string(out))
+}
+
+func optsInRepo(dir string, opts Options) Options {
+	opts.RepoDir = dir
+	return opts
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -109,15 +112,14 @@ func TestJiraRe(t *testing.T) {
 }
 
 func TestGenerate_NoCommits(t *testing.T) {
-	dir, restore := initRepo(t)
-	defer restore()
+	dir := initRepo(t)
 
-	opts := Options{
+	opts := optsInRepo(dir, Options{
 		Repository: "Nexus_PROD",
 		GroupID:    "com.example",
 		ArtifactID: "my-app",
 		Version:    "1.0.0-PROJ-100-rc-1",
-	}
+	})
 
 	payload, err := Generate(opts)
 	if err != nil {
@@ -132,33 +134,29 @@ func TestGenerate_NoCommits(t *testing.T) {
 	if payload.Content == nil {
 		t.Error("content должен быть непустым map")
 	}
-	// Нет Jira-тикетов в начальном коммите — releaseNotes пустые.
 	if len(payload.ReleaseNotes) != 0 {
 		t.Errorf("releaseNotes = %v, ожидали пустой список", payload.ReleaseNotes)
 	}
-	_ = dir
 }
 
 func TestGenerate_ExtractsJiraIssues(t *testing.T) {
-	dir, restore := initRepo(t)
-	defer restore()
+	dir := initRepo(t)
 
 	addCommitIn(t, dir, "feat: PROJ-42 добавить фичу", "feat.txt", "feature")
 	addCommitIn(t, dir, "fix: PROJ-43 исправить баг\n\nДетали исправления", "fix.txt", "fix")
 
-	opts := Options{
+	opts := optsInRepo(dir, Options{
 		Repository: "Nexus_PROD",
 		GroupID:    "com.example",
 		ArtifactID: "my-app",
 		Version:    "1.0.0-PROJ-100-rc-1",
-	}
+	})
 
 	payload, err := Generate(opts)
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 
-	// Должны найти PROJ-42 и PROJ-43.
 	issueMap := map[string]string{}
 	for _, rn := range payload.ReleaseNotes {
 		issueMap[rn.Issue] = rn.Summary
@@ -171,34 +169,30 @@ func TestGenerate_ExtractsJiraIssues(t *testing.T) {
 		t.Error("PROJ-43 не найден в releaseNotes")
 	}
 
-	// Контрибьюторы должны быть заполнены.
 	if len(payload.Contributors["PROJ-42"]) == 0 {
 		t.Error("contributors для PROJ-42 пустые")
 	}
-	if payload.Contributors["PROJ-42"][0].Email != "ci@coin.local" {
-		t.Errorf("email = %q, want ci@coin.local", payload.Contributors["PROJ-42"][0].Email)
+	if payload.Contributors["PROJ-42"][0].Email != testAuthorEmail {
+		t.Errorf("email = %q, want %s", payload.Contributors["PROJ-42"][0].Email, testAuthorEmail)
 	}
 }
 
 func TestGenerate_FromToRange(t *testing.T) {
-	dir, restore := initRepo(t)
-	defer restore()
+	dir := initRepo(t)
 
-	// Коммит до "from" — не должен попасть в payload.
 	addCommitIn(t, dir, "feat: OLD-1 старая фича", "old.txt", "old")
 	fromSHA := headSHAIn(t, dir)
 
-	// Коммиты после "from" — должны попасть.
 	addCommitIn(t, dir, "feat: NEW-1 новая фича", "new1.txt", "new1")
 	addCommitIn(t, dir, "fix: NEW-2 исправить", "new2.txt", "new2")
 
-	opts := Options{
+	opts := optsInRepo(dir, Options{
 		Repository: "Nexus_PROD",
 		GroupID:    "com.example",
 		ArtifactID: "my-app",
 		Version:    "1.1.0-PROJ-200-rc-1",
 		From:       fromSHA,
-	}
+	})
 
 	payload, err := Generate(opts)
 	if err != nil {
@@ -222,19 +216,17 @@ func TestGenerate_FromToRange(t *testing.T) {
 }
 
 func TestGenerate_DedupContributors(t *testing.T) {
-	dir, restore := initRepo(t)
-	defer restore()
+	dir := initRepo(t)
 
-	// Два коммита от одного автора по одному тикету.
 	addCommitIn(t, dir, "feat: DEDUP-1 первый коммит", "d1.txt", "a")
 	addCommitIn(t, dir, "fix: DEDUP-1 второй коммит", "d2.txt", "b")
 
-	opts := Options{
+	opts := optsInRepo(dir, Options{
 		Repository: "Nexus_PROD",
 		GroupID:    "com.example",
 		ArtifactID: "my-app",
 		Version:    "1.0.0-DEDUP-1-rc-1",
-	}
+	})
 
 	payload, err := Generate(opts)
 	if err != nil {
@@ -246,21 +238,20 @@ func TestGenerate_DedupContributors(t *testing.T) {
 	for _, c := range contribs {
 		emails[c.Email]++
 	}
-	if emails["ci@coin.local"] != 1 {
-		t.Errorf("ci@coin.local встречается %d раз, ожидали 1 (дедупликация)", emails["ci@coin.local"])
+	if emails[testAuthorEmail] != 1 {
+		t.Errorf("%s встречается %d раз, ожидали 1 (дедупликация)", testAuthorEmail, emails[testAuthorEmail])
 	}
 }
 
 func TestGenerate_MetaHasVersion(t *testing.T) {
-	_, restore := initRepo(t)
-	defer restore()
+	dir := initRepo(t)
 
-	opts := Options{
+	opts := optsInRepo(dir, Options{
 		Repository: "Nexus_PROD",
 		GroupID:    "com.example",
 		ArtifactID: "my-app",
 		Version:    "2.3.4-PROJ-99-rc-5",
-	}
+	})
 
 	payload, err := Generate(opts)
 	if err != nil {
@@ -279,20 +270,17 @@ func TestGenerate_MetaHasVersion(t *testing.T) {
 }
 
 func TestCodeNotes_FromAlwaysPresent(t *testing.T) {
-	dir, restore := initRepo(t)
-	defer restore()
+	dir := initRepo(t)
 
-	// Добавляем ещё один коммит чтобы убедиться что first != HEAD.
 	addCommitIn(t, dir, "feat: PROJ-1 фича", "feat.txt", "content")
 
-	// Нет предыдущего тега — первый релиз.
-	opts := Options{
+	opts := optsInRepo(dir, Options{
 		Repository: "Nexus_PROD",
 		GroupID:    "com.example",
 		ArtifactID: "my-app",
 		Version:    "1.0.0-PROJ-1-rc-1",
-		From:       "", // первый релиз
-	}
+	})
+
 	payload, err := Generate(opts)
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -304,15 +292,12 @@ func TestCodeNotes_FromAlwaysPresent(t *testing.T) {
 
 	cn := payload.CodeNotes[0]
 
-	// from должен быть SHA (40 hex-символов), не пустой строкой.
 	if len(cn.From) != 40 {
 		t.Errorf("from = %q, ожидали 40-символьный SHA", cn.From)
 	}
-	// commit (HEAD) и from (первый коммит) должны различаться.
 	if cn.Commit == cn.From {
 		t.Errorf("commit == from (%s): HEAD и первый коммит не должны совпадать", cn.Commit)
 	}
-	// from должен присутствовать в JSON.
 	data, err := json.Marshal(cn)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)

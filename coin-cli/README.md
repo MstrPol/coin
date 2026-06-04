@@ -68,7 +68,40 @@ go build ./...
 
 ## Сборка бинаря
 
-Platform CI: Jenkins job `coin-cli` → Nexus Maven (`maven-releases` / `maven-snapshots`, zip + classifier). Локально:
+Platform CI: Jenkins job `coin-cli` → Nexus Maven (`maven-releases` / `maven-snapshots`, zip + classifier).
+
+### Версионирование coin-cli
+
+**coin-cli** — platform-артефакт; semver **не** совпадает с `coin version` для продуктовых сервисов (там git-теги Jira/snapshot/rc).
+
+**Git-теги для coin-cli не используем** — только файл `VERSION` в репозитории `coin/coin-cli`.
+
+| Что | Где |
+|-----|-----|
+| База semver | `coin-cli/VERSION` (`X.Y.Z`, Jenkins коммитит после publish) |
+| Maven-координата | `VERSION` + optional `-SNAPSHOT` |
+| В бинаре | `-ldflags "-X coin.local/coin-cli/cmd.Version=…"` |
+| Pin для продуктов | `profile.yaml` → `coinCli.version` (ручной bump после release) |
+
+**CI flow:**
+
+```
+checkout Gitea → read VERSION → bump (param) → build → publish Nexus → commit VERSION → push Gitea
+```
+
+После publish: `make coin-cli` подтягивает `VERSION` из Gitea в monorepo (если локально не меняли файл).
+
+Параметры job:
+
+| Параметр | Назначение |
+|----------|------------|
+| `PUBLISH` | Загрузить zip в Nexus |
+| `SNAPSHOT` | Сuffix `-SNAPSHOT` → `maven-snapshots` |
+| `VERSION_BUMP` | `none` / `patch` / `minor` / `major` от `VERSION` |
+
+Go-экосистема: единого «uv для Go» нет. Зависимости — `go mod`; релизы обычно **git tag + ldflags** или [GoReleaser](https://goreleaser.com/). Файл `VERSION` — распространённый вариант для internal CLI.
+
+Локально:
 
 ### Локально (для текущей ОС и архитектуры)
 
@@ -84,7 +117,15 @@ go build -o coin .
 
 ### С указанием версии
 
-При сборке CI передаёт версию через `-ldflags`:
+Версия из `VERSION` + скрипт (как в CI):
+
+```bash
+chmod +x scripts/compute-version.sh
+VER=$(./scripts/compute-version.sh VERSION patch true)   # → 0.0.1-SNAPSHOT
+go build -ldflags "-X coin.local/coin-cli/cmd.Version=${VER}" -o coin .
+```
+
+Или вручную:
 
 ```bash
 go build -ldflags "-X coin.local/coin-cli/cmd.Version=1.2.3" -o coin .

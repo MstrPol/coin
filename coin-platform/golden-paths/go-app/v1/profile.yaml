@@ -25,3 +25,7 @@ pipeline:
     enabled: true
   publish:
     enabled: true
+
+container:
+  port: 8080
+  command: ["/app/app"]

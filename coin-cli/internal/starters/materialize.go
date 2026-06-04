@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -21,10 +20,9 @@ type Params struct {
 	ProjectName     string
 	GroupID         string
 	Repository      string
-	DockerCred        string
-	QGMCred           string
-	DestDir           string
-	Force             bool
+	DockerCred      string
+	DestDir         string
+	Force           bool
 }
 
 // Materialize копирует starter в dest и записывает .coin/config.yaml.
@@ -134,7 +132,6 @@ func copyFile(src, dest string) error {
 
 func writeConfig(path string, p Params, version string) error {
 	cfg := config.Config{
-		Version: 1,
 		Coin: config.CoinMeta{
 			Template:        p.Starter,
 			TemplateVersion: version,
@@ -142,7 +139,6 @@ func writeConfig(path string, p Params, version string) error {
 		Jenkins: config.JenkinsConfig{
 			Credentials: config.Credentials{
 				Docker: p.DockerCred,
-				QGM:    p.QGMCred,
 			},
 		},
 		Project: config.Project{
@@ -150,16 +146,6 @@ func writeConfig(path string, p Params, version string) error {
 			GroupID:    p.GroupID,
 			Repository: p.Repository,
 		},
-		RN: config.RNConfig{
-			ServiceURL: "https://qgm.example.com",
-		},
-	}
-
-	// container — из эталона starter (port/command зависят от стека)
-	if existing, err := readContainerBlock(path); err == nil && existing.Port > 0 {
-		cfg.Container = existing
-	} else {
-		cfg.Container = defaultContainer(p.Starter)
 	}
 
 	data, err := yaml.Marshal(&cfg)
@@ -167,31 +153,6 @@ func writeConfig(path string, p Params, version string) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0o644)
-}
-
-func readContainerBlock(path string) (config.Container, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return config.Container{}, err
-	}
-	var partial struct {
-		Container config.Container `yaml:"container"`
-	}
-	if err := yaml.Unmarshal(raw, &partial); err != nil {
-		return config.Container{}, err
-	}
-	return partial.Container, nil
-}
-
-func defaultContainer(starter string) config.Container {
-	switch {
-	case strings.HasPrefix(starter, "go"):
-		return config.Container{Port: 8080, Command: []string{"/app/app"}}
-	case strings.HasPrefix(starter, "java"):
-		return config.Container{Port: 8080, Command: []string{"java", "-jar", "/app/app.jar"}}
-	default:
-		return config.Container{Port: 8080, Command: []string{"python", "-m", "my_service"}}
-	}
 }
 
 // MaterializeForce как Materialize, но перезаписывает существующие файлы.

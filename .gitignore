@@ -26,6 +26,7 @@ dist/
 # Docker local stack artifacts
 docker/.env
 docker/.coin-platform-sync.sha256
+docker/.coin-cli-sync.sha256
 
 # Локальные копии продуктовых репозиториев (make samples → Gitea)
 samples/

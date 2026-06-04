@@ -79,11 +79,9 @@ Golden path — **готовый профиль доставки** от кода
 
 ## Что задаёт проект
 
-Минимальный `.coin/config.yaml` — только идентичность и окружение:
+Минимальный `.coin/config.yaml` — только привязка к GP, credentials и идентичность:
 
 ```yaml
-version: 1
-
 coin:
   template: java-gradle-app
   templateVersion: v1
@@ -91,16 +89,11 @@ coin:
 jenkins:
   credentials:
     docker: nexus-docker
-    qgm: qgm-svc-account
 
 project:
   name: my-service
   groupId: com.example.team
   repository: Nexus_PROD
-
-container:
-  port: 8080
-  command: ["java", "-jar", "/app/app.jar"]
 ```
 
 ### Что **не** задаётся в проекте
@@ -109,6 +102,7 @@ container:
 |------|-----------------|
 | `build.type` | Определяется шаблоном (`app` → container, `lib` → package) |
 | `agent.stack` | Дублирует `coin.template` |
+| `container.port` / `container.command` | Задаётся в `profile.yaml` golden path |
 | `dockerfileTemplate` | Зашито в profile шаблона |
 | `publish.repository` (отдельно) | Тип publish задаёт шаблон; `project.repository` — координата для RN/QGM |
 
@@ -154,6 +148,10 @@ pipeline:
     enabled: true
   publish:
     enabled: true
+
+container:
+  port: 8080
+  command: ["java", "-jar", "/app/app.jar"]
 ```
 
 Coin CLI при `coin run build` загружает bundle по `coin.template` + `templateVersion` и выполняет сценарий.  

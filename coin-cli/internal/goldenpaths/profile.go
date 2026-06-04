@@ -25,6 +25,13 @@ type Profile struct {
 		Build   StageProfile `yaml:"build"`
 		Publish StageProfile `yaml:"publish"`
 	} `yaml:"pipeline"`
+	Container ContainerProfile `yaml:"container"`
+}
+
+// ContainerProfile — runtime-only Dockerfile (platform-owned, не в config проекта).
+type ContainerProfile struct {
+	Port    int      `yaml:"port"`
+	Command []string `yaml:"command"`
 }
 
 // StageProfile — дефолты стадий из profile (перекрываются project.pipeline).

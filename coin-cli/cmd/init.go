@@ -29,7 +29,6 @@ func init() {
 	initCmd.Flags().String("group-id", "", "project.groupId")
 	initCmd.Flags().String("repository", "", "project.repository")
 	initCmd.Flags().String("docker-cred", "", "jenkins.credentials.docker")
-	initCmd.Flags().String("qgm-cred", "", "jenkins.credentials.qgm")
 	initCmd.Flags().String("dir", "", "каталог назначения")
 	initCmd.Flags().Bool("force", false, "перезаписать существующие файлы")
 	initCmd.Flags().Bool("yes", false, "не задавать вопросов (требуются --starter и --name)")
@@ -122,19 +121,16 @@ func paramsFromFlags(cmd *cobra.Command) (starters.Params, error) {
 	if dockerCred == "" {
 		dockerCred = "nexus-docker"
 	}
-	qgmCred, _ := cmd.Flags().GetString("qgm-cred")
 	dir, _ := cmd.Flags().GetString("dir")
 	if dir == "" {
 		dir = "./" + name
 	}
-
 	return starters.Params{
 		Starter:     starter,
 		ProjectName: name,
 		GroupID:     groupID,
 		Repository:  repository,
 		DockerCred:  dockerCred,
-		QGMCred:     qgmCred,
 		DestDir:     dir,
 	}, nil
 }

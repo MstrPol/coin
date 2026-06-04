@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"coin.local/coin-cli/internal/config"
@@ -50,26 +49,12 @@ func render(tmpl string, cfg *config.Config, bundle *goldenpaths.Bundle) string 
 	javaVersion := bundle.RuntimeVersion("java", cfg.RuntimeVersion("java", "21"))
 	goVersion := bundle.RuntimeVersion("go", cfg.RuntimeVersion("go", "1.22"))
 
-	port := "8080"
-	if cfg.Container.Port > 0 {
-		port = strconv.Itoa(cfg.Container.Port)
-	}
-
-	cmd := `["python", "-m", "app"]`
-	if len(cfg.Container.Command) > 0 {
-		parts := make([]string, len(cfg.Container.Command))
-		for i, p := range cfg.Container.Command {
-			parts[i] = `"` + p + `"`
-		}
-		cmd = "[" + strings.Join(parts, ", ") + "]"
-	}
-
 	replacer := strings.NewReplacer(
 		"{{PYTHON_VERSION}}", pythonVersion,
 		"{{JAVA_VERSION}}", javaVersion,
 		"{{GO_VERSION}}", goVersion,
-		"{{APP_PORT}}", port,
-		"{{APP_CMD}}", cmd,
+		"{{APP_PORT}}", bundle.ContainerPort(),
+		"{{APP_CMD}}", bundle.ContainerCommand(),
 	)
 	return replacer.Replace(tmpl)
 }

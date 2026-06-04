@@ -423,7 +423,7 @@ coin version bump minor --type rc   (на ветке release/PROJ-404)
 
 ## Когда Coin публикует артефакт в Nexus
 
-По умолчанию Coin **не публикует** каждую сборку. Поведение задаётся параметром `pipeline.publish.when` в `.coin/config.yaml`.
+По умолчанию Coin **не публикует** каждую сборку. Политика задаётся в **`profile.yaml` golden path** (`publish.when`); в проекте можно только включить/выключить стадию через `pipeline.publish.enabled`.
 
 ### Варианты
 
@@ -432,9 +432,9 @@ coin version bump minor --type rc   (на ветке release/PROJ-404)
 Это рекомендуемый вариант для большинства сервисов. Сборки на feature/bugfix ветках собираются, тестируются, но в Nexus не попадают. В Nexus появляется только то, что готово к деплою.
 
 ```yaml
-pipeline:
-  publish:
-    when: tag   # публикация только на v*-rc-* теге
+# coin-golden-paths/<template>/vN/profile.yaml
+publish:
+  when: tag   # публикация только на v*-rc-* теге
 ```
 
 **`branch`** — публиковать snapshot с конкретной ветки (обычно `main`).
@@ -442,10 +442,10 @@ pipeline:
 Используется, если команде нужна нестабильная сборка `main` в Nexus — например, для внутренней интеграции между сервисами до релиза.
 
 ```yaml
-pipeline:
-  publish:
-    when: branch
-    branch: main
+# coin-golden-paths/<template>/vN/profile.yaml
+publish:
+  when: branch
+  branch: main
 ```
 
 **`always`** — публиковать при каждом пуше в любую ветку.  

@@ -13,15 +13,15 @@
 | Зона | Кто читает | Что содержит |
 |------|-----------|--------------|
 | `jenkins:` | **Jenkins (coin-lib)** | Credentials, optional override runtime/stack |
-| Всё остальное | **coin CLI** | Координаты проекта, container, pipeline overrides, RN |
+| Всё остальное | **coin CLI** | Привязка к GP, координаты проекта, optional pipeline overrides |
+
+Версия схемы конфига **не** дублируется отдельным полем — используется `coin.templateVersion` (версия golden path).
 
 ---
 
 ## Эталонный пример (python-uv-app)
 
 ```yaml
-version: 1
-
 coin:
   template: python-uv-app
   templateVersion: v1
@@ -32,7 +32,6 @@ jenkins:
     python: "3.13"
   credentials:
     docker: nexus-docker
-    qgm: qgm-svc-account
 
 # ── coin CLI ─────────────────────────────────────────────────────────────────
 project:
@@ -40,17 +39,10 @@ project:
   groupId: com.example.team
   repository: Nexus_PROD
 
-container:
-  port: 8080
-  command: ["python", "-m", "my_service"]
-
 pipeline:                        # optional overrides (см. ниже)
   test:
     postCommands:
       - uv run ruff check .
-
-rn:
-  serviceUrl: https://qgm.example.com
 ```
 
 ---
@@ -77,14 +69,12 @@ jenkins:
     python: "3.13"              # optional override
   credentials:
     docker: nexus-docker
-    qgm: qgm-svc-account
-    nexus: nexus-maven          # для *-lib шаблонов
+    nexus: nexus-maven          # для *-lib шаблонов (когда появятся)
 ```
 
 | Поле | Обязательно | Описание |
 |------|-------------|----------|
 | `jenkins.credentials.docker` | **Да** | Jenkins Credential ID для Docker registry |
-| `jenkins.credentials.qgm` | Нет | Credential ID для QGM API |
 | `jenkins.credentials.nexus` | Нет | Credential ID для Nexus (Maven/PyPI) |
 | `jenkins.runtime.*` | Нет | Override версии toolchain (ключ см. GP profile) |
 | `jenkins.agent.image` | Нет | Явный pin образа агента (минуя catalog) |
@@ -97,7 +87,6 @@ Runtime agent image: `COIN_PLATFORM_DIR/agents/catalog.yaml` → `stacks.<stack>
 | Назначение | Env-переменные |
 |------------|----------------|
 | `docker` | `COIN_REGISTRY_USER`, `COIN_REGISTRY_PASSWORD` |
-| `qgm` | `QGM_USER`, `QGM_PASSWORD` |
 | `nexus` | `NEXUS_USER`, `NEXUS_PASSWORD` |
 
 ---
@@ -119,23 +108,9 @@ project:
 
 ---
 
-## Секция `container`
-
-Параметры для **runtime-only** managed Dockerfile (`*-app`). Dockerfile **не** хранится в репозитории — рендерится в `.coin/generated/Dockerfile` (`coin dockerfile render` / `coin run build`).
-
-Native compile выполняется в agent **до** pack; Dockerfile только копирует артефакты (`dist/`, `.venv/`, `*.jar`).
-
-```yaml
-container:
-  port: 8080
-  command: ["python", "-m", "my_service"]
-```
-
----
-
 ## Секция `pipeline` — overrides
 
-Переопределяет дефолты из `profile.yaml` шаблона. Поля `build.target`, `dockerfileTemplate`, `publish.when` **не задаются** в проекте — они platform-owned.
+Переопределяет дефолты из `profile.yaml` шаблона. Поля `build.type`, `container.*`, `publish.when` **не задаются** в проекте — они platform-owned.
 
 ```yaml
 pipeline:
@@ -158,15 +133,29 @@ pipeline:
 
 ---
 
-## Секция `rn` — Release Notes
+## Container (managed Dockerfile)
+
+Параметры runtime-образа (`port`, `command`) задаются в **`profile.yaml` golden path**, не в конфиге проекта.
+
+Dockerfile **не** хранится в репозитории сервиса — рендерится в `.coin/generated/Dockerfile` (`coin dockerfile render` / `coin run build`).
+
+Пример в `coin-golden-paths/go-app/v1/profile.yaml`:
 
 ```yaml
-rn:
-  serviceUrl: https://qgm.example.com
-  codeRepository: ssh://git@bitbucket.example.com/team/my-service.git
+container:
+  port: 8080
+  command: ["/app/app"]
 ```
 
-Подробнее — [release-notes.md](release-notes.md).
+Native compile выполняется в agent **до** pack; Dockerfile только копирует артефакты (`dist/`, `.venv/`, `*.jar`).
+
+---
+
+## Release Notes (QGM)
+
+Интеграция с QGM в pipeline **пока не включена**. Координаты артефакта уже есть в `project:`.
+
+Когда появится QGM, URL сервиса и credentials будут на уровне **platform** (не в каждом репозитории). Подробнее — [release-notes.md](release-notes.md).
 
 ---
 
@@ -191,5 +180,7 @@ Coin CLI передаёт в сборку:
 |------|-----------|
 | `build.type` | `profile.yaml` шаблона |
 | `agent.stack` | `profile.yaml` + `catalog.yaml` |
+| `container.port` / `container.command` | `profile.yaml` шаблона |
 | `dockerfileTemplate` | `profile.yaml` → runtime-only Dockerfile в `coin-golden-paths/<name>/vN/` |
 | `publish.when` | `profile.yaml` (override через `pipeline.publish.enabled`) |
+| `rn.serviceUrl` | platform (QGM, когда будет включено) |

@@ -12,13 +12,12 @@
 - **Код и зависимости**: `pyproject.toml` / `pom.xml` / `go.mod` / `requirements.txt`.
 - **`.coin/config.yaml`**: identity, credentials IDs, optional `jenkins.runtime`, pipeline overrides.
 - **Расширения CI** через `pipeline.*.preCommands` / `postCommands` / `commands` (если разрешено политикой).
-- **`container.port` / `container.command`** — параметры для managed runtime Dockerfile.
 
 ## Что управляет Platform
 
 - **Jenkins оркестрация**: multibranch, K8s pod, credentials binding, QG.
 - **CI agent images**: `coin-jenkins-agents/` — toolchain, coin CLI, docker/kaniko для pack.
-- **Golden paths**: `coin-golden-paths/` — profile, scripts, runtime-only Dockerfile, catalog policy.
+- **Golden paths**: `coin-golden-paths/` — profile (в т.ч. `container.*`), scripts, runtime-only Dockerfile, catalog policy.
 - **Platform CI jobs**: сборка coin-cli и agent images (Jenkinsfiles в monorepo).
 - **Каталог образов**: `coin-lib/resources/images.yaml` — stack → agent image ref.
 - **Версионирование**, **QG**, **security policies**, **managed Dockerfile** (генерируется в `.coin/generated/Dockerfile` при `coin run build`).
@@ -30,7 +29,7 @@
 | Запрет | Причина |
 |--------|---------|
 | `Dockerfile` в репо сервиса | Managed runtime-only GP |
-| `build.type`, `agent.stack` | Из `profile.yaml` golden path |
+| `build.type`, `agent.stack`, `container.*` | Из `profile.yaml` golden path |
 | Shell CI scripts как стандарт | GP scripts platform-owned |
 | Секреты в config | Только Jenkins/Vault credential IDs |
 | Своя модель версионирования | Corporate `COIN_VERSION` |

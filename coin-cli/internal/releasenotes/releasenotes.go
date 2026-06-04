@@ -121,6 +121,9 @@ type Options struct {
 	// Пусто → все коммиты до HEAD (первый релиз).
 	From string
 
+	// RepoDir — путь к git-репозиторию (для тестов). Пусто → cwd, с поиском .git вверх.
+	RepoDir string
+
 	// CodeRepository — URL git-репозитория для поля codeNotes.repository.
 	// Если пусто — берётся автоматически из remote «origin».
 	CodeRepository string
@@ -135,7 +138,12 @@ type Options struct {
 
 // Generate собирает Payload из git-истории проекта.
 func Generate(opts Options) (*Payload, error) {
-	repo, err := git.PlainOpenWithOptions(".", &git.PlainOpenOptions{DetectDotGit: true})
+	repoPath := opts.RepoDir
+	if repoPath == "" {
+		repoPath = "."
+	}
+	openOpts := &git.PlainOpenOptions{DetectDotGit: opts.RepoDir == ""}
+	repo, err := git.PlainOpenWithOptions(repoPath, openOpts)
 	if err != nil {
 		return nil, fmt.Errorf("не git-репозиторий: %w", err)
 	}

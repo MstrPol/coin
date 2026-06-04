@@ -17,8 +17,6 @@ func writeConfig(t *testing.T, content string) string {
 }
 
 const validConfig = `
-version: 1
-
 coin:
   template: python-uv-app
   templateVersion: v1
@@ -28,7 +26,6 @@ jenkins:
     python: "3.13"
   credentials:
     docker: nexus-docker
-    qgm: qgm-svc-account
 
 project:
   name: my-service
@@ -77,26 +74,8 @@ func TestLoad_InvalidYAML(t *testing.T) {
 	}
 }
 
-func TestLoad_WrongVersion(t *testing.T) {
-	path := writeConfig(t, `
-version: 99
-coin:
-  template: go-app
-jenkins:
-  credentials:
-    docker: nexus-docker
-project:
-  name: svc
-`)
-	_, err := Load(path)
-	if err == nil {
-		t.Fatal("expected error for unsupported version")
-	}
-}
-
 func TestLoad_MissingProjectName(t *testing.T) {
 	path := writeConfig(t, `
-version: 1
 coin:
   template: go-app
 jenkins:
@@ -113,7 +92,6 @@ project:
 
 func TestLoad_MissingTemplate(t *testing.T) {
 	path := writeConfig(t, `
-version: 1
 jenkins:
   credentials:
     docker: nexus-docker
@@ -128,7 +106,6 @@ project:
 
 func TestLoad_MissingDockerCredential(t *testing.T) {
 	path := writeConfig(t, `
-version: 1
 coin:
   template: go-app
 project:
