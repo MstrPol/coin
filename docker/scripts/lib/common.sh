@@ -41,8 +41,7 @@ jenkins_casc_reload() {
   local yaml_host_path="$1"
   local yaml_container_path="$2"
 
-  compose cp "${yaml_host_path}" "jenkins:${yaml_container_path}"
-  compose exec -T jenkins sh -c "chown jenkins:jenkins '${yaml_container_path}' && chmod 644 '${yaml_container_path}'"
+  compose exec -T jenkins tee "${yaml_container_path}" < "${yaml_host_path}" >/dev/null
 
   local cookie
   cookie="$(mktemp)"
