@@ -4,12 +4,13 @@ package org.coin.ci
  * Минимальное чтение .coin/config.yaml — только для оркестрации Jenkins.
  *
  * Jenkins читает:
- *   coin.template          — golden path (stack выводится из images.yaml)
- *   jenkins.stack          — optional override образа агента
+ *   coin.template          — golden path (stack/runtime из coin-platform)
+ *   jenkins.agent.image    — optional pin образа агента
  *   jenkins.runtime        — optional override версии toolchain
  *   jenkins.credentials    — binding credentials перед публикацией
  *
- * Валидация, версионирование и вся бизнес-логика — в coin CLI.
+ * Образ агента: project config + COIN_PLATFORM_DIR (agents/catalog.yaml, GP profile).
+ * Валидация и бизнес-логика — в coin CLI.
  */
 class Config implements Serializable {
 

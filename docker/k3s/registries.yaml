@@ -1,9 +1,9 @@
 mirrors:
-  "registry:5000":
+  "nexus:8082":
     endpoint:
-      - "http://registry:5000"
+      - "http://nexus:8082"
 
 configs:
-  "registry:5000":
+  "nexus:8082":
     tls:
       insecure_skip_verify: true

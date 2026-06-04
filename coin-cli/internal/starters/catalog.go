@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"coin.local/coin-cli/internal/platform"
 )
 
-const dirName = "coin-starters"
-
-// Root возвращает путь к каталогу coin-starters.
+// Root возвращает путь к каталогу starters.
 func Root() (string, error) {
 	if dir := os.Getenv("COIN_STARTERS_DIR"); dir != "" {
 		if isStarterRoot(dir) {
@@ -19,21 +19,30 @@ func Root() (string, error) {
 		return "", fmt.Errorf("COIN_STARTERS_DIR=%s: каталог стартеров не найден", dir)
 	}
 
+	if dir, err := platform.StartersDir(); err == nil {
+		return dir, nil
+	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
 	for dir := cwd; ; dir = filepath.Dir(dir) {
-		candidate := filepath.Join(dir, dirName)
-		if isStarterRoot(candidate) {
-			return candidate, nil
+		for _, candidate := range []string{
+			filepath.Join(dir, "coin-platform", "starters"),
+			filepath.Join(dir, "coin-starters"),
+			filepath.Join(dir, "starters"),
+		} {
+			if isStarterRoot(candidate) {
+				return candidate, nil
+			}
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			break
 		}
 	}
-	return "", fmt.Errorf("%s/ не найден (задайте COIN_STARTERS_DIR)", dirName)
+	return "", fmt.Errorf("starters/ not found (set COIN_PLATFORM_DIR or COIN_STARTERS_DIR)")
 }
 
 func isStarterRoot(dir string) bool {

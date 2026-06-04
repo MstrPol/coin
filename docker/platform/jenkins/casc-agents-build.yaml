@@ -1,0 +1,19 @@
+jobs:
+  - script: >
+      pipelineJob('agents-build') {
+        description('Platform: CI agent images → Nexus Docker (coin-platform/agents)')
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('http://gitea:3000/coin/coin-platform.git')
+                  credentials('gitea-git')
+                }
+                branch('main')
+              }
+            }
+            scriptPath('agents/Jenkinsfile')
+          }
+        }
+      }

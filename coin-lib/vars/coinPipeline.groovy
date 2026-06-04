@@ -1,4 +1,5 @@
 import org.coin.ci.Config
+import org.coin.ci.Platform
 import org.coin.ci.PodTemplate
 import org.coin.ci.StackImages
 
@@ -6,14 +7,18 @@ import org.coin.ci.StackImages
  * Единая точка входа Coin CI.
  *
  * Ответственность coin-lib:
- *   1. Подготовить K8s dynamic agent (выбор образа по stack из config).
- *   2. Забиндить credentials перед вызовом coin CLI.
- *
- * Вся бизнес-логика (версионирование, сборка, публикация, валидация) — в coin CLI.
+ *   1. Checkout coin-platform + выбор K8s dynamic agent.
+ *   2. Credentials binding перед coin CLI.
  */
 def call(Map args = [:]) {
     def cloudName    = args.cloud ?: null
     def prepareLabel = args.prepareAgent ?: null
+    def platformOpts = [
+        dir          : args.platformDir ?: '.coin/platform',
+        repo         : args.platformRepo ?: 'http://gitea:3000/coin/coin-platform.git',
+        branch       : args.platformBranch ?: 'main',
+        credentialsId: args.platformCredentials ?: 'gitea-git',
+    ]
 
     def coinSh = { String script ->
         ansiColor('xterm') {
@@ -21,21 +26,20 @@ def call(Map args = [:]) {
         }
     }
 
-    // ── Шаг 1: лёгкий агент — читаем минимум конфига для выбора образа ──
     def stackImage
+    def jnlpImage
     node(prepareLabel) {
         checkout scm
+        new Platform(this).checkout(platformOpts)
         def cfg = new Config(this).load()
-        stackImage = new StackImages(this).resolveStackImage(cfg)
-        def stack = new StackImages(this).resolveStack(cfg)
+        def images = new StackImages(this)
+        stackImage = images.resolveStackImage(cfg)
+        jnlpImage = images.jnlpImage()
+        def stack = images.resolveStack(cfg)
         echo "Coin: project=${cfg.project?.name} template=${cfg.coin?.template} stack=${stack} agent=${stackImage}"
     }
 
-    // ── Шаг 2: K8s pod с нужным toolchain-образом ──
-    def podYaml = new PodTemplate().build(
-        new StackImages(this).jnlpImage(),
-        stackImage
-    )
+    def podYaml = new PodTemplate().build(jnlpImage, stackImage)
     def podLabel = "coin-${env.BUILD_NUMBER}"
     def podArgs = [yaml: podYaml, label: podLabel]
     if (cloudName) { podArgs.cloud = cloudName }
@@ -43,30 +47,27 @@ def call(Map args = [:]) {
     podTemplate(podArgs) {
         node(podLabel) {
             checkout scm
+            new Platform(this).checkout(platformOpts)
 
             container('stack') {
                 stage('version') {
                     coinSh 'coin --version'
                 }
 
-                // ── Шаг 3: валидация ──
                 stage('Validate') {
                     coinSh 'coin validate'
                 }
 
-                // ── Шаг 4: тесты ──
                 stage('Test') {
                     coinSh 'coin run test'
                 }
 
-                // ── Шаг 5: сборка ──
                 stage('Build') {
                     coinSh 'coin run build'
                 }
 
-                // ── Шаг 6: публикация — credentials подготавливает Jenkins ──
                 stage('Publish') {
-                    def cfg       = new Config(this).load()
+                    def cfg = new Config(this).load()
                     def credId = cfg.jenkins?.credentials?.docker ?: 'coin-registry-default'
                     withCredentials([usernamePassword(
                         credentialsId: credId,

@@ -6,20 +6,21 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && usermod -aG docker jenkins
 
-# Go для platform job coin-cli (совпадает с coin-cli/go.mod)
-ARG GO_VERSION=1.22.0
-RUN arch="$(dpkg --print-architecture)" \
-    && case "${arch}" in amd64) goarch=amd64;; arm64) goarch=arm64;; *) goarch=amd64;; esac \
-    && curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${goarch}.tar.gz" \
-      | tar -C /usr/local -xzf -
-ENV PATH="/usr/local/go/bin:${PATH}"
-
 COPY plugins.txt /usr/share/jenkins/ref/plugins.txt
-RUN jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.txt
+# updates.jenkins.io/CDN иногда обрывает update-center.json (Truncated chunk) — retry
+RUN set -eux; \
+    for attempt in $(seq 1 5); do \
+      echo "==> jenkins-plugin-cli attempt ${attempt}/5"; \
+      if jenkins-plugin-cli --verbose --plugin-file /usr/share/jenkins/ref/plugins.txt; then \
+        exit 0; \
+      fi; \
+      echo "==> plugin download failed, retry in 20s..."; \
+      sleep 20; \
+    done; \
+    echo "jenkins-plugin-cli failed after 5 attempts" >&2; \
+    exit 1
 
 COPY casc.yaml /usr/share/jenkins/ref/casc.yaml
-COPY casc-jobs.yaml /usr/share/jenkins/ref/casc-jobs.yaml
-COPY jobs/ /usr/share/jenkins/ref/jobs/
 COPY jenkins-entrypoint.sh /usr/local/bin/jenkins-entrypoint.sh
 RUN chmod +x /usr/local/bin/jenkins-entrypoint.sh
 

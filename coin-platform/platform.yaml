@@ -1,0 +1,7 @@
+# Platform-wide defaults (coin-lib, coin-cli).
+jenkins:
+  jnlp:
+    image: jenkins/inbound-agent:3327.v868139a_d00e0-8
+
+coinCli:
+  min: "0.1.0"

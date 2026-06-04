@@ -31,9 +31,7 @@ spec:
         runAsUser: 0
       env:
         - name: COIN_REGISTRY_PREFIX
-          value: "localhost:5050"
-        - name: COIN_GOLDEN_PATHS_DIR
-          value: "/opt/coin-golden-paths"
+          value: "localhost:8082/coin-docker"
       volumeMounts:
         - name: docker-sock
           mountPath: /var/run/docker.sock

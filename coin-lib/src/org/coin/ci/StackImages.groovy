@@ -1,65 +1,126 @@
 package org.coin.ci
 
 /**
- * Разрешает образ K8s-агента по coin.template (или jenkins.stack) и runtime.
- * Маппинг template → stack — в images.yaml (секция templates).
+ * Разрешает образ K8s-агента: project .coin/config.yaml + coin-platform.
+ *
+ * Источники (COIN_PLATFORM_DIR):
+ *   golden-paths/<template>/<ver>/profile.yaml  → stack, runtime
+ *   agents/catalog.yaml                           → image ref
+ *   platform.yaml                                 → jnlp image
  */
 class StackImages implements Serializable {
 
     private static final long serialVersionUID = 1L
 
-    private static final Map<String, String> DEFAULT_RUNTIME = [
-        'python-uv'  : '3.13',
-        'python-pip' : '3.13',
-        'java-maven' : '17',
-        'java-gradle': '17',
-        'go'         : '1.22',
-        'node'       : '20',
-    ]
-
     private final def steps
-    private Map imagesCatalog
+    private String platformDir
+    private Map agentsCatalog
+    private Map platformConfig
 
     StackImages(def steps) {
         this.steps = steps
     }
 
     String jnlpImage() {
-        return catalog().jnlp.image
+        def jnlp = platformYaml().jenkins?.jnlp?.image
+        if (!jnlp) {
+                steps.error('platform.yaml: jenkins.jnlp.image не задан')
+        }
+        return jnlp
     }
 
     String resolveStack(Map cfg) {
-        def template = cfg.coin?.template
-        if (template) {
-            def entry = catalog().templates?."${template}"
-            if (entry?.stack) {
-                return entry.stack
-            }
+        def pin = cfg.jenkins?.agent?.image
+        if (pin) {
+            return stackFromProfile(cfg) ?: 'pinned'
         }
-        def stack = cfg.jenkins?.stack
+        return stackFromProfile(cfg)
+    }
+
+    String resolveStackImage(Map cfg) {
+        def pin = cfg.jenkins?.agent?.image
+        if (pin) {
+            return pin
+        }
+
+        def stack = stackFromProfile(cfg)
+        def runtimeKey = runtimeKey(stack)
+        def runtime = cfg.jenkins?.runtime?."${runtimeKey}" ?: runtimeFromProfile(cfg, stack)
+        def entry = agentsCatalog().stacks?."${stack}"?."${runtime}"
+        if (!entry?.image) {
+            steps.error("agents/catalog.yaml: нет stacks.${stack}.${runtime}")
+        }
+
+        def registry = agentsCatalog().registry?.default
+        if (!registry) {
+            steps.error('agents/catalog.yaml: registry.default не задан')
+        }
+        def tag = entry.tag ?: "${runtime}-r${entry.rev ?: 0}"
+        def ref = "${registry}/${entry.image}:${tag}"
+        return entry.digest ? "${ref}@${entry.digest}" : ref
+    }
+
+    private String stackFromProfile(Map cfg) {
+        def template = cfg.coin?.template
+        if (!template) {
+            steps.error('coin.template не задан в .coin/config.yaml')
+        }
+        def version = cfg.coin?.templateVersion ?: 'v1'
+        def profilePath = "${platformRoot()}/golden-paths/${template}/${version}/profile.yaml"
+        if (!steps.fileExists(profilePath)) {
+            steps.error("profile не найден: ${profilePath}")
+        }
+        def profile = steps.readYaml(file: profilePath)
+        def stack = profile.agent?.stack
         if (!stack) {
-            steps.error('stack не определён: задайте coin.template или jenkins.stack в .coin/config.yaml')
+            steps.error("profile ${profilePath}: agent.stack не задан")
         }
         return stack
     }
 
-    String resolveStackImage(Map cfg) {
-        def stack = resolveStack(cfg)
+    private String runtimeFromProfile(Map cfg, String stack) {
+        def template = cfg.coin?.template
+        def version = cfg.coin?.templateVersion ?: 'v1'
+        def profilePath = "${platformRoot()}/golden-paths/${template}/${version}/profile.yaml"
+        def profile = steps.readYaml(file: profilePath)
         def runtimeKey = runtimeKey(stack)
-        def runtime = cfg.jenkins?.runtime
-        def version = runtime?."${runtimeKey}" ?: DEFAULT_RUNTIME[stack]
-        def entry = catalog().stacks?."${stack}"?."${version}"
-        if (!entry?.image) {
-            steps.error("Образ не найден для stack=${stack} version=${version} в images.yaml")
+        def runtime = profile.agent?.runtime?."${runtimeKey}"
+        if (!runtime) {
+            steps.error("profile ${profilePath}: agent.runtime.${runtimeKey} не задан")
         }
-        return entry.digest ? "${entry.image}@${entry.digest}" : entry.image
+        return runtime.toString()
     }
 
-    private Map catalog() {
-        if (!imagesCatalog) {
-            imagesCatalog = steps.readYaml(text: steps.libraryResource('images.yaml'))
+    private String platformRoot() {
+        if (!platformDir) {
+            platformDir = steps.env.COIN_PLATFORM_DIR
+            if (!platformDir) {
+                steps.error('COIN_PLATFORM_DIR не задан (checkout coin-platform в pipeline)')
+            }
         }
-        return imagesCatalog
+        return platformDir
+    }
+
+    private Map agentsCatalog() {
+        if (!agentsCatalog) {
+            def path = "${platformRoot()}/agents/catalog.yaml"
+            if (!steps.fileExists(path)) {
+                steps.error("agents/catalog.yaml не найден: ${path}")
+            }
+            agentsCatalog = steps.readYaml(file: path)
+        }
+        return agentsCatalog
+    }
+
+    private Map platformYaml() {
+        if (!platformConfig) {
+            def path = "${platformRoot()}/platform.yaml"
+            if (!steps.fileExists(path)) {
+                steps.error("platform.yaml не найден: ${path}")
+            }
+            platformConfig = steps.readYaml(file: path)
+        }
+        return platformConfig
     }
 
     private static String runtimeKey(String stack) {

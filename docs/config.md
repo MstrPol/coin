@@ -62,7 +62,7 @@ rn:
 | `coin.template` | **Да** | Имя golden path: `python-uv-app`, `go-app`, … |
 | `coin.templateVersion` | Нет | Версия профиля: `v1`, `v2`. Пусто → `latest` из catalog |
 
-Stack (`python-uv`, `go`, …) **не** задаётся в проекте — coin-lib выводит его из `coin.template` через `images.yaml`.
+Stack (`python-uv`, `go`, …) **не** задаётся в проекте — coin-lib выводит его из GP profile (`COIN_PLATFORM_DIR/golden-paths/...`).
 
 ---
 
@@ -86,10 +86,11 @@ jenkins:
 | `jenkins.credentials.docker` | **Да** | Jenkins Credential ID для Docker registry |
 | `jenkins.credentials.qgm` | Нет | Credential ID для QGM API |
 | `jenkins.credentials.nexus` | Нет | Credential ID для Nexus (Maven/PyPI) |
-| `jenkins.runtime.*` | Нет | Override версии toolchain (ключ = `images.yaml` stacks) |
-| `jenkins.stack` | Нет | Override stack (если не выводится из template) |
+| `jenkins.runtime.*` | Нет | Override версии toolchain (ключ см. GP profile) |
+| `jenkins.agent.image` | Нет | Явный pin образа агента (минуя catalog) |
+| `jenkins.stack` | Нет | Deprecated — stack из GP profile |
 
-Runtime agent image: `images.yaml` → `stacks.<stack>.<version>` (tag `{runtime}-r{N}`, optional `digest`, `rev`).
+Runtime agent image: `COIN_PLATFORM_DIR/agents/catalog.yaml` → `stacks.<stack>.<runtime>`.
 
 ### Credentials → env
 

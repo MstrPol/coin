@@ -68,7 +68,7 @@ go build ./...
 
 ## Сборка бинаря
 
-Platform CI: Jenkins job `coin-cli` (`coin-cli/Jenkinsfile`) → Nexus. Локально:
+Platform CI: Jenkins job `coin-cli` → Nexus Maven (`maven-releases` / `maven-snapshots`, zip + classifier). Локально:
 
 ### Локально (для текущей ОС и архитектуры)
 

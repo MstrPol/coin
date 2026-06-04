@@ -1,33 +1,42 @@
-// Platform CI: сборка CI agent image → registry → bump catalog (rev, tag, digest) → git push.
-// Параметры STACK / RUNTIME / BUILD_ALL — Active Choices в Job DSL (docker/jenkins/jobs/coin-agents.groovy).
+// Platform CI: сборка CI agent images → Nexus Docker → bump agents/catalog.yaml → git push.
 pipeline {
     agent any
 
+    parameters {
+        booleanParam(name: 'BUILD_ALL', defaultValue: false, description: 'Собрать все stack/runtime из agents/catalog.yaml')
+        choice(name: 'STACK', choices: ['go', 'python-uv', 'python-pip', 'java-maven', 'java-gradle'])
+        choice(name: 'RUNTIME', choices: ['1.22', '3.13', '17'])
+    }
+
     environment {
-        CATALOG = 'coin-jenkins-agents/catalog.yaml'
+        AGENTS_DIR = 'agents'
+        CATALOG = 'agents/catalog.yaml'
         GIT_AUTHOR_EMAIL = 'jenkins@coin.local'
         GIT_AUTHOR_NAME = 'Jenkins'
+        GITEA_REPO = 'http://gitea:3000/coin/coin-platform.git'
     }
 
     stages {
         stage('Build agents') {
             steps {
-                script {
-                    def catalog = readYaml file: env.CATALOG
-                    def targets = []
+                dir(env.AGENTS_DIR) {
+                    script {
+                        def catalog = readYaml file: 'catalog.yaml'
+                        def targets = []
 
-                    if (params.BUILD_ALL) {
-                        catalog.stacks.each { stack, runtimes ->
-                            runtimes.each { runtime, _ ->
-                                targets << [stack: stack, runtime: runtime.toString()]
+                        if (params.BUILD_ALL) {
+                            catalog.stacks.each { stack, runtimes ->
+                                runtimes.each { runtime, _ ->
+                                    targets << [stack: stack, runtime: runtime.toString()]
+                                }
                             }
+                        } else {
+                            targets << [stack: params.STACK, runtime: params.RUNTIME.trim()]
                         }
-                    } else {
-                        targets << [stack: params.STACK, runtime: params.RUNTIME.trim()]
-                    }
 
-                    for (def t : targets) {
-                        buildOneAgent(catalog, t.stack, t.runtime)
+                        for (def t : targets) {
+                            buildOneAgent(catalog, t.stack, t.runtime)
+                        }
                     }
                 }
             }
@@ -41,7 +50,7 @@ def buildOneAgent(catalog, stack, runtime) {
         error("catalog: нет stacks.${stack}.${runtime}")
     }
 
-    def registry = catalog.registry?.default ?: 'registry:5000/coin'
+    def registry = catalog.registry?.default ?: 'nexus:8082/coin-docker'
     def registryHost = registry.split('/')[0]
     def credId = catalog.registry?.credentialsId ?: 'nexus-docker'
 
@@ -87,7 +96,7 @@ def buildOneAgent(catalog, stack, runtime) {
     entry.digest = digest
     catalog.stacks."${stack}"."${runtime}" = entry
 
-    writeYaml file: env.CATALOG, data: catalog, overwrite: true
+    writeYaml file: 'catalog.yaml', data: catalog, overwrite: true
 
     withCredentials([usernamePassword(
         credentialsId: 'gitea-git',
@@ -96,11 +105,11 @@ def buildOneAgent(catalog, stack, runtime) {
     )]) {
         sh """
             set -euo pipefail
-            git add '${env.CATALOG}'
+            git add catalog.yaml
             git diff --staged --quiet && exit 0
             git -c user.email='${env.GIT_AUTHOR_EMAIL}' -c user.name='${env.GIT_AUTHOR_NAME}' \\
               commit -m 'chore(agents): ${stack}/${runtime} ${tag} [skip ci]'
-            git push 'http://\${GIT_USER}:\${GIT_PASS}@gitea:3000/coin/coin.git' HEAD:main
+            git push 'http://\${GIT_USER}:\${GIT_PASS}@gitea:3000/coin/coin-platform.git' HEAD:main
         """
     }
 }

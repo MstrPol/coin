@@ -42,6 +42,4 @@ Kubernetes Dashboard: https://localhost:${K3S_DASHBOARD_PORT}
 Вход: Token
 Токен (8760h): ${TOKEN}
 
-Повторно получить токен: make -C docker dashboard-token
-
 EOF

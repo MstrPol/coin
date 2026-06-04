@@ -2,7 +2,8 @@
 set -euo pipefail
 
 TARGET="${COIN_BUILD_TARGET:-container}"
-GP_SHARED="${COIN_GOLDEN_PATHS_DIR:-coin-golden-paths}/_shared/pack-image.sh"
+GP_ROOT="${COIN_GOLDEN_PATHS_DIR:-${COIN_PLATFORM_DIR:+${COIN_PLATFORM_DIR}/golden-paths}}"
+GP_SHARED="${GP_ROOT}/_shared/pack-image.sh"
 
 if [[ "${TARGET}" == "package" ]]; then
   echo "==> coin standard build (maven package)"

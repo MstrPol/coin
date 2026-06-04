@@ -9,7 +9,7 @@
 | Слой | Частота обновлений | Источник |
 |------|-------------------|----------|
 | **Runtime agent image** | Редко | `coin-jenkins-agents` (toolchain + coin CLI + docker/kaniko) |
-| **coin-cli** | Часто | Nexus (`artifacts/.../coin-cli/<ver>/`) |
+| **coin-cli** | Часто | Nexus Maven (`coin/platform/coin-cli/<ver>/`, zip) |
 | **Golden paths catalog** | Очень часто | Nexus tarball или локальный `coin-golden-paths/` |
 
 Golden paths **не** вшиваются в бинарь CLI — только внешний каталог (local / Nexus).

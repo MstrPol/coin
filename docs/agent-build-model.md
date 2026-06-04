@@ -122,7 +122,7 @@ Agent = **CI build environment**, не app runtime.
 | `docker` CLI или kaniko | pack на build-стадии |
 | git, ca-certificates | checkout, deps |
 
-`coin` CLI в agent image **не** зашивается — доставляется в pipeline (coin-lib, Nexus raw/coin-cli).
+`coin` CLI в agent image **не** зашивается — доставляется в pipeline (coin-lib, Nexus Maven).
 
 ### Именование и каталог
 

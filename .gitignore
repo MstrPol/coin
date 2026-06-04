@@ -25,3 +25,6 @@ dist/
 
 # Docker local stack artifacts
 docker/.env
+
+# Локальные копии продуктовых репозиториев (make samples → Gitea)
+samples/

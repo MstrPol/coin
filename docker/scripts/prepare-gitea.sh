@@ -52,19 +52,6 @@ docker compose exec -u git -T gitea gitea admin user create \
        --config "${GITEA_CONFIG}" 2>/dev/null \
   || true
 
-create_repo() {
-  local name="$1"
-  curl -sf -u "${GITEA_USER}:${GITEA_PASSWORD}" \
-    -X POST "http://localhost:${GITEA_HTTP_PORT}/api/v1/user/repos" \
-    -H "Content-Type: application/json" \
-    -d "{\"name\":\"${name}\",\"private\":false,\"default_branch\":\"main\"}" \
-    >/dev/null 2>&1 || true
-}
-
-echo "==> creating repositories"
-create_repo "demo-python-uv"
-create_repo "coin"
-
 echo "==> registering gitea in k3s (Endpoints for pod checkout)"
 GITEA_IP="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(docker compose ps -q gitea)")"
 if [[ -z "${GITEA_IP}" ]]; then
@@ -94,32 +81,5 @@ subsets:
     ports:
       - port: 3000
 EOF
-
-REGISTRY_IP="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(docker compose ps -q registry)" 2>/dev/null || true)"
-if [[ -n "${REGISTRY_IP}" ]]; then
-  echo "==> registering registry in k3s (Endpoints ${REGISTRY_IP}:5000)"
-  docker compose exec -T k3s kubectl apply -f - <<EOF
-apiVersion: v1
-kind: Service
-metadata:
-  name: registry
-  namespace: default
-spec:
-  ports:
-    - port: 5000
-      targetPort: 5000
----
-apiVersion: v1
-kind: Endpoints
-metadata:
-  name: registry
-  namespace: default
-subsets:
-  - addresses:
-      - ip: ${REGISTRY_IP}
-    ports:
-      - port: 5000
-EOF
-fi
 
 echo "Gitea ready: http://localhost:${GITEA_HTTP_PORT} (${GITEA_USER} / ${GITEA_PASSWORD})"

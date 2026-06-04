@@ -8,6 +8,4 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -m -u 1000 ci && chown -R ci:ci /workspace
 
-COPY coin-golden-paths /opt/coin-golden-paths
-ENV COIN_GOLDEN_PATHS_DIR=/opt/coin-golden-paths
 USER ci

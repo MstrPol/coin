@@ -4,7 +4,6 @@ set -euo pipefail
 KUBECONFIG_PATH="${KUBECONFIG_PATH:-/kubeconfig/config}"
 JENKINS_TOKEN_PATH="${JENKINS_TOKEN_PATH:-/kubeconfig/jenkins-token}"
 CASC_DIR="/var/jenkins_home/casc-config"
-INIT_DIR="/var/jenkins_home/init.groovy.d"
 
 resolve_kubeconfig() {
   if [[ -f "${KUBECONFIG_PATH}" ]]; then
@@ -31,63 +30,14 @@ if [[ -z "$(resolve_kubeconfig)" ]]; then
   exit 1
 fi
 if [[ ! -f "${JENKINS_TOKEN_PATH}" ]]; then
-  echo "jenkins token not found: ${JENKINS_TOKEN_PATH} (run: make k8s-auth)" >&2
+  echo "jenkins token not found: ${JENKINS_TOKEN_PATH} (run: make bootstrap)" >&2
   exit 1
 fi
 
-mkdir -p "${CASC_DIR}" "${INIT_DIR}"
+export K3S_TOKEN="$(tr -d '\n\r' < "${JENKINS_TOKEN_PATH}")"
+
+mkdir -p "${CASC_DIR}"
 cp /usr/share/jenkins/ref/casc.yaml "${CASC_DIR}/00-base.yaml"
-cp /usr/share/jenkins/ref/casc-jobs.yaml "${CASC_DIR}/10-jobs.yaml"
-
-# k8s cloud — bearer token (k3s client cert = EC key, fabric8 не парсит через CertificateCredentials)
-cat > "${INIT_DIR}/50-kubernetes.groovy" <<'GROOVY'
-import com.cloudbees.plugins.credentials.CredentialsScope
-import com.cloudbees.plugins.credentials.domains.Domain
-import com.cloudbees.plugins.credentials.SystemCredentialsProvider
-import hudson.util.Secret
-import jenkins.model.Jenkins
-import org.csanchez.jenkins.plugins.kubernetes.KubernetesCloud
-import org.jenkinsci.plugins.plaincredentials.impl.StringCredentialsImpl
-
-def credId = 'k3s-token'
-def tokenText = new File('/kubeconfig/jenkins-token').text.trim()
-
-def store = SystemCredentialsProvider.getInstance().getStore()
-def domain = Domain.global()
-
-['k3s-token', 'k3s-client-cert'].each { id ->
-    def old = store.getCredentials(domain).find { it.id == id }
-    if (old != null) {
-        store.removeCredentials(domain, old)
-    }
-}
-
-store.addCredentials(domain, new StringCredentialsImpl(
-    CredentialsScope.GLOBAL,
-    credId,
-    'k3s API token (local stack)',
-    Secret.fromString(tokenText)
-))
-
-def jenkins = Jenkins.getInstance()
-def cloud = jenkins.getCloud('kubernetes') as KubernetesCloud
-if (cloud == null) {
-    cloud = new KubernetesCloud('kubernetes')
-    jenkins.clouds.add(cloud)
-}
-cloud.setServerUrl('https://k3s:6443')
-cloud.setSkipTlsVerify(true)
-cloud.setCredentialsId(credId)
-cloud.setJenkinsUrl('http://jenkins:8080')
-cloud.setJenkinsTunnel('jenkins:50000')
-cloud.setNamespace('default')
-cloud.setContainerCapStr('10')
-cloud.setConnectTimeout(300)
-cloud.setReadTimeout(300)
-cloud.setMaxRequestsPerHostStr('32')
-jenkins.save()
-GROOVY
 
 export CASC_JENKINS_CONFIG="${CASC_DIR}"
-
 exec /usr/local/bin/jenkins.sh

@@ -1,0 +1,11 @@
+unclassified:
+  globalLibraries:
+    libraries:
+      - name: coin-lib
+        defaultVersion: "main"
+        retriever:
+          modernSCM:
+            scm:
+              git:
+                remote: "http://gitea:3000/coin/coin-lib.git"
+                credentialsId: "gitea-git"

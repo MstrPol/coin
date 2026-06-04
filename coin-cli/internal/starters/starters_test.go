@@ -15,9 +15,9 @@ func startersRoot(t *testing.T) string {
 		t.Fatal("runtime.Caller failed")
 	}
 	repo := filepath.Join(filepath.Dir(file), "..", "..", "..")
-	root := filepath.Join(repo, dirName)
+	root := filepath.Join(repo, "coin-platform", "starters")
 	if !isStarterRoot(root) {
-		t.Fatalf("%s not found at %s", dirName, root)
+		t.Fatalf("starters not found at %s", root)
 	}
 	return root
 }

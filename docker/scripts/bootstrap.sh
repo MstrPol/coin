@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Подъём инфраструктуры: nexus (+ docker repo), k3s, gitea, jenkins (plugins + k8s agents).
+# Jenkins jobs — make coin-lib / make coin-platform. k3s Dashboard — make dashboard.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -13,11 +15,9 @@ fi
 # shellcheck disable=SC1091
 source "${ENV_FILE}"
 
-chmod +x "${ROOT}/scripts/"*.sh 2>/dev/null || true
-chmod +x "${ROOT}/scripts/"*.sh
+chmod +x "${ROOT}/scripts/"*.sh "${ROOT}/scripts/lib/"*.sh 2>/dev/null || true
 
-REGISTRY_PORT="${REGISTRY_PORT:-5050}"
-export REGISTRY="localhost:${REGISTRY_PORT}"
+NEXUS_DOCKER_PORT="${NEXUS_DOCKER_PORT:-8082}"
 
 if [[ -z "${DOCKER_PLATFORM:-}" ]]; then
   DOCKER_PLATFORM="$("${ROOT}/scripts/detect-platform.sh" --platform)"
@@ -34,38 +34,44 @@ port_busy() {
   (echo >/dev/tcp/127.0.0.1/"${port}") >/dev/null 2>&1
 }
 
-for port_var in REGISTRY_PORT JENKINS_HTTP_PORT GITEA_HTTP_PORT NEXUS_HTTP_PORT K3S_DASHBOARD_PORT; do
+for port_var in NEXUS_DOCKER_PORT JENKINS_HTTP_PORT GITEA_HTTP_PORT NEXUS_HTTP_PORT K3S_DASHBOARD_PORT; do
   port="${!port_var}"
   if port_busy "${port}"; then
     echo "ERROR: порт ${port} (${port_var}) уже занят." >&2
-    if [[ "${port_var}" == "REGISTRY_PORT" && "${port}" == "5000" ]]; then
-      echo "На macOS 5000 часто занят AirPlay. Задайте REGISTRY_PORT=5050 в docker/.env" >&2
-    fi
     exit 1
   fi
 done
 
-echo "==> [1/8] building Jenkins image"
-docker compose build jenkins
+build_jenkins_if_needed() {
+  local image="${COMPOSE_PROJECT_NAME:-coin}-jenkins"
+  if [[ "${FORCE_JENKINS_BUILD:-0}" == "1" ]]; then
+    echo "==> [1/6] building Jenkins image (FORCE_JENKINS_BUILD=1)..."
+  elif docker image inspect "${image}" >/dev/null 2>&1; then
+    echo "==> [1/6] Jenkins image ${image} — skip build"
+    echo "    пересборка: docker compose build jenkins"
+    return 0
+  else
+    echo "==> [1/6] building Jenkins image (первый раз ~5–15 мин — загрузка plugins, будет verbose-лог)..."
+  fi
+  DOCKER_BUILDKIT=1 docker compose --progress plain build jenkins
+}
 
-echo "==> [2/8] starting registry, nexus, k3s, gitea"
-docker compose up -d registry nexus k3s gitea
+build_jenkins_if_needed
 
-echo "==> waiting for registry"
-for i in $(seq 1 30); do
-  if curl -sf "http://localhost:${REGISTRY_PORT}/v2/" >/dev/null 2>&1; then
+echo "==> [2/6] starting k3s"
+docker compose up -d k3s
+
+for _ in $(seq 1 60); do
+  if docker compose exec -T k3s test -f /output/kubeconfig.yaml 2>/dev/null; then
     break
   fi
   sleep 2
 done
 
-echo "==> [3/8] k3s kubeconfig + Dashboard + Jenkins auth"
-for i in $(seq 1 60); do
-  if docker compose exec -T k3s test -f /output/kubeconfig.yaml; then
-    break
-  fi
-  sleep 2
-done
+echo "==> [2/6] starting nexus, gitea"
+docker compose up -d nexus gitea
+
+echo "==> [3/6] k3s auth (Jenkins SA token)"
 
 docker compose exec -T k3s sh -c '
   cp /output/kubeconfig.yaml /output/config
@@ -73,23 +79,18 @@ docker compose exec -T k3s sh -c '
   sed -i "s|localhost|k3s|g" /output/config
 '
 
-"${ROOT}/scripts/setup-dashboard.sh"
 "${ROOT}/scripts/setup-jenkins-k8s-auth.sh"
 
-echo "==> [4/8] Gitea + Nexus"
+echo "==> [4/6] init Gitea + Nexus (admin, Docker repo, k8s Endpoints)"
 "${ROOT}/scripts/prepare-gitea.sh"
 "${ROOT}/scripts/prepare-nexus.sh"
 
-echo "==> [5/8] push coin monorepo + demo service to Gitea"
-"${ROOT}/scripts/push-coin.sh"
-"${ROOT}/scripts/prepare-demo.sh"
-
-echo "==> [6/8] starting Jenkins"
+echo "==> [5/6] starting Jenkins (plugins + Kubernetes cloud для dynamic agents)"
 docker compose up -d jenkins
 
-echo "==> waiting for Jenkins"
+echo "==> [6/6] waiting for Jenkins + finalize k3s"
 JENKINS_PORT="${JENKINS_HTTP_PORT:-8080}"
-for i in $(seq 1 90); do
+for _ in $(seq 1 90); do
   if curl -sf -o /dev/null -u "${JENKINS_ADMIN_USER:-admin}:${JENKINS_ADMIN_PASSWORD:-admin}" \
     "http://localhost:${JENKINS_PORT}/login"; then
     break
@@ -97,33 +98,26 @@ for i in $(seq 1 90); do
   sleep 3
 done
 
-"${ROOT}/scripts/register-jenkins-k8s-endpoints.sh"
-
-echo "==> [7/8] platform build (coin-cli → Nexus, agents → registry)"
-"${ROOT}/scripts/trigger-platform-build.sh" || {
-  echo "WARN: platform build не завершился — запустите вручную: make platform-build" >&2
-}
+"${ROOT}/scripts/fix-k3s.sh"
 
 cat <<EOF
 
-Coin local stack is up.
+Coin local stack is up (infrastructure only).
 
   Jenkins:   http://localhost:${JENKINS_HTTP_PORT:-8080}  (${JENKINS_ADMIN_USER:-admin} / ${JENKINS_ADMIN_PASSWORD:-admin})
+             plugins + Kubernetes cloud + creds (k3s, gitea, nexus), без coin-lib/jobs
   Gitea:     http://localhost:${GITEA_HTTP_PORT:-3000}  (${GITEA_USER:-coin} / ${GITEA_PASSWORD:-coin})
-  Registry:  http://localhost:${REGISTRY_PORT}
   Nexus:     http://localhost:${NEXUS_HTTP_PORT:-8081}  (admin / ${NEXUS_ADMIN_PASSWORD:-coin12345})
-  k3s UI:    https://localhost:${K3S_DASHBOARD_PORT:-8443}  (Token — make dashboard-token)
+  Docker:    localhost:${NEXUS_DOCKER_PORT}/${NEXUS_DOCKER_REPO:-coin-docker}  (${NEXUS_DOCKER_USER:-coin} / ${NEXUS_DOCKER_PASSWORD:-coin})
+  k3s UI:    make dashboard  (опционально)
 
-Git repos:
-  http://localhost:${GITEA_HTTP_PORT:-3000}/coin/coin
-  http://localhost:${GITEA_HTTP_PORT:-3000}/coin/demo-python-uv
+Platform (после bootstrap):
+  make coin-lib            # coin-lib → Gitea + Jenkins Shared Library
+  make coin-platform       # coin-platform → Gitea
+  make coin-cli            # coin-cli → Gitea + job coin-cli
+  make agents-build        # job agents-build (JCasC)
+  make samples             # demo-продукты → samples/ + Gitea
 
-Platform jobs (Jenkins):
-  coin-cli → Nexus coin-cli/dev/coin_linux_<arch>
-  coin-agents (BUILD_ALL) -> registry:5000/coin/ci-*
-
-Service smoke: Jenkins → coin-demo-python-uv → Build Now
-
-Teardown: make down
+Teardown: make down  |  make reset
 
 EOF

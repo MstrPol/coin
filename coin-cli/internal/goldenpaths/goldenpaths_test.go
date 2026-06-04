@@ -15,9 +15,9 @@ func goldenPathsRoot(t *testing.T) string {
 		t.Fatal("runtime.Caller failed")
 	}
 	repo := filepath.Join(filepath.Dir(file), "..", "..", "..")
-	root := filepath.Join(repo, "coin-golden-paths")
+	root := filepath.Join(repo, "coin-platform", "golden-paths")
 	if _, err := os.Stat(filepath.Join(root, catalogFile)); err != nil {
-		t.Fatalf("coin-golden-paths not found at %s: %v", root, err)
+		t.Fatalf("golden-paths not found at %s: %v", root, err)
 	}
 	return root
 }

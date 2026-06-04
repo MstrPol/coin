@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Nexus: raw repo coin-cli (anonymous read) + Endpoints в k3s.
+# Nexus: admin password, Docker hosted repo, пользователь coin, Endpoints в k3s.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -9,10 +9,47 @@ cd "${ROOT}"
 [[ -f "${ROOT}/.env" ]] && source "${ROOT}/.env"
 
 NEXUS_HTTP_PORT="${NEXUS_HTTP_PORT:-8081}"
+NEXUS_DOCKER_PORT="${NEXUS_DOCKER_PORT:-8082}"
+NEXUS_DOCKER_REPO="${NEXUS_DOCKER_REPO:-coin-docker}"
 NEXUS_ADMIN_PASSWORD="${NEXUS_ADMIN_PASSWORD:-coin12345}"
+NEXUS_DOCKER_USER="${NEXUS_DOCKER_USER:-coin}"
+NEXUS_DOCKER_PASSWORD="${NEXUS_DOCKER_PASSWORD:-coin1234}"
+auth="admin:${NEXUS_ADMIN_PASSWORD}"
+
+nexus_api() {
+  curl -sf -u "${auth}" "$@"
+}
+
+accept_nexus_eula() {
+  local eula
+  eula="$(nexus_api "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/system/eula")"
+  if python3 -c 'import json, sys; sys.exit(0 if json.load(sys.stdin).get("accepted") else 1)' <<<"${eula}"; then
+    return 0
+  fi
+  echo "==> accepting Nexus Community Edition EULA"
+  python3 -c '
+import json, sys, urllib.request, base64
+
+eula = json.load(sys.stdin)
+payload = json.dumps({"accepted": True, "disclaimer": eula["disclaimer"]}).encode()
+auth_header = base64.b64encode(sys.argv[1].encode()).decode()
+req = urllib.request.Request(
+    sys.argv[2],
+    data=payload,
+    method="POST",
+    headers={
+        "Authorization": f"Basic {auth_header}",
+        "Content-Type": "application/json",
+    },
+)
+with urllib.request.urlopen(req) as resp:
+    if resp.status not in (200, 204):
+        raise SystemExit(f"EULA accept failed: HTTP {resp.status}")
+' "${auth}" "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/system/eula" <<<"${eula}"
+}
 
 echo "==> waiting for Nexus"
-for i in $(seq 1 90); do
+for _ in $(seq 1 90); do
   if curl -sf "http://localhost:${NEXUS_HTTP_PORT}/" >/dev/null 2>&1; then
     break
   fi
@@ -32,46 +69,90 @@ if [[ ! -f "${ROOT}/.nexus-admin-initialized" ]]; then
   fi
 fi
 
-auth="admin:${NEXUS_ADMIN_PASSWORD}"
+accept_nexus_eula
 
-if ! curl -sf -u "${auth}" "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories/coin-cli" >/dev/null 2>&1; then
-  echo "==> creating raw repo coin-cli"
-  curl -sf -u "${auth}" -X POST "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories/raw/hosted" \
+echo "==> enabling Docker Bearer Token realm"
+active_realms="$(nexus_api "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/security/realms/active")"
+if ! echo "${active_realms}" | grep -q 'DockerToken'; then
+  updated_realms="$(python3 -c '
+import json, sys
+realms = json.load(sys.stdin)
+if "DockerToken" not in realms:
+    realms.append("DockerToken")
+print(json.dumps(realms))
+' <<<"${active_realms}")"
+  nexus_api -X PUT "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/security/realms/active" \
     -H "Content-Type: application/json" \
-    -d '{
-      "name": "coin-cli",
-      "online": true,
-      "storage": {
-        "blobStoreName": "default",
-        "strictContentTypeValidation": false,
-        "writePolicy": "ALLOW"
-      }
-    }'
+    -d "${updated_realms}" >/dev/null
 fi
 
-echo "==> enabling anonymous read for coin-cli"
-curl -sf -u "${auth}" -X POST "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/security/roles" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "coin-cli-read",
-    "name": "coin-cli-read",
-    "description": "Anonymous read coin-cli raw repo (local dev)",
-    "privileges": ["nx-repository-view-raw-coin-cli-browse", "nx-repository-view-raw-coin-cli-read"],
-    "roles": []
-  }' >/dev/null 2>&1 || true
+if ! nexus_api "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories/${NEXUS_DOCKER_REPO}" >/dev/null 2>&1; then
+  echo "==> creating Nexus Docker hosted repo ${NEXUS_DOCKER_REPO} (connector :${NEXUS_DOCKER_PORT})"
+  nexus_api -X POST "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories/docker/hosted" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"name\": \"${NEXUS_DOCKER_REPO}\",
+      \"online\": true,
+      \"storage\": {
+        \"blobStoreName\": \"default\",
+        \"strictContentTypeValidation\": true,
+        \"writePolicy\": \"ALLOW\"
+      },
+      \"docker\": {
+        \"v1Enabled\": false,
+        \"forceBasicAuth\": false,
+        \"httpPort\": ${NEXUS_DOCKER_PORT}
+      }
+    }"
+fi
 
-curl -sf -u "${auth}" -X PUT "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/security/anonymous" \
+echo "==> configuring role ${NEXUS_DOCKER_USER} for ${NEXUS_DOCKER_REPO}"
+nexus_api -X POST "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/security/roles" \
   -H "Content-Type: application/json" \
-  -d '{
-    "enabled": true,
-    "userId": "anonymous",
-    "realmName": "NexusAuthorizingRealm",
-    "roles": ["nx-anonymous", "coin-cli-read"]
-  }' >/dev/null 2>&1 || true
+  -d "{
+    \"id\": \"coin-docker-writer\",
+    \"name\": \"coin-docker-writer\",
+    \"description\": \"Push/pull ${NEXUS_DOCKER_REPO} (local dev)\",
+    \"privileges\": [
+      \"nx-repository-view-docker-${NEXUS_DOCKER_REPO}-browse\",
+      \"nx-repository-view-docker-${NEXUS_DOCKER_REPO}-read\",
+      \"nx-repository-view-docker-${NEXUS_DOCKER_REPO}-add\",
+      \"nx-repository-view-docker-${NEXUS_DOCKER_REPO}-edit\"
+    ],
+    \"roles\": []
+  }" >/dev/null 2>&1 || true
+
+if nexus_api "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/security/users?userId=${NEXUS_DOCKER_USER}" \
+  | grep -q '"userId"'; then
+  nexus_api -X PUT "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/security/users/${NEXUS_DOCKER_USER}/change-password" \
+    -H "Content-Type: text/plain" \
+    --data-binary "${NEXUS_DOCKER_PASSWORD}" >/dev/null
+else
+  nexus_api -X POST "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/security/users" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"userId\": \"${NEXUS_DOCKER_USER}\",
+      \"firstName\": \"Coin\",
+      \"lastName\": \"Dev\",
+      \"emailAddress\": \"coin@local\",
+      \"password\": \"${NEXUS_DOCKER_PASSWORD}\",
+      \"status\": \"active\",
+      \"roles\": [\"coin-docker-writer\"]
+    }" >/dev/null
+fi
+
+echo "==> waiting for Docker connector :${NEXUS_DOCKER_PORT}"
+for _ in $(seq 1 60); do
+  code="$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${NEXUS_DOCKER_PORT}/v2/")"
+  if [[ "${code}" == "200" || "${code}" == "401" ]]; then
+    break
+  fi
+  sleep 3
+done
 
 NEXUS_IP="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(docker compose ps -q nexus)" 2>/dev/null || true)"
 if [[ -n "${NEXUS_IP}" ]]; then
-  echo "==> registering nexus in k3s (Endpoints ${NEXUS_IP}:8081)"
+  echo "==> registering nexus in k3s (Endpoints ${NEXUS_IP}:${NEXUS_HTTP_PORT}, :${NEXUS_DOCKER_PORT})"
   docker compose exec -T k3s kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Service
@@ -80,8 +161,12 @@ metadata:
   namespace: default
 spec:
   ports:
-    - port: 8081
-      targetPort: 8081
+    - name: ui
+      port: ${NEXUS_HTTP_PORT}
+      targetPort: ${NEXUS_HTTP_PORT}
+    - name: docker
+      port: ${NEXUS_DOCKER_PORT}
+      targetPort: ${NEXUS_DOCKER_PORT}
 ---
 apiVersion: v1
 kind: Endpoints
@@ -92,8 +177,12 @@ subsets:
   - addresses:
       - ip: ${NEXUS_IP}
     ports:
-      - port: 8081
+      - name: ui
+        port: ${NEXUS_HTTP_PORT}
+      - name: docker
+        port: ${NEXUS_DOCKER_PORT}
 EOF
 fi
 
-echo "Nexus coin-cli: http://localhost:${NEXUS_HTTP_PORT}/repository/coin-cli/ (admin / ${NEXUS_ADMIN_PASSWORD})"
+echo "Nexus UI:     http://localhost:${NEXUS_HTTP_PORT} (admin / ${NEXUS_ADMIN_PASSWORD})"
+echo "Nexus Docker: localhost:${NEXUS_DOCKER_PORT}/${NEXUS_DOCKER_REPO} (${NEXUS_DOCKER_USER} / ${NEXUS_DOCKER_PASSWORD})"

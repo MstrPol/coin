@@ -68,12 +68,16 @@ coin run test
 ## Доставка coin CLI в agent
 
 ```
-Jenkins job coin-cli  →  go build  →  Nexus raw/coin-cli/<ver>/coin_linux_<arch>
+Jenkins job coin-cli  →  go build  →  zip  →  Nexus Maven
+                                              coin/platform/coin-cli/<ver>/coin-cli-<ver>-linux-<arch>.zip
                                               │
-                         coin-lib (service pipeline)  →  curl/wget → PATH
+                         coin-lib (service pipeline)  →  fetch + unzip → PATH
 ```
 
-Agent image содержит только toolchain + GP; версия CLI — `images.yaml` → `coinCli.min`.
+Репозиторий: `maven-releases` (release) или `maven-snapshots` (версия `*-SNAPSHOT`).  
+Bootstrap Nexus не меняем — hosted Maven repos уже есть из коробки.
+
+Agent image содержит только toolchain; версия CLI — `images.yaml` → `coinCli.min`.
 
 ## Выбор agent image (coin-lib)
 
@@ -115,12 +119,14 @@ Groovy: pod template, credentials, стадии. Вся логика стади�
 
 Локальный стенд: [docker/README.md](../docker/README.md).
 
-## Хранилище бинарей CLI
+## Хранилище бинарей CLI (Maven)
 
 ```
-<nexus>/repository/coin-cli/<version>/coin_linux_amd64
-<nexus>/repository/coin-cli/<version>/coin_linux_arm64
+<nexus>/repository/maven-releases/coin/platform/coin-cli/<version>/coin-cli-<version>-linux-amd64.zip
+<nexus>/repository/maven-releases/coin/platform/coin-cli/<version>/coin-cli-<version>-linux-arm64.zip
 ```
+
+Внутри zip — один файл `coin`. Classifier: `linux-amd64`, `linux-arm64`.
 
 ## Совместимость lib ↔ CLI
 

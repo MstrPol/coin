@@ -8,15 +8,17 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"coin.local/coin-cli/internal/platform"
 )
 
 const catalogFile = "catalog.yaml"
 
-// Root возвращает fs.FS корня coin-golden-paths.
+// Root возвращает fs.FS корня golden-paths.
 //
 // Источники (COIN_GOLDEN_PATHS_SOURCE):
-//   - local (default): COIN_GOLDEN_PATHS_DIR или поиск coin-golden-paths/ вверх от cwd
-//   - nexus: COIN_GOLDEN_PATHS_URL — tarball или директория (см. Fetch)
+//   - local (default): COIN_PLATFORM_DIR/golden-paths, COIN_GOLDEN_PATHS_DIR или поиск вверх от cwd
+//   - nexus: COIN_GOLDEN_PATHS_URL — tarball (см. Fetch)
 func Root() (fs.FS, string, error) {
 	source := strings.ToLower(os.Getenv("COIN_GOLDEN_PATHS_SOURCE"))
 	if source == "" {
@@ -49,21 +51,29 @@ func localDir() (string, error) {
 		return "", fmt.Errorf("COIN_GOLDEN_PATHS_DIR=%s: catalog.yaml not found", dir)
 	}
 
+	if dir, err := platform.GoldenPathsDir(); err == nil {
+		return dir, nil
+	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
 	for dir := cwd; ; dir = filepath.Dir(dir) {
-		candidate := filepath.Join(dir, "coin-golden-paths")
-		if _, err := os.Stat(filepath.Join(candidate, catalogFile)); err == nil {
-			return candidate, nil
+		for _, candidate := range []string{
+			filepath.Join(dir, "coin-platform", "golden-paths"),
+			filepath.Join(dir, "golden-paths"),
+		} {
+			if _, err := os.Stat(filepath.Join(candidate, catalogFile)); err == nil {
+				return candidate, nil
+			}
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			break
 		}
 	}
-	return "", fmt.Errorf("coin-golden-paths/ not found (set COIN_GOLDEN_PATHS_DIR)")
+	return "", fmt.Errorf("golden-paths/ not found (set COIN_PLATFORM_DIR or COIN_GOLDEN_PATHS_DIR)")
 }
 
 // LoadCatalog читает catalog.yaml из root FS.
@@ -89,6 +99,9 @@ func SourceLabel() string {
 	case "local":
 		if dir := os.Getenv("COIN_GOLDEN_PATHS_DIR"); dir != "" {
 			return fmt.Sprintf("local (%s)", dir)
+		}
+		if dir, err := platform.GoldenPathsDir(); err == nil {
+			return fmt.Sprintf("platform (%s)", dir)
 		}
 		return "local"
 	case "nexus", "url":
