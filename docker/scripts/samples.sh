@@ -13,6 +13,19 @@ STARTERS="${REPO_ROOT}/coin-platform/starters"
 source "${LIB}"
 load_env
 
+# samples/ — отдельные git-репо (Gitea). Monorepo (GitHub) этим скриптом не коммитится.
+if [[ -n "${GIT_DIR:-}" || -n "${GIT_WORK_TREE:-}" ]]; then
+  echo "GIT_DIR/GIT_WORK_TREE заданы — отмена (риск коммита в monorepo вместо samples/)" >&2
+  exit 1
+fi
+if git -C "${REPO_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  mono_origin="$(git -C "${REPO_ROOT}" config --get remote.origin.url 2>/dev/null || true)"
+  if [[ "${mono_origin}" == *"localhost:"* ]] || [[ "${mono_origin}" == *"/coin/demo-"* ]]; then
+    echo "origin монорепо указывает на Gitea demo — задайте GitHub (git@github.com:MstrPol/coin.git)" >&2
+    exit 1
+  fi
+fi
+
 [[ -f "${MANIFEST}" ]] || { echo "missing ${MANIFEST}" >&2; exit 1; }
 
 GITEA_HTTP_PORT="${GITEA_HTTP_PORT:-3000}"
