@@ -36,5 +36,6 @@ coin platform validate
 | Job | Jenkinsfile | Регистрация |
 |-----|-------------|-------------|
 | `agents-build` | `agents/Jenkinsfile` | `make agents-build` |
+| `demo-*` (multibranch) | `Jenkinsfile` в каждом demo-репо | `make samples` |
 
 Service pipeline: `coinPipeline()` сам клонирует `coin/coin-platform` перед выбором agent image.

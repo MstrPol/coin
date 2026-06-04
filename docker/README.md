@@ -22,7 +22,7 @@ make coin-lib                 # Shared Library → Gitea + Jenkins
 make coin-platform            # GP + starters + agents → Gitea
 make coin-cli                 # CLI → Gitea + job coin-cli
 make agents-build             # job agents-build (JCasC)
-make samples                  # demo-продукты → ../samples/ + Gitea
+make samples                  # demo-продукты → samples/ + Gitea + multibranch jobs
 ```
 
 | URL | Логин |
@@ -56,16 +56,22 @@ Docker registry: `localhost:8082/coin-docker` (`coin` / `coin1234`).
 | `make coin-platform` | `coin/coin-platform` | — |
 | `make coin-cli` | `coin/coin-cli` | job `coin-cli` |
 | `make agents-build` | — | job `agents-build` |
-| `make samples` | `coin/demo-*` | — |
+| `make samples` | `coin/demo-*` | multibranch job на каждый demo-репо |
 
-Повторный вызов platform-команд **обновляет** код в Gitea. JCasC reload — у `coin-lib`, `coin-cli`, `agents-build` (без пересборки образа Jenkins).
+Повторный вызов platform-команд **обновляет** код в Gitea. JCasC reload — у `coin-lib`, `coin-cli`, `agents-build`, `samples` (без пересборки образа Jenkins).
 
 ### Demo-продукты
 
 Манифест: `samples.yaml`. Локальные git-клоны: `../samples/` (gitignored в monorepo).
 
+1. Копирует starter → `samples/<repo>/`, push в Gitea
+2. Создаёт **multibranch job** в Jenkins (имя = имя репо)
+3. Jenkins сканирует ветки по расписанию (15m); первый scan — после reload JCasC
+
+Требует **`make coin-lib`** (Shared Library для `Jenkinsfile`).
+
 ```bash
-make samples    # starters → samples/<repo>/ + push в Gitea, origin настроен
+make samples    # starters → samples/<repo>/ + Gitea + Jenkins multibranch jobs
 ```
 
 Можно работать как с обычными репо: ветки, коммиты, `git push origin …`.
@@ -95,7 +101,7 @@ bootstrap → Jenkins + k3s + Nexus + Gitea
      │
      ├─ make coin-lib / coin-cli / agents-build  →  platform jobs
      ├─ make coin-platform                       →  GP + agents catalog
-     └─ make samples                             →  product repos
+     └─ make samples                             →  product repos + multibranch jobs
 
 service pipeline (coinPipeline):
   checkout project → clone coin-platform → dynamic agent → coin CLI

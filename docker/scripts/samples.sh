@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Примеры продуктовых репо: starters → samples/ (gitignored) → Gitea coin/<repo>.
+# Примеры продуктовых репо: starters → samples/ (gitignored) → Gitea + multibranch jobs.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -21,6 +21,8 @@ GITEA_PASSWORD="${GITEA_PASSWORD:-coin}"
 
 mkdir -p "${SAMPLES_DIR}"
 
+REPOS=()
+
 write_jenkinsfile() {
   local dest="$1"
   cat > "${dest}/Jenkinsfile" <<'EOF'
@@ -36,6 +38,50 @@ patch_config() {
   sed -i.bak "s/^  name: .*/  name: ${project}/" "${cfg}"
   sed -i.bak 's|^  serviceUrl: .*|  serviceUrl: http://nexus:8081|' "${cfg}"
   rm -f "${cfg}.bak"
+}
+
+render_multibranch_casc() {
+  local out="$1"
+  cat > "${out}" <<'EOF'
+jobs:
+EOF
+  local repo
+  for repo in "${REPOS[@]}"; do
+    cat >> "${out}" <<EOF
+  - script: >
+      multibranchPipelineJob('${repo}') {
+        description('Sample product: ${repo}')
+        branchSources {
+          branchSource {
+            source {
+              git {
+                id('${repo}')
+                remote('http://gitea:3000/coin/${repo}.git')
+                credentialsId('gitea-git')
+              }
+            }
+          }
+        }
+        factory {
+          workflowBranchProjectFactory {
+            scriptPath('Jenkinsfile')
+          }
+        }
+        triggers {
+          periodicFolderTrigger {
+            interval('15m')
+          }
+        }
+        orphanedItemStrategy {
+          defaultOrphanedItemStrategy {
+            pruneDeadBranches(true)
+            daysToKeepStr('-1')
+            numToKeepStr('5')
+          }
+        }
+      }
+EOF
+  done
 }
 
 repo=""
@@ -61,8 +107,9 @@ while IFS= read -r line; do
 
     echo "==> sample ${repo} (from ${starter})"
     gitea_create_repo "${repo}"
+    REPOS+=("${repo}")
 
-    rsync -a --delete "${src}/" "${dest}/"
+    rsync -a --delete --exclude '.git' "${src}/" "${dest}/"
     write_jenkinsfile "${dest}"
     patch_config "${dest}/.coin/config.yaml" "${repo}"
 
@@ -90,9 +137,19 @@ while IFS= read -r line; do
   fi
 done < "${MANIFEST}"
 
-if [[ -z "$(ls -A "${SAMPLES_DIR}" 2>/dev/null)" ]]; then
+if [[ ${#REPOS[@]} -eq 0 ]]; then
   echo "no samples pushed (check ${MANIFEST})" >&2
   exit 1
 fi
 
+echo "==> Jenkins: multibranch jobs (${#REPOS[@]})"
+jenkins_wait
+CASC="$(mktemp)"
+trap 'rm -f "${CASC}"' RETURN
+render_multibranch_casc "${CASC}"
+jenkins_casc_reload "${CASC}" /var/jenkins_home/casc-config/35-samples-jobs.yaml
+
 echo "samples ready under ${SAMPLES_DIR}/"
+for repo in "${REPOS[@]}"; do
+  echo "  job: ${repo} → http://gitea:3000/coin/${repo}.git"
+done
