@@ -42,6 +42,7 @@ jenkins_casc_reload() {
   local yaml_container_path="$2"
 
   compose cp "${yaml_host_path}" "jenkins:${yaml_container_path}"
+  compose exec -T jenkins sh -c "chown jenkins:jenkins '${yaml_container_path}' && chmod 644 '${yaml_container_path}'"
 
   local cookie
   cookie="$(mktemp)"
@@ -49,7 +50,14 @@ jenkins_casc_reload() {
   crumb="$(curl -sf -u "${JENKINS_USER}:${JENKINS_PASS}" -c "${cookie}" \
     "http://localhost:${JENKINS_PORT}/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,\":\",//crumb)")"
 
-  curl -sf -u "${JENKINS_USER}:${JENKINS_PASS}" -b "${cookie}" -c "${cookie}" \
-    -H "${crumb}" -X POST "http://localhost:${JENKINS_PORT}/configuration-as-code/reload"
+  local http_code
+  http_code="$(curl -sf -u "${JENKINS_USER}:${JENKINS_PASS}" -b "${cookie}" -c "${cookie}" \
+    -H "${crumb}" -o /dev/null -w '%{http_code}' \
+    -X POST "http://localhost:${JENKINS_PORT}/configuration-as-code/reload")"
   rm -f "${cookie}"
+
+  if [[ "${http_code}" != "200" && "${http_code}" != "302" ]]; then
+    echo "Jenkins CASC reload failed (HTTP ${http_code})" >&2
+    exit 1
+  fi
 }
