@@ -66,7 +66,7 @@ Docker registry: `localhost:8082/coin-docker` (`coin` / `coin1234`).
 
 1. Копирует starter → `samples/<repo>/`, push в Gitea
 2. Создаёт **multibranch job** в Jenkins (имя = имя репо)
-3. Jenkins сканирует ветки по расписанию (15m); первый scan — после reload JCasC
+3. Jenkins сканирует ветки сразу после reload и далее по расписанию (15m)
 
 Требует **`make coin-lib`** (Shared Library для `Jenkinsfile`).
 

@@ -62,3 +62,15 @@ jenkins_casc_reload() {
     exit 1
   fi
 }
+
+jenkins_build_job() {
+  local job="$1"
+  local cookie
+  cookie="$(mktemp)"
+  local crumb
+  crumb="$(curl -sf -u "${JENKINS_USER}:${JENKINS_PASS}" -c "${cookie}" \
+    "http://localhost:${JENKINS_PORT}/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,\":\",//crumb)")"
+  curl -sf -u "${JENKINS_USER}:${JENKINS_PASS}" -b "${cookie}" -c "${cookie}" \
+    -H "${crumb}" -X POST "http://localhost:${JENKINS_PORT}/job/${job}/build" >/dev/null
+  rm -f "${cookie}"
+}

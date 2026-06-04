@@ -149,6 +149,11 @@ trap 'rm -f "${CASC}"' RETURN
 render_multibranch_casc "${CASC}"
 jenkins_casc_reload "${CASC}" /var/jenkins_home/casc-config/35-samples-jobs.yaml
 
+echo "==> Jenkins: branch scan"
+for repo in "${REPOS[@]}"; do
+  jenkins_build_job "${repo}" || true
+done
+
 echo "samples ready under ${SAMPLES_DIR}/"
 for repo in "${REPOS[@]}"; do
   echo "  job: ${repo} → http://gitea:3000/coin/${repo}.git"
