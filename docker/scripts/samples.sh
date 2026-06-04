@@ -58,6 +58,9 @@ EOF
                 id('${repo}')
                 remote('http://gitea:3000/coin/${repo}.git')
                 credentialsId('gitea-git')
+                traits {
+                  gitBranchDiscovery()
+                }
               }
             }
           }
@@ -151,7 +154,7 @@ jenkins_casc_reload "${CASC}" /var/jenkins_home/casc-config/35-samples-jobs.yaml
 
 echo "==> Jenkins: branch scan"
 for repo in "${REPOS[@]}"; do
-  jenkins_build_job "${repo}" || true
+  jenkins_build_job "${repo}"
 done
 
 echo "samples ready under ${SAMPLES_DIR}/"
