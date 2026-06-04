@@ -39,5 +39,14 @@ export K3S_TOKEN="$(tr -d '\n\r' < "${JENKINS_TOKEN_PATH}")"
 mkdir -p "${CASC_DIR}"
 cp /usr/share/jenkins/ref/casc.yaml "${CASC_DIR}/00-base.yaml"
 
+# docker.sock с хоста: gid часто ≠ группа docker в контейнере (Debian/Mac).
+if [[ -S /var/run/docker.sock ]]; then
+  docker_gid="$(stat -c '%g' /var/run/docker.sock)"
+  if ! getent group "${docker_gid}" >/dev/null; then
+    groupadd -g "${docker_gid}" dockersock
+  fi
+  usermod -aG "${docker_gid}" jenkins
+fi
+
 export CASC_JENKINS_CONFIG="${CASC_DIR}"
-exec /usr/local/bin/jenkins.sh
+exec setpriv --reuid=jenkins --regid=jenkins --init-groups /usr/local/bin/jenkins.sh

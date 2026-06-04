@@ -2,7 +2,7 @@ FROM jenkins/jenkins:lts-jdk17
 
 USER root
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git curl docker.io ca-certificates \
+    && apt-get install -y --no-install-recommends git curl docker.io docker-cli ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && usermod -aG docker jenkins
 
@@ -26,5 +26,5 @@ RUN chmod +x /usr/local/bin/jenkins-entrypoint.sh
 
 ENV JAVA_OPTS="-Djenkins.install.runSetupWizard=false"
 
-USER jenkins
+USER root
 ENTRYPOINT ["/usr/local/bin/jenkins-entrypoint.sh"]

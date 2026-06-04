@@ -53,12 +53,12 @@ Docker registry: `localhost:8082/coin-docker` (`coin` / `coin1234`).
 | Команда | Gitea | Jenkins |
 |---------|-------|---------|
 | `make coin-lib` | `coin/coin-lib` | Global Pipeline Library |
-| `make coin-platform` | `coin/coin-platform` | — |
+| `make coin-platform` | `coin/coin-platform` | — (sync CI-файлов из Gitea, если не трогали локально) |
 | `make coin-cli` | `coin/coin-cli` | job `coin-cli` |
 | `make agents-build` | — | job `agents-build` |
 | `make samples` | `coin/demo-*` | multibranch job на каждый demo-репо |
 
-Повторный вызов platform-команд **обновляет** код в Gitea. JCasC reload — у `coin-lib`, `coin-cli`, `agents-build`, `samples` (без пересборки образа Jenkins).
+Повторный вызов platform-команд **обновляет** код в Gitea. `make coin-platform` перед push подтягивает из Gitea CI-артефакты (`agents/catalog.yaml` и др. из списка sync), **только если файл не меняли локально** с прошлого push; при конфликте побеждает monorepo. Состояние — `docker/.coin-platform-sync.sha256` (gitignored). JCasC reload — у `coin-lib`, `coin-cli`, `agents-build`, `samples`.
 
 ### Demo-продукты
 

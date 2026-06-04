@@ -1,49 +1,41 @@
-# CI agent images — manifest.
-# tag = {runtime}-r{N}; digest — pin текущего артефакта (обновляет Jenkins job agents-build).
-
 registry:
   default: nexus:8082/coin-docker
   credentialsId: nexus-docker
-
 stacks:
   go:
-    "1.22":
+    '1.22':
       image: ci-go
-      rev: 0
-      tag: ""
-      digest: ""
+      rev: 2
+      tag: 1.22-r2
+      digest: sha256:7b1448c77987e590f47990d479571549ee0ca02af2fcf00d0f428a17657b1719
       dockerfile: stacks/go/1.22/Dockerfile
-
   python-uv:
-    "3.13":
+    '3.13':
       image: ci-python-uv
       rev: 0
-      tag: ""
-      digest: ""
+      tag: ''
+      digest: ''
       dockerfile: stacks/python-uv/3.13/Dockerfile
       pins:
-        uv: "0.6.14"
-
+        uv: 0.6.14
   python-pip:
-    "3.13":
+    '3.13':
       image: ci-python-pip
       rev: 0
-      tag: ""
-      digest: ""
+      tag: ''
+      digest: ''
       dockerfile: stacks/python-pip/3.13/Dockerfile
-
   java-maven:
-    "17":
+    '17':
       image: ci-jvm-maven
       rev: 0
-      tag: ""
-      digest: ""
+      tag: ''
+      digest: ''
       dockerfile: stacks/java-maven/17/Dockerfile
-
   java-gradle:
-    "17":
+    '17':
       image: ci-jvm-gradle
       rev: 0
-      tag: ""
-      digest: ""
+      tag: ''
+      digest: ''
       dockerfile: stacks/java-gradle/17/Dockerfile
