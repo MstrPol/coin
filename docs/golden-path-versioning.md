@@ -1,188 +1,100 @@
-# Версионирование каталога golden paths
+# Версионирование Golden Path (Control Plane v2)
 
-Как Coin доставляет и версионирует каталог `coin-golden-paths/` — отдельно от версии **coin-cli** и **образа Jenkins agent**.
+**Обновлено:** P2-08 — publish через Admin API.
 
----
+> **Legacy v1** (`template` + `templateVersion`, `profile.yaml`) — DEPRECATED. См. [migrate-config-v1-to-v2.md](how-to/migrate-config-v1-to-v2.md).
 
-## Три слоя доставки (пилот)
+## Модель v2
 
-| Слой | Частота обновлений | Источник | Pin для продукта |
-|------|-------------------|----------|------------------|
-| **Runtime agent image** | Редко | `agents/catalog.yaml` + `agents-build` | `profile.agent.rev` |
-| **coin-cli** | Часто | Nexus Maven zip | `profile.coinCli.version` |
-| **Golden paths catalog** | Очень часто | `coin-platform/golden-paths/` | `coin.templateVersion` |
+| Сущность | Semver | Где хранится | Кто pin'ит |
+|----------|--------|--------------|------------|
+| **GP release** | `go-app@1.0.0` | `gp_releases` + Nexus manifest | **Продукт** — 2 строки в config |
+| **Component** | независимый cadence | `component_versions` | Platform — composition при publish |
+| **Content** | PG + Nexus | scripts, Dockerfile, schema — seed: `coin-api/internal/gpcontent/seed/` |
 
-Продуктовый репозиторий задаёт только **`coin.template` + `coin.templateVersion`**.  
-Все platform pin'ы (CLI, agent rev, scripts, Dockerfile) — в **`golden-paths/<name>/<ver>/profile.yaml`**.
-
-### Platform bundle (profile.yaml)
-
-```yaml
-agent:
-  stack: python-uv
-  runtime:
-    python: "3.13"
-  rev: 0
-coinCli:
-  version: "0.0.0-SNAPSHOT"
-build:
-  type: container
-  ...
-```
-
-| Изменение | Действие |
-|-----------|----------|
-| Patch/minor CLI (совместимо) | bump `coinCli.version` в **текущем** `vN` |
-| Major CLI / breaking контракт | новый **`vN+1/`** + миграция `templateVersion` |
-| Пересборка agent (тот же runtime) | bump `agent.rev` в profile |
-| Смена runtime (Go 1.22→1.23) | обычно новый **`vN+1/`** |
-
-Rollout: `coin-cli` job → Nexus; `agents-build` → Docker + `catalog.yaml`; bump profile в `coin-platform`; продукты подхватывают на следующем build.
-
-`coin platform validate` проверяет `coinCli.version`, `agent.rev` и связь с `agents/catalog.yaml`.
-
-Golden paths **не** вшиваются в бинарь CLI — только внешний каталог (local / Nexus).
-
----
-
-## Версии профиля: v1, v2, …
-
-```
-coin-golden-paths/
-  catalog.yaml              # policy: latest, minimum
-  _shared/
-    pack-image.sh           # docker/kaniko после native build
-  python-uv-app/
-    v1/
-      profile.yaml
-      Dockerfile            # runtime-only
-      scripts/
-      config.yaml
-    v2/
-      ...
-```
-
-| Уровень | Формат | Когда менять |
-|---------|--------|--------------|
-| Major профиля | `v1` → `v2` | Breaking: другой build.type, другой publish, смена base image |
-| Minor/patch | внутри `v1/` | Новые скрипты, правки Dockerfile без смены контракта |
-
-В `.coin/config.yaml` проекта:
+Продукт:
 
 ```yaml
 coin:
-  template: python-uv-app
-  templateVersion: v1        # зафиксировано командой
+  goldenPath: go-app
+  version: "1.0.0"
 ```
 
-Если `templateVersion` пуст — CLI берёт `latest` из `catalog.yaml`.
+Всё остальное (executor, agent image, scripts, Dockerfile) — в **manifest**, собирается coin-api при Resolve.
 
----
+## Lifecycle GP release
 
-## catalog.yaml
-
-```yaml
-python-uv-app:
-  stack: python-uv
-  latest: v2
-  minimum: v1
-  deprecated: [v0]
+```
+draft (snapshot) → published → deprecated → retired
 ```
 
-| Поле | Назначение | Блокирует pipeline |
-|------|------------|-------------------|
-| **`latest`** | рекомендуемая версия для новых проектов и `coin init` | нет (только подсказка) |
-| **`deprecated`** | версии, с которых пора мигрировать | нет (только `⚠` в `coin validate`) |
-| **`minimum`** | нижняя допустимая версия профиля | **да** — `validate` и `run` падают |
+| Статус | Resolve (product CI) | Nexus |
+|--------|----------------------|-------|
+| `draft` | ✅ только explicit pin `=1.0.0-snapshot.N` | ❌ |
+| `published` | ✅ | blob + pointers |
+| `deprecated` | ✅ + Warning header | ✅ |
+| `retired` | ❌ | blob остаётся (immutable) |
+| below `catalog.minimum` | ❌ 403 | — |
 
-Поле **`deprecated`** — список снятых с поддержки версий профиля (`v0`, `v1`, …) внутри записи golden path.
+Draft/snapshot версии (`1.0.0-snapshot.N`) **не попадают** в catalog wildcards (`*`, `~`, `^`).
 
-`coin validate`:
-- проверяет, что версия существует;
-- предупреждает, если `latest` новее текущей;
-- предупреждает (не падает), если `templateVersion` входит в `deprecated`;
-- падает, если версия ниже `minimum`.
+## Publish (append-only)
 
----
+**Никогда не UPDATE** существующий GP version — только новый semver (`1.0.1`, `1.1.0`, `2.0.0`).
 
-## Жизненный цикл версии профиля
+Flow:
 
-Снятие версии — **двухступенчатый** процесс: сначала мягкое предупреждение, потом жёсткая блокировка.
+1. Platform публикует/обновляет **components** (executor, pipeline, …)
+2. (Optional) `POST .../drafts` — snapshot в PG для редактирования artifacts
+3. `POST .../versions` или **promote draft** — composition + compatibility check
+4. Resolve → canonical JSON + `manifestHash` → Nexus blob + mutable pointers
+5. Audit log
 
-```mermaid
-flowchart LR
-  A[vN активна] --> B[Выпуск vN+1]
-  B --> C["latest: vN+1"]
-  C --> D["deprecated: [vN]"]
-  D --> E["grace period: CI работает, validate предупреждает"]
-  E --> F["minimum: vN+1"]
-  F --> G[vN заблокирована]
-```
+Authoring: seed bytes в `coin-api/internal/gpcontent/seed/`, runtime — Nexus URLs в manifest.
 
-### Пример: снятие v1 после выпуска v2
+How-to: [publish-gp-release.md](how-to/publish-gp-release.md)
 
-**Шаг 1 — новая версия, старая ещё допустима**
+## Catalog policy
 
-```yaml
-python-uv-app:
-  latest: v2
-  minimum: v1
-  deprecated: [v0]
-```
+Per GP в `catalog_policy`:
 
-Команды на v1 работают без предупреждений. Новые проекты через `coin init` получают v2.
+| Поле | Назначение |
+|------|------------|
+| `latest` | Stable line — pin `*`, Nexus pointer `latest.json` |
+| `latest_canary` | Canary line — только API resolve с `project` |
+| `minimum` | EOL enforcement на Resolve |
+| `deprecated` | Warning, но Resolve OK |
 
-**Шаг 2 — deprecation (grace period)**
+Подробнее: [canary.md](canary.md)
 
-```yaml
-python-uv-app:
-  latest: v2
-  minimum: v1
-  deprecated: [v0, v1]
-```
+## Compatibility matrix
 
-- `coin validate` → `⚠ deprecated: версия v1 снята с поддержки — перейдите на v2`
-- `coin run test/build/publish` — **ещё работает**
+При publish GP проверяется graph constraints (DB `component_compatibility`).
 
-**Шаг 3 — enforcement (hard cut-off)**
+Пример: `pipeline/go-build@2.1.x` требует `executor >=0.1.0 <0.2.0`, `agent >=1.22.0`.
 
-```yaml
-python-uv-app:
-  latest: v2
-  minimum: v2
-  deprecated: [v0, v1]
-```
+## Blast radius
 
-Любая команда с `templateVersion: v1` падает: версия ниже `minimum`. К этому моменту команды должны уже мигрировать.
+Перед bump minimum или mass migration — `GET .../blast-radius` или coin-ui → GP Releases.
 
-| Этап | Изменение в catalog | Эффект |
-|------|---------------------|--------|
-| Релиз v2 | `latest: v2` | новые проекты на v2 |
-| Deprecation | `deprecated: [v1]` | предупреждение в validate |
-| Enforcement | `minimum: v2` | блокировка v1 везде |
+## Major vs minor GP
 
-`deprecated` без поднятия `minimum` **не блокирует** pipeline — только даёт время на миграцию.
+| Изменение | GP version |
+|-----------|------------|
+| Patch scripts / Dockerfile hash | `1.0.x` (новый component version + новый GP patch) |
+| Новый agent runtime | часто `1.x.0` или `2.0.0` |
+| Breaking config schema | **`2.0.0`** |
 
----
+GP semver **≠** component semver — независимые cadence.
 
-## Источники каталога (env)
+## Local pilot
 
-| Переменная | Значение | Описание |
-|------------|----------|----------|
-| `COIN_GOLDEN_PATHS_SOURCE` | `local` (default) | Локальный каталог |
-| | `nexus` / `url` | Скачать tarball по URL |
-| `COIN_GOLDEN_PATHS_DIR` | путь | Явный путь к `coin-golden-paths/` |
-| `COIN_GOLDEN_PATHS_URL` | URL | Tarball для `nexus` source |
-
-Кеш при fetch: `.coin/cache/golden-paths/`.
-
-**Сейчас:** каталог рядом с монорепо (разработка) или tarball из Nexus (CI).
-
----
+- Только `go-app` в catalog
+- E2E: `samples/demo-go-app@1.0.0`
+- Corp fleet rollout — после corp gate
 
 ## Связанные документы
 
-- [agent-build-model.md](agent-build-model.md) — сборка app vs agent image
-- [golden-paths.md](golden-paths.md) — матрица golden paths
-- [config.md](config.md) — поля `coin.template` / `templateVersion`
-- [architecture.md](architecture.md) — компоненты и доставка
+- [golden-paths.md](golden-paths.md)
+- [control-plane.md](control-plane.md)
+- [openapi.md](openapi.md)

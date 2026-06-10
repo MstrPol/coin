@@ -1,0 +1,211 @@
+// Platform CI: coin-executor → Nexus raw (linux-amd64/arm64).
+// Версия: coin-executor/VERSION + параметры job.
+
+def coinPodYaml(String jnlpImage, String stackImage) {
+    return """\
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+    - name: jnlp
+      image: ${jnlpImage}
+    - name: stack
+      image: ${stackImage}
+      command: ["sleep"]
+      args: ["infinity"]
+      tty: true
+      securityContext:
+        runAsUser: 0
+      env:
+        - name: COIN_REGISTRY_PREFIX
+          value: "localhost:8082/coin-docker"
+      volumeMounts:
+        - name: docker-sock
+          mountPath: /var/run/docker.sock
+  volumes:
+    - name: docker-sock
+      hostPath:
+        path: /var/run/docker.sock
+        type: Socket
+""".stripIndent()
+}
+
+def coinAgentsCheckout() {
+    withCredentials([usernamePassword(
+        credentialsId: 'gitea-git',
+        usernameVariable: 'GIT_USER',
+        passwordVariable: 'GIT_PASS',
+    )]) {
+        sh '''
+            set -eu
+            rm -rf .coin-jenkins-agents
+            git clone --depth 1 \
+              "http://${GIT_USER}:${GIT_PASS}@gitea:3000/coin/coin-jenkins-agents.git" \
+              .coin-jenkins-agents
+        '''
+    }
+    env.COIN_AGENTS_DIR = "${env.WORKSPACE}/.coin-jenkins-agents"
+}
+
+def computeExecutorVersion(bump, snapshot) {
+    return sh(
+        script: """
+            set -eu
+            chmod +x scripts/compute-version.sh
+            ./scripts/compute-version.sh VERSION '${bump}' '${snapshot ? 'true' : 'false'}'
+        """,
+        returnStdout: true,
+    ).trim()
+}
+
+def goStackImage(catalog) {
+    def entry = catalog.stacks?.go?.'1.22'
+    if (!entry?.image) {
+        error('catalog.yaml: нет stacks.go.1.22')
+    }
+    def registry = catalog.registry?.default ?: 'nexus:8082/coin-docker'
+    def tag = entry.tag ?: "1.22-r${entry.rev ?: 0}"
+    return "${registry}/${entry.image}:${tag}"
+}
+
+pipeline {
+    agent none
+
+    parameters {
+        booleanParam(
+            name: 'PUBLISH',
+            defaultValue: false,
+            description: 'Опубликовать binary в Nexus raw (coin-executor repo)',
+        )
+        booleanParam(
+            name: 'SNAPSHOT',
+            defaultValue: true,
+            description: 'Snapshot (-SNAPSHOT). Снять для release.',
+        )
+        choice(
+            name: 'VERSION_BUMP',
+            choices: ['none', 'patch', 'minor', 'major'],
+            description: 'Bump semver от coin-executor/VERSION',
+        )
+    }
+
+    environment {
+        NEXUS_BASE = 'http://nexus:8081/repository'
+        NEXUS_EXECUTOR_REPO = 'coin-executor'
+        GIT_AUTHOR_EMAIL = 'jenkins@coin.local'
+        GIT_AUTHOR_NAME = 'Jenkins'
+    }
+
+    stages {
+        stage('Test & Build') {
+            steps {
+                script {
+                    def stackImage
+                    def jnlpImage
+                    node('built-in') {
+                        checkout scm
+                        coinAgentsCheckout()
+                        def catalog = readYaml file: "${env.COIN_AGENTS_DIR}/catalog.yaml"
+                        def platform = readYaml file: "${env.COIN_AGENTS_DIR}/platform.yaml"
+                        stackImage = goStackImage(catalog)
+                        jnlpImage = platform.jenkins?.jnlp?.image
+                        if (!jnlpImage) {
+                            error('platform.yaml: jenkins.jnlp.image не задан')
+                        }
+                    }
+
+                    def podLabel = "coin-executor-${env.BUILD_NUMBER}"
+                    def podYaml = coinPodYaml(jnlpImage, stackImage)
+                    podTemplate(yaml: podYaml, cloud: 'kubernetes', label: podLabel) {
+                        node(podLabel) {
+                            checkout scm
+                            container('stack') {
+                                env.COIN_EXECUTOR_VERSION = computeExecutorVersion(params.VERSION_BUMP, params.SNAPSHOT)
+                                echo "coin-executor version: ${env.COIN_EXECUTOR_VERSION}"
+                                writeFile file: '.coin-executor-version', text: env.COIN_EXECUTOR_VERSION
+
+                                sh 'go test ./...'
+                                sh '''
+                                    set -eu
+                                    case "$(uname -m)" in
+                                        arm64|aarch64) GOARCH=arm64 ;;
+                                        x86_64|amd64) GOARCH=amd64 ;;
+                                        *) echo "unsupported: $(uname -m)" >&2; exit 1 ;;
+                                    esac
+                                    GOOS=linux CGO_ENABLED=0 GOARCH="${GOARCH}" go build \
+                                      -buildvcs=false \
+                                      -ldflags "-X main.Version=${COIN_EXECUTOR_VERSION}" \
+                                      -o coin-executor .
+                                    echo "${GOARCH}" > .goarch
+                                '''
+                                stash includes: 'coin-executor,.goarch,.coin-executor-version', name: 'executor-binary'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Publish Nexus') {
+            when {
+                expression { params.PUBLISH }
+            }
+            agent { label 'built-in' }
+            steps {
+                checkout scm
+                unstash 'executor-binary'
+                script {
+                    env.GOARCH = readFile('.goarch').trim()
+                    env.COIN_EXECUTOR_VERSION = readFile('.coin-executor-version').trim()
+                }
+                withCredentials([usernamePassword(
+                    credentialsId: 'nexus-admin',
+                    usernameVariable: 'NEXUS_USER',
+                    passwordVariable: 'NEXUS_PASSWORD',
+                )]) {
+                    sh '''
+                        set -eu
+                        REMOTE="${NEXUS_BASE}/${NEXUS_EXECUTOR_REPO}/${COIN_EXECUTOR_VERSION}/coin-executor-linux-${GOARCH}"
+                        curl -f -S -u "${NEXUS_USER}:${NEXUS_PASSWORD}" \
+                          -X PUT --upload-file coin-executor "${REMOTE}"
+                        echo "published ${REMOTE}"
+                    '''
+                }
+            }
+        }
+
+        stage('Record VERSION') {
+            when {
+                expression { params.PUBLISH }
+            }
+            agent { label 'built-in' }
+            steps {
+                checkout scm
+                unstash 'executor-binary'
+                script {
+                    def versionBase = readFile('.coin-executor-version').trim()
+                    if (versionBase.endsWith('-SNAPSHOT')) {
+                        versionBase = versionBase.replaceAll(/-SNAPSHOT$/, '')
+                    }
+                    writeFile file: 'VERSION', text: "${versionBase}\n"
+                    withCredentials([usernamePassword(
+                        credentialsId: 'gitea-git',
+                        usernameVariable: 'GIT_USER',
+                        passwordVariable: 'GIT_PASS',
+                    )]) {
+                        sh """
+                            set -eu
+                            export HOME=/var/jenkins_home
+                            git config user.email '${env.GIT_AUTHOR_EMAIL}'
+                            git config user.name '${env.GIT_AUTHOR_NAME}'
+                            git add VERSION
+                            git diff --staged --quiet && echo 'VERSION unchanged, skip commit' && exit 0
+                            git commit -m 'chore(coin-executor): VERSION ${versionBase} [skip ci]'
+                            git push "http://\${GIT_USER}:\${GIT_PASS}@gitea:3000/coin/coin-executor.git" HEAD:main
+                        """
+                    }
+                }
+            }
+        }
+    }
+}

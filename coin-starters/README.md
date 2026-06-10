@@ -1,20 +1,24 @@
 # Starters
 
-Скелетоны новых репозиториев — часть [coin-platform](../README.md).
+Скелетоны новых product repos — **отдельный git repo** (`coin-starters`, PF-16).
 
-Это **не** golden path. Starter — то, что команда получает через `coin init` и копирует в свой репо.
+Это **не** golden path runtime. Starter — one-time copy / `coin init` в product repo.
 
 ```bash
-export COIN_PLATFORM_DIR=/path/to/coin-platform
-coin init
+cp -r coin-starters/go-app/ my-service/
+cp coin-starters/Jenkinsfile.coin my-service/Jenkinsfile
 ```
 
-| Starter | Golden path |
-|---------|-------------|
+| Starter | GP name (config) |
+|---------|------------------|
 | `go-app/` | `go-app` |
 | `java-gradle-app/` | `java-gradle-app` |
 | `java-maven-app/` | `java-maven-app` |
 | `python-uv-app/` | `python-uv-app` |
 | `python-pip-app/` | `python-pip-app` |
 
-Каждый starter: `.coin/config.yaml`, `Jenkinsfile` (`coinPipeline()`), минимальный код и тест.
+Каждый starter: `.coin/config.yaml`, thin `Jenkinsfile` (`coinPipeline()`), минимальный код.
+
+Эталон thin Jenkins: [`Jenkinsfile.coin`](Jenkinsfile.coin) · orchestration из manifest (platform-first).
+
+Local pilot: `cd docker && make coin-starters` → Gitea `coin/coin-starters`.

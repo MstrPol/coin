@@ -7,7 +7,7 @@ REPO_ROOT="$(cd "${ROOT}/.." && pwd)"
 LIB="${ROOT}/scripts/lib/common.sh"
 MANIFEST="${ROOT}/samples.yaml"
 SAMPLES_DIR="${REPO_ROOT}/samples"
-STARTERS="${REPO_ROOT}/coin-platform/starters"
+STARTERS="${REPO_ROOT}/coin-starters"
 
 # shellcheck source=lib/common.sh
 source "${LIB}"
@@ -38,11 +38,7 @@ REPOS=()
 
 write_jenkinsfile() {
   local dest="$1"
-  cat > "${dest}/Jenkinsfile" <<'EOF'
-@Library('coin-lib') _
-
-coinPipeline(cloud: 'kubernetes')
-EOF
+  cp "${STARTERS}/Jenkinsfile.coin" "${dest}/Jenkinsfile"
 }
 
 patch_config() {

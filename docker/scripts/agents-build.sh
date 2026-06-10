@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Jenkins job agents-build (coin-platform/agents/Jenkinsfile).
+# Jenkins job agents-build (coin-jenkins-agents/Jenkinsfile).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

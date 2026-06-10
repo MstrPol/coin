@@ -1,31 +1,32 @@
-# CI agent images
+# coin-jenkins-agents
 
-Toolchain-образы для Jenkins dynamic agents (K8s pod, контейнер `stack`).
+CI agent images для Jenkins dynamic agents (K8s pod, контейнер `stack`).
 
-Часть [coin-platform](../README.md). Сборка — job **`agents-build`** (`agents/Jenkinsfile`).
+**Corp target repo:** `coin/coin-jenkins-agents` (PF-16 split из monolithic `coin-platform`).
+
+## Сборка
+
+Job **`agents-build`** — `Jenkinsfile` в корне repo.
+
+```bash
+cd docker && make agents-build   # регистрация job
+cd docker && make coin-jenkins-agents   # push → Gitea (local pilot)
+```
 
 ## catalog.yaml
 
-Manifest agent images. Job **пишет** `rev`, `tag`, `digest` после каждой сборки (коммит в Gitea).
+Manifest agent images. Job **пишет** `rev`, `tag`, `digest` после каждой сборки.
 
-`make coin-platform` перед push подтягивает `catalog.yaml` из Gitea **только если вы не меняли его локально** с прошлого `make coin-platform`; иначе остаётся monorepo-версия и уезжает в Gitea при push.
+`make coin-jenkins-agents` перед push подтягивает `catalog.yaml` из Gitea, если локально не меняли с прошлого push.
 
 Полный ref: `{registry.default}/{image}:{tag}` → `nexus:8082/coin-docker/ci-go:1.22-r1`.
 
-## Связь с golden paths
+## Связь с GP
 
-```
-golden-paths/<tpl>/vN/profile.yaml   agent.stack + agent.runtime
-         │
-         ▼
-agents/catalog.yaml                  image, tag, digest
-         │
-         ▼
-coin-lib StackImages (COIN_PLATFORM_DIR)  →  pod template
-```
+Composition slot `agent` в GP release → `manifest.runtime.image` в pod template.
 
-Проверка связности: `coin platform validate`.
+Legacy v1 `profile.yaml` (agent.stack/runtime) — superseded; см. GP composition в coin-api.
 
 ## Build context
 
-Корень `agents/` (Dockerfile paths в catalog относительно этой папки).
+Корень repo (Dockerfile paths в catalog относительно этой папки).

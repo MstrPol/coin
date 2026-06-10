@@ -1,48 +1,28 @@
-# `.coin/config.yaml`
+# `.coin/config.yaml` (v2)
 
-Контракт между продуктовой командой и платформой Coin CI.
+Контракт между продуктовой командой и Control Plane.
 
-Поведение сборки задаётся **golden path** (`coin.template` + `templateVersion`), а не полями в конфиге проекта.
+Поведение сборки задаётся **manifest** (resolve по `goldenPath` + `version`), а не полями проекта.
 
-**Модель сборки `*-app`:** native compile в agent → runtime-only Dockerfile → registry. См. [agent-build-model.md](agent-build-model.md).
-
-Матрица golden paths — [golden-paths.md](golden-paths.md). Версионирование каталога — [golden-path-versioning.md](golden-path-versioning.md).
-
-Файл разделён на две явные зоны ответственности:
-
-| Зона | Кто читает | Что содержит |
-|------|-----------|--------------|
-| `jenkins:` | **Jenkins (coin-lib)** | Credentials, optional override runtime/stack |
-| Всё остальное | **coin CLI** | Привязка к GP, координаты проекта, optional pipeline overrides |
-
-Версия схемы конфига **не** дублируется отдельным полем — используется `coin.templateVersion` (версия golden path).
+Schema: [`coin-api/internal/gpcontent/seed/schema/config.v2.schema.json`](../coin-api/internal/gpcontent/seed/schema/config.v2.schema.json).
 
 ---
 
-## Эталонный пример (python-uv-app)
+## Эталонный пример (go-app)
 
 ```yaml
 coin:
-  template: python-uv-app
-  templateVersion: v1
+  goldenPath: go-app
+  version: "1.0.0"
 
-# ── Jenkins (coin-lib) ───────────────────────────────────────────────────────
 jenkins:
-  runtime:                       # optional override версии toolchain
-    python: "3.13"
   credentials:
     docker: nexus-docker
 
-# ── coin CLI ─────────────────────────────────────────────────────────────────
 project:
   name: my-service
   groupId: com.example.team
   repository: Nexus_PROD
-
-pipeline:                        # optional overrides (см. ниже)
-  test:
-    postCommands:
-      - uv run ruff check .
 ```
 
 ---
@@ -51,126 +31,56 @@ pipeline:                        # optional overrides (см. ниже)
 
 | Поле | Обязательно | Описание |
 |------|-------------|----------|
-| `coin.template` | **Да** | Имя golden path: `python-uv-app`, `go-app`, … |
-| `coin.templateVersion` | Нет | Версия профиля: `v1`, `v2`. Пусто → `latest` из catalog |
+| `coin.goldenPath` | **Да** | Имя GP: `go-app`, … |
+| `coin.version` | **Да** | Semver **pin** GP (см. ниже) |
 
-Stack (`python-uv`, `go`, …) **не** задаётся в проекте — coin-lib выводит его из GP profile (`COIN_PLATFORM_DIR/golden-paths/...`).
+### Pin-синтаксис (MVP-2)
+
+| Pin | Смысл |
+|-----|-------|
+| `"=1.0.0"` | Exact — frozen, immutable |
+| `"~1.0.0"` | Последний patch в линии 1.0.x |
+| `"^1.0.0"` | Последний minor в линии 1.x |
+| `"*"` | Latest stable из catalog |
+| `"1.0.0"` | Alias для `=1.0.0` (backward compat) |
+| `"1.0.0-snapshot.1"` | Explicit draft/snapshot (exact only) |
+
+Resolve API: `GET /v1/golden-paths/{gp}/resolve?pin=~1.0.0`
+
+Версия — **контракт semver платформы**, не каталог `v1/` из legacy.
 
 ---
 
-## Секция `jenkins` — Jenkins
-
-Coin-lib читает эту секцию для выбора агента и credentials.
-
-```yaml
-jenkins:
-  stack: python-uv              # optional override (обычно не нужен)
-  runtime:
-    python: "3.13"              # optional override
-  credentials:
-    docker: nexus-docker
-    nexus: nexus-maven          # для *-lib шаблонов (когда появятся)
-```
+## Секция `jenkins`
 
 | Поле | Обязательно | Описание |
 |------|-------------|----------|
 | `jenkins.credentials.docker` | **Да** | Jenkins Credential ID для Docker registry |
-| `jenkins.credentials.nexus` | Нет | Credential ID для Nexus (Maven/PyPI) |
-| `jenkins.runtime.*` | Нет | Override версии toolchain (ключ см. GP profile) |
-| `jenkins.agent.image` | Нет | Явный pin образа агента (минуя catalog) |
-| `jenkins.stack` | Нет | Deprecated — stack из GP profile |
 
-Runtime agent image: `COIN_PLATFORM_DIR/agents/catalog.yaml` → `stacks.<stack>.<runtime>`.
+Agent image, executor version, pipeline stages — **только в manifest**, не в config.
 
-### Credentials → env
-
-| Назначение | Env-переменные |
-|------------|----------------|
-| `docker` | `COIN_REGISTRY_USER`, `COIN_REGISTRY_PASSWORD` |
-| `nexus` | `NEXUS_USER`, `NEXUS_PASSWORD` |
+Credentials → env при publish: `COIN_REGISTRY_USER`, `COIN_REGISTRY_PASSWORD`.
 
 ---
 
 ## Секция `project`
 
-```yaml
-project:
-  name: my-service
-  groupId: com.example.team
-  repository: Nexus_PROD
-```
-
 | Поле | Обязательно | Описание |
 |------|-------------|----------|
-| `project.name` | **Да** | Имя сервиса / artifactId |
-| `project.groupId` | **Да** | Домен команды в реестре |
-| `project.repository` | **Да** | Логическое имя репозитория Nexus (RN, QGM) |
+| `project.name` | **Да** | Имя сервиса |
+| `project.groupId` | **Да** | Домен команды |
+| `project.repository` | **Да** | Логическое имя репозитория Nexus |
 
 ---
 
-## Секция `pipeline` — overrides
+## Миграция с v1
 
-Переопределяет дефолты из `profile.yaml` шаблона. Поля `build.type`, `container.*`, `publish.when` **не задаются** в проекте — они platform-owned.
+| v1 | v2 |
+|----|-----|
+| `coin.template: go-app` | `coin.goldenPath: go-app` |
+| `coin.templateVersion: v1` | `coin.version: "1.0.0"` |
 
-```yaml
-pipeline:
-  test:
-    enabled: true
-    postCommands:
-      - uv run ruff check .
-  build:
-    enabled: true
-  publish:
-    enabled: false
-```
-
-| Поле | Описание |
-|------|----------|
-| `enabled` | Включить/выключить стадию |
-| `preCommands` | Команды перед стандартным сценарием Coin |
-| `commands` | Полная замена стандартного сценария |
-| `postCommands` | Команды после стандартного сценария |
-
----
-
-## Container (managed Dockerfile)
-
-Параметры runtime-образа (`port`, `command`) задаются в **`profile.yaml` golden path**, не в конфиге проекта.
-
-Dockerfile **не** хранится в репозитории сервиса — рендерится в `.coin/generated/Dockerfile` (`coin dockerfile render` / `coin run build`).
-
-Пример в `coin-golden-paths/go-app/v1/profile.yaml`:
-
-```yaml
-container:
-  port: 8080
-  command: ["/app/app"]
-```
-
-Native compile выполняется в agent **до** pack; Dockerfile только копирует артефакты (`dist/`, `.venv/`, `*.jar`).
-
----
-
-## Release Notes (QGM)
-
-Интеграция с QGM в pipeline **пока не включена**. Координаты артефакта уже есть в `project:`.
-
-Когда появится QGM, URL сервиса и credentials будут на уровне **platform** (не в каждом репозитории). Подробнее — [release-notes.md](release-notes.md).
-
----
-
-## Версионирование артефакта
-
-Coin CLI передаёт в сборку:
-
-| Переменная | Описание |
-|------------|----------|
-| `COIN_VERSION` | Версия из git-тега |
-| `COIN_IMAGE_TAG` | Docker-тег |
-| `COIN_IMAGE_REF` | Полный ref образа |
-| `COIN_TEMPLATE` / `COIN_TEMPLATE_VERSION` | Golden path |
-
-Правила — [branching.md](branching.md).
+Подробно: [how-to/migrate-config-v1-to-v2.md](how-to/migrate-config-v1-to-v2.md).
 
 ---
 
@@ -178,9 +88,23 @@ Coin CLI передаёт в сборку:
 
 | Поле | Где живёт |
 |------|-----------|
-| `build.type` | `profile.yaml` шаблона |
-| `agent.stack` | `profile.yaml` + `catalog.yaml` |
-| `container.port` / `container.command` | `profile.yaml` шаблона |
-| `dockerfileTemplate` | `profile.yaml` → runtime-only Dockerfile в `coin-golden-paths/<name>/vN/` |
-| `publish.when` | `profile.yaml` (override через `pipeline.publish.enabled`) |
-| `rn.serviceUrl` | platform (QGM, когда будет включено) |
+| Agent image | `manifest.runtime` |
+| Pipeline stages | `manifest.pipeline` |
+| coin-executor URL | `manifest.executor` |
+| Dockerfile | `manifest.dockerfileTemplate` (Nexus url + sha256) |
+| `build.type`, `container.*` | GP scripts / Dockerfile template |
+
+---
+
+## Verify
+
+```bash
+coin-executor validate --project .coin/config.yaml --manifest .coin/manifest.json
+```
+
+Manifest получить:
+
+```bash
+curl -fsS http://localhost:8090/v1/golden-paths/go-app/versions/1.0.0/manifest \
+  -o .coin/manifest.json
+```

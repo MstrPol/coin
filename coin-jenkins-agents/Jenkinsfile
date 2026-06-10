@@ -1,28 +1,25 @@
-// Platform CI: сборка CI agent images → Nexus Docker → bump agents/catalog.yaml → git push.
+// Platform CI: сборка CI agent images → Nexus Docker → bump catalog.yaml → git push.
 pipeline {
     agent any
 
     parameters {
-        string(name: 'STACK', defaultValue: 'go', description: 'Stack из agents/catalog.yaml')
-        string(name: 'RUNTIME', defaultValue: '1.22', description: 'Runtime version из agents/catalog.yaml')
+        string(name: 'STACK', defaultValue: 'go', description: 'Stack из catalog.yaml')
+        string(name: 'RUNTIME', defaultValue: '1.22', description: 'Runtime version из catalog.yaml')
     }
 
     environment {
-        AGENTS_DIR = 'agents'
-        CATALOG = 'agents/catalog.yaml'
+        CATALOG = 'catalog.yaml'
         GIT_AUTHOR_EMAIL = 'jenkins@coin.local'
         GIT_AUTHOR_NAME = 'Jenkins'
-        GITEA_REPO = 'http://gitea:3000/coin/coin-platform.git'
+        GITEA_REPO = 'http://gitea:3000/coin/coin-jenkins-agents.git'
     }
 
     stages {
         stage('Build agents') {
             steps {
-                dir(env.AGENTS_DIR) {
-                    script {
-                        def catalog = readYaml file: 'catalog.yaml'
-                        buildOneAgent(catalog, params.STACK.trim(), params.RUNTIME.trim())
-                    }
+                script {
+                    def catalog = readYaml file: env.CATALOG
+                    buildOneAgent(catalog, params.STACK.trim(), params.RUNTIME.trim())
                 }
             }
         }
@@ -107,7 +104,7 @@ def pushCatalogUpdate(catalog, stack, runtime, tag) {
         """)
     }
 
-    writeYaml file: "${env.WORKSPACE}/agents/catalog.yaml", data: catalog, overwrite: true
+    writeYaml file: "${env.WORKSPACE}/${env.CATALOG}", data: catalog, overwrite: true
 
     withCredentials([usernamePassword(
         credentialsId: 'gitea-git',
@@ -118,11 +115,11 @@ def pushCatalogUpdate(catalog, stack, runtime, tag) {
             set -euo pipefail
             export HOME=/var/jenkins_home
             cd "\${WORKSPACE}"
-            git add agents/catalog.yaml
+            git add ${env.CATALOG}
             git diff --staged --quiet && exit 0
             git -c user.email='${env.GIT_AUTHOR_EMAIL}' -c user.name='${env.GIT_AUTHOR_NAME}' \\
               commit -m 'chore(agents): ${stack}/${runtime} ${tag} [skip ci]'
-            git push "http://\${GIT_USER}:\${GIT_PASS}@gitea:3000/coin/coin-platform.git" main
+            git push "http://\${GIT_USER}:\${GIT_PASS}@gitea:3000/coin/coin-jenkins-agents.git" main
         """)
     }
 }

@@ -1,0 +1,19 @@
+jobs:
+  - script: >
+      pipelineJob('coin-executor') {
+        description('Platform: coin-executor → Nexus raw (linux binary)')
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('http://gitea:3000/coin/coin-executor.git')
+                  credentials('gitea-git')
+                }
+                branch('main')
+              }
+            }
+            scriptPath('Jenkinsfile')
+          }
+        }
+      }

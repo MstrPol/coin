@@ -1,6 +1,6 @@
 # Примеры продуктовых репозиториев → Gitea (make samples).
 # repo — имя репозитория в Gitea (coin/<repo>).
-# starter — каталог в coin-platform/starters/.
+# starter — каталог в coin-starters/.
 
 samples:
   - repo: demo-go-app

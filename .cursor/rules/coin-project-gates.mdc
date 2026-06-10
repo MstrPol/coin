@@ -1,0 +1,66 @@
+---
+description: Инварианты проекта Coin Control Plane v2 — corp gate, SoT, контракты
+alwaysApply: true
+---
+
+# Инварианты проекта Coin
+
+## Corp gate (2026-06)
+
+**Local pilot** — единственный активный контур до доступа в corp-сеть.
+
+| Разрешено | Отложено до corp gate |
+|-----------|----------------------|
+| `docker/` compose (Gitea, Jenkins, k3s, Nexus, postgres, coin-api, coin-ui) | Wave rollout 50 / 500 / 1500 repos |
+| `samples/*` как product repos (E2E) | HA coin-api в corp k8s |
+| coin-api, coin-executor, coin-ui, scanner на local Gitea | Fleet scanner на corp Gitea |
+| Admin publish, docs, runbooks (подготовка) | OIDC prod SSO |
+| | Prod Gitea split (coin-api/executor/ui) |
+
+**E2E acceptance:** `samples/demo-go-app` green (resolve → validate → test → build → report).
+
+## Три слоя SoT
+
+| Слой | Где | Роль |
+|------|-----|------|
+| **Content** | coin-api + PostgreSQL + Nexus | scripts, Dockerfile, schema |
+| **Metadata** | PostgreSQL (coin-api) | GP releases, composition, registry, audit |
+| **Runtime cache** | Nexus `coin-manifests` | immutable manifest JSON |
+
+CI: primary resolve через coin-api, fallback Nexus. Live DB **не** required на build path.
+
+## Продуктовый контракт v2 (strict)
+
+```yaml
+coin:
+  goldenPath: go-app
+  version: "1.0.0"
+```
+
+Поля v1 `template` / `templateVersion` **не поддерживаются**. Dual path lib/cli **не поддерживается**.
+
+## Runtime и Jenkins
+
+| Компонент | Роль |
+|-----------|------|
+| **coin-api** | Resolve manifest, admin, registry |
+| **coin-executor** | validate, run stages, report |
+| **coin-jenkins-agents** | agent stacks, catalog |
+| **coin-starters** | product scaffolding |
+| **Jenkins** | адаптер: resolve + pod + creds + вызов executor |
+
+Orchestration Groovy — **в manifest/Nexus**, не в продуктовом repo (см. активный plan [coin-ui-operator-console](../plans/coin-ui-operator-console.plan.md); platform-first delivery завершён).
+
+## Архитектурные решения
+
+Постоянные решения — ADR в `.cursor/plans/adr/`, не в plan-backlog.
+
+**Plans Coin** — только в репозитории `coin/.cursor/plans/`, не в `~/.cursor/plans/`.
+
+## Superseded (не реализовывать)
+
+- GP-only-in-git без control plane
+- CPR / Nexus zip bundle
+- coin-lib / coin-cli / Shared Library с бизнес-логикой
+- Release train через CASC + coin-lib semver
+- Fat Jenkinsfile (186+ строк) в каждом продуктовом repo

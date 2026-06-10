@@ -11,6 +11,8 @@ cd "${ROOT}"
 NEXUS_HTTP_PORT="${NEXUS_HTTP_PORT:-8081}"
 NEXUS_DOCKER_PORT="${NEXUS_DOCKER_PORT:-8082}"
 NEXUS_DOCKER_REPO="${NEXUS_DOCKER_REPO:-coin-docker}"
+NEXUS_MANIFEST_REPO="${NEXUS_MANIFEST_REPO:-coin-manifests}"
+NEXUS_EXECUTOR_REPO="${NEXUS_EXECUTOR_REPO:-coin-executor}"
 NEXUS_ADMIN_PASSWORD="${NEXUS_ADMIN_PASSWORD:-coin12345}"
 NEXUS_DOCKER_USER="${NEXUS_DOCKER_USER:-coin}"
 NEXUS_DOCKER_PASSWORD="${NEXUS_DOCKER_PASSWORD:-coin1234}"
@@ -106,6 +108,42 @@ if ! nexus_api "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories
     }"
 fi
 
+if ! nexus_api "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories/${NEXUS_MANIFEST_REPO}" >/dev/null 2>&1; then
+  echo "==> creating Nexus raw repo ${NEXUS_MANIFEST_REPO} (manifest cache)"
+  nexus_api -X POST "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories/raw/hosted" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"name\": \"${NEXUS_MANIFEST_REPO}\",
+      \"online\": true,
+      \"storage\": {
+        \"blobStoreName\": \"default\",
+        \"strictContentTypeValidation\": true,
+        \"writePolicy\": \"ALLOW_ONCE\"
+      },
+      \"raw\": {
+        \"contentDisposition\": \"ATTACHMENT\"
+      }
+    }"
+fi
+
+if ! nexus_api "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories/${NEXUS_EXECUTOR_REPO}" >/dev/null 2>&1; then
+  echo "==> creating Nexus raw repo ${NEXUS_EXECUTOR_REPO} (coin-executor binaries)"
+  nexus_api -X POST "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories/raw/hosted" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"name\": \"${NEXUS_EXECUTOR_REPO}\",
+      \"online\": true,
+      \"storage\": {
+        \"blobStoreName\": \"default\",
+        \"strictContentTypeValidation\": true,
+        \"writePolicy\": \"ALLOW\"
+      },
+      \"raw\": {
+        \"contentDisposition\": \"ATTACHMENT\"
+      }
+    }"
+fi
+
 echo "==> configuring role ${NEXUS_DOCKER_USER} for ${NEXUS_DOCKER_REPO}"
 nexus_api -X POST "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/security/roles" \
   -H "Content-Type: application/json" \
@@ -152,37 +190,10 @@ done
 
 NEXUS_IP="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(docker compose ps -q nexus)" 2>/dev/null || true)"
 if [[ -n "${NEXUS_IP}" ]]; then
-  echo "==> registering nexus in k3s (Endpoints ${NEXUS_IP}:${NEXUS_HTTP_PORT}, :${NEXUS_DOCKER_PORT})"
-  docker compose exec -T k3s kubectl apply -f - <<EOF
-apiVersion: v1
-kind: Service
-metadata:
-  name: nexus
-  namespace: default
-spec:
-  ports:
-    - name: ui
-      port: ${NEXUS_HTTP_PORT}
-      targetPort: ${NEXUS_HTTP_PORT}
-    - name: docker
-      port: ${NEXUS_DOCKER_PORT}
-      targetPort: ${NEXUS_DOCKER_PORT}
----
-apiVersion: v1
-kind: Endpoints
-metadata:
-  name: nexus
-  namespace: default
-subsets:
-  - addresses:
-      - ip: ${NEXUS_IP}
-    ports:
-      - name: ui
-        port: ${NEXUS_HTTP_PORT}
-      - name: docker
-        port: ${NEXUS_DOCKER_PORT}
-EOF
+  chmod +x "${ROOT}/scripts/register-stack-endpoints.sh"
+  "${ROOT}/scripts/register-stack-endpoints.sh"
 fi
 
 echo "Nexus UI:     http://localhost:${NEXUS_HTTP_PORT} (admin / ${NEXUS_ADMIN_PASSWORD})"
 echo "Nexus Docker: localhost:${NEXUS_DOCKER_PORT}/${NEXUS_DOCKER_REPO} (${NEXUS_DOCKER_USER} / ${NEXUS_DOCKER_PASSWORD})"
+echo "Nexus manifests: http://localhost:${NEXUS_HTTP_PORT}/repository/${NEXUS_MANIFEST_REPO}/manifest-{gp}-{ver}.json"

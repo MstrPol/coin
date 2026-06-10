@@ -1,6 +1,8 @@
 # Модель сборки: agent + runtime-only Dockerfile
 
-Единая модель сборки для всех `*-app` golden paths. Обязательна для platform и сервисных pipeline.
+Единая модель сборки для всех `*-app` golden paths.
+
+> **v2:** стадии выполняет `coin-executor run --stage …` по manifest; scripts — по URL из Nexus (platform-first).
 
 ---
 
@@ -21,11 +23,11 @@ Multi-stage Dockerfile с builder stage (`AS builder`) **запрещён** в m
 ```mermaid
 flowchart TB
   subgraph agent["K8s pod: stack container"]
-    V["coin validate"]
-    T["coin run test\nnative toolchain"]
-    B1["coin run build\nnative compile"]
+    V["coin-executor validate"]
+    T["stage test\nnative toolchain"]
+    B1["stage build\nnative compile"]
     B2["pack-image.sh\ndocker/kaniko"]
-    P["coin run publish"]
+    P["stage publish"]
   end
 
   V --> T --> B1 --> B2 --> P
@@ -84,8 +86,8 @@ flowchart LR
 | 3 | `profile.agent.runtime` | `python: "3.13"` (дефолт GP) |
 | 4 | `jenkins.runtime` (optional) | override в проекте |
 | 5 | `images.yaml` | `coin/ci-python-uv:3.13` |
-| 6 | coin-lib | K8s pod stack container |
-| 7 | coin-cli render | `{{PYTHON_VERSION}}` = та же версия |
+| 6 | Jenkinsfile.coin | K8s pod stack container |
+| 7 | coin-executor / manifest | `{{PYTHON_VERSION}}` = та же версия |
 
 Несколько GP (`python-uv-app`, будущий `python-uv-lib`) → **один** agent `python-uv:3.13`.
 
@@ -122,7 +124,7 @@ Agent = **CI build environment**, не app runtime.
 | `docker` CLI или kaniko | pack на build-стадии |
 | git, ca-certificates | checkout, deps |
 
-`coin` CLI в agent image **не** зашивается — доставляется в pipeline (coin-lib, Nexus Maven).
+`coin-executor` в agent image **не** зашивается — скачивается в pipeline из Nexus (manifest.executor.url).
 
 ### Именование и каталог
 
@@ -149,7 +151,7 @@ Image tag: `{runtime}-r{N}` (например `3.13-r2`); в `images.yaml` — `
 | Слой | Частота | Пример |
 |------|---------|--------|
 | Agent image | редко | Python 3.13 → 3.14 |
-| coin-cli | часто | `dev`, `0.2.0` |
+| coin-executor | часто | `dev`, `0.2.0` |
 | GP catalog | очень часто | правки scripts/Dockerfile в v1 |
 
 Смена runtime: новый agent + запись в `images.yaml` + GP v2 или обновление `profile.agent.runtime`.
@@ -160,7 +162,7 @@ Image tag: `{runtime}-r{N}` (например `3.13-r2`); в `images.yaml` — `
 
 | Окружение | Pack |
 |-----------|------|
-| Local compose (k3s) | docker CLI + mount `docker.sock` (`PodTemplate.local.groovy`) |
+| Local compose (k3s) | docker CLI + mount `docker.sock` (inline pod в `Jenkinsfile.coin`) |
 | Prod K8s | kaniko (sidecar — roadmap) |
 
 `pack-image.sh` поддерживает оба: сначала kaniko, fallback docker.

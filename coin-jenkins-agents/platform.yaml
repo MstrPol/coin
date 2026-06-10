@@ -1,0 +1,11 @@
+# Platform-wide infra defaults. Версии executor и agent для продуктов — в GP release composition.
+jenkins:
+  jnlp:
+    image: jenkins/inbound-agent:3327.v868139a_d00e0-8
+
+nexus:
+  mavenBase: http://nexus:8081/repository
+  credentialsId: nexus-admin
+
+coinCli:
+  min: "0.0.0"

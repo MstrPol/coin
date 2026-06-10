@@ -1,245 +1,79 @@
-# Golden paths
+# Golden paths (Control Plane v2)
 
-Golden path — **готовый профиль доставки** от кода до реестра.  
-Разработчик выбирает один шаблон (`coin.template`), платформа берёт на себя всё остальное: toolchain, тип сборки, артефакты, публикацию, агент.
+Golden path — **semver release** платформы (`go-app@1.0.0`), собранный из **backend (PostgreSQL)** + **Nexus** (published artifacts).
 
 ---
 
-## Что такое golden path
+## SoT runtime (platform-first)
 
-Это не «стек сборки» и не «тип артефакта» по отдельности, а **закрытый контракт**:
+| Слой | Где | Что |
+|------|-----|-----|
+| **Authoring** | PostgreSQL `gp_artifact_bodies`, coin-ui (MVP-2) | draft/snapshot bytes |
+| **Published** | Nexus `content/{gp}/{ver}/…` | scripts, Dockerfile, schema, orchestration |
+| **Resolve** | coin-api → manifest JSON | url + sha256 refs, orchestration.url |
 
-| Что задаёт шаблон | Пример |
-|-------------------|--------|
-| Toolchain | Java 17 + Gradle |
-| Роль проекта | приложение / библиотека |
-| Что собираем | OCI image, JAR, wheel |
-| Куда публикуем | Docker registry, Maven, PyPI |
-| Стадии pipeline | test → build → publish |
-| Образ агента | `coin/ci-jvm-gradle:17` (см. `coin-jenkins-agents/`) |
-| Managed Dockerfile | runtime-only шаблон из Coin (COPY артефактов после native build) |
-| Когда публикуем | по умолчанию `when: tag` |
+Legacy git `coin-platform/content/` **удалён** (PF-00 Gate B). Seed bytes: `coin-api/internal/gpcontent/seed/`.
 
-**Правило:** если поведение можно вывести из шаблона — оно **не** настраивается в `.coin/config.yaml` проекта.
+---
+
+## Composition (PostgreSQL)
+
+GP release = набор component versions:
+
+| Component | Пример | Роль |
+|-----------|--------|------|
+| `executor` | coin-executor@0.1.0 | URL binary |
+| `agent` | go@1.22.5 | CI image |
+| `pipeline` | go-build@2.1.0 | stage scripts bundle |
+| `validate` | config@1.0.0 | JSON Schema |
+| `dockerfile` | go-runtime@1.0.0 | Dockerfile template |
+| `orchestration` | coin-pipeline@1.0.0 | Jenkins Groovy (`coinPipeline.groovy`) |
+
+Seed pilot: `go-app@1.0.0` — см. `coin-api/migrations/002_seed_go_app.sql`, `009_orchestration_component.sql`.
 
 ---
 
 ## Именование
 
 ```
-{stack}-{role}
+{stack}-{role}     →  goldenPath name
+1.0.0              →  semver release (coin.version в проекте)
 ```
 
-| Часть | Значение | Примеры |
-|-------|----------|---------|
-| `stack` | Язык + сборщик | `java-gradle`, `java-maven`, `python-uv`, `go` |
-| `role` | Роль артефакта | `app` — деплоится; `lib` — переиспользуется другими проектами |
+Pilot: **`go-app@1.0.0`** — seed в migrations; профили GP хранятся в PostgreSQL (`gp_profiles`, migration `010_gp_profiles.sql`).
 
-Примеры:
+Новый GP: `POST /v1/admin/golden-paths/profiles` (slots JSON) + publish releases как для `go-app`.
 
-- `java-gradle-app` — Java-приложение, Gradle, образ для деплоя
-- `java-gradle-lib` — Java-библиотека, Gradle, JAR в Maven
-- `go-app` — Go-сервис, образ для деплоя
+Legacy каталоги GP v1 (`profile.yaml` + git scripts) — **удалены**; v2 SoT — coin-api + Nexus.
 
 ---
 
-## Матрица golden paths (v1)
+## Матрица (roadmap)
 
-### Приложения (`*-app`)
-
-Деплоятся как сервис. Сборка → OCI image → Docker registry.
-
-| Шаблон | Toolchain | Артефакт | Publish | Статус |
-|--------|-----------|----------|---------|--------|
-| `go-app` | Go | OCI image | Docker registry | ✅ v1 |
-| `java-gradle-app` | Java 17 + Gradle | OCI image | Docker registry | ✅ v1 |
-| `java-maven-app` | Java 17 + Maven | OCI image | Docker registry | ✅ v1 |
-| `python-uv-app` | Python + uv | OCI image | Docker registry | ✅ v1 |
-| `python-pip-app` | Python + pip | OCI image | Docker registry | ✅ v1 |
-
-> **Дистрибутив для ПСИ (zip):** если организации нужен zip в Nexus помимо образа — это часть профиля `*-app`, а не отдельный шаблон. Планируется для `java-*-app` (roadmap).
-
-### Библиотеки (`*-lib`)
-
-Переиспользуются другими проектами. Без контейнеризации.
-
-| Шаблон | Toolchain | Артефакт | Publish | Статус |
-|--------|-----------|----------|---------|--------|
-| `java-gradle-lib` | Java 17 + Gradle | JAR | Maven (Nexus) | 📋 запланировано |
-| `java-maven-lib` | Java 17 + Maven | JAR | Maven (Nexus) | 📋 запланировано |
-| `python-uv-lib` | Python + uv | wheel | PyPI / Nexus | 📋 запланировано |
-
-### Node.js
-
-| Шаблон | Toolchain | Артефакт | Publish | Статус |
-|--------|-----------|----------|---------|--------|
-| `node-app` | Node.js | OCI image | Docker registry | 📋 запланировано |
+| GP | v2 status | Примечание |
+|----|-----------|------------|
+| `go-app` | ✅ 1.0.0 | E2E demo-go-app |
+| `java-*-app` | planned | P1+ |
+| `python-*-app` | planned | P1+ |
 
 ---
 
-## Что задаёт проект
-
-Минимальный `.coin/config.yaml` — только привязка к GP, credentials и идентичность:
-
-```yaml
-coin:
-  template: java-gradle-app
-  templateVersion: v1
-
-jenkins:
-  credentials:
-    docker: nexus-docker
-
-project:
-  name: my-service
-  groupId: com.example.team
-  repository: Nexus_PROD
-```
-
-### Что **не** задаётся в проекте
-
-| Поле | Почему не нужно |
-|------|-----------------|
-| `build.type` | Определяется шаблоном (`app` → container, `lib` → package) |
-| `agent.stack` | Дублирует `coin.template` |
-| `container.port` / `container.command` | Задаётся в `profile.yaml` golden path |
-| `dockerfileTemplate` | Зашито в profile шаблона |
-| `publish.repository` (отдельно) | Тип publish задаёт шаблон; `project.repository` — координата для RN/QGM |
-
----
-
-## Где живёт profile шаблона
-
-Profile — platform-owned, разработчик не редактирует:
-
-```
-coin-golden-paths/
-  catalog.yaml
-  _shared/
-    pack-image.sh
-  java-gradle-app/
-    v1/
-      profile.yaml          # build, publish, pipeline, agent defaults
-      Dockerfile            # runtime-only (COPY артефактов)
-      scripts/
-      config.yaml
-```
-
-Пример `profile.yaml`:
-
-```yaml
-agent:
-  stack: java-gradle
-  runtime:
-    java: "17"
-
-build:
-  type: container
-  dockerfile: Dockerfile
-
-publish:
-  kind: registry
-  when: tag
-
-pipeline:
-  test:
-    enabled: true
-  build:
-    enabled: true
-  publish:
-    enabled: true
-
-container:
-  port: 8080
-  command: ["java", "-jar", "/app/app.jar"]
-```
-
-Coin CLI при `coin run build` загружает bundle по `coin.template` + `templateVersion` и выполняет сценарий.  
-Модель сборки: **native compile в agent → runtime-only Dockerfile → registry**. Подробнее — [agent-build-model.md](agent-build-model.md), [golden-path-versioning.md](golden-path-versioning.md).
-
----
-
-## Скелетоны новых проектов (`coin-starters/`)
-
-Golden path **не копируется** в репозиторий сервиса целиком — там только platform-owned артефакты доставки.
-
-Для bootstrap нового репозитория используйте **starter** — минимальный рабочий проект:
-
-```
-coin-starters/
-  python-uv-app/
-    .coin/config.yaml
-    Jenkinsfile
-    pyproject.toml
-    src/
-    tests/
-  go-app/
-    ...
-```
+## Resolve
 
 ```bash
-cp -r coin-starters/python-uv-app/* /path/to/my-new-service/
-# или
-coin init
+curl -fsS http://localhost:8090/v1/golden-paths/go-app/versions/1.0.0/manifest | jq .
 ```
 
-| Каталог | Владелец | Куда попадает |
-|---------|----------|---------------|
-| `coin-golden-paths/` | Platform | Загружается coin CLI в CI |
-| `coin-starters/` | Platform (эталон) | Копируется командой в свой репо |
+Nexus (после первого resolve):
 
-Подробнее — [coin-starters/README.md](../coin-starters/README.md).
-
----
-
-## Разделение «repository»
-
-В конфиге одно поле `project.repository`, но смысл зависит от контекста:
-
-| Контекст | Что означает `project.repository` |
-|----------|-----------------------------------|
-| Release notes (QGM) | Логическое имя репозитория Nexus (`Nexus_PROD`) |
-| Maven coordinates | Репозиторий для метаданных артефакта |
-| Физический URL registry | **Не** в проекте — mapping платформы + credentials |
-
----
-
-## Текущее состояние
-
-1. Матрица `*-app` зафиксирована ✅
-2. Структура `coin-golden-paths/<name>/v1/` + `catalog.yaml` ✅
-3. `profile.yaml` в каждом v1 ✅
-4. Упрощённый `.coin/config.yaml` в шаблонах ✅
-5. `coin-starters/` — скелетоны для bootstrap ✅
-6. `*-lib` шаблоны — по мере появления кейсов
-
-Новые сервисы: `cp -r coin-starters/<name>/*` → свой репозиторий.
-
----
-
-## Как выбрать шаблон
-
-```
-Это библиотека для других проектов?
-  ├─ Да  →  {stack}-lib
-  └─ Нет →  {stack}-app
-
-Какой стек?
-  ├─ Go                          →  go-app
-  ├─ Java + Gradle               →  java-gradle-app / java-gradle-lib
-  ├─ Java + Maven                →  java-maven-app / java-maven-lib
-  ├─ Python + uv                 →  python-uv-app / python-uv-lib
-  └─ Python + pip                 →  python-pip-app
-```
+- Pointer exact pin: `http://localhost:8081/repository/coin-manifests/pointers/go-app/%3D1.0.0.json`
+- Manifest blob: поле `blobUrl` в pointer
+- Content: `http://localhost:8081/repository/coin-manifests/content/go-app/1.0.0/scripts/test.sh`
 
 ---
 
 ## Связанные документы
 
-- [agent-build-model.md](agent-build-model.md) — native build + runtime-only Dockerfile
-- [config.md](config.md) — структура `.coin/config.yaml`
-- [golden-path-versioning.md](golden-path-versioning.md) — v1/v2, доставка каталога
-- [coin-starters/README.md](../coin-starters/README.md) — скелетоны новых репозиториев
-- [responsibilities.md](responsibilities.md) — кто управляет шаблонами и конфигом
-- [architecture.md](architecture.md) — как Coin CLI выполняет стадии pipeline
-- [jenkins-setup.md](jenkins-setup.md) — platform и service jobs
+- [control-plane.md](control-plane.md)
+- [config.md](config.md)
+- [runbooks/api-down-nexus-fallback.md](runbooks/api-down-nexus-fallback.md)

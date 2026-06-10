@@ -78,9 +78,14 @@ services:
     platform: ${DOCKER_PLATFORM:-linux/arm64}
     restart: unless-stopped
     depends_on:
-      - nexus
-      - k3s
-      - gitea
+      nexus:
+        condition: service_started
+      k3s:
+        condition: service_started
+      gitea:
+        condition: service_started
+      postgres:
+        condition: service_healthy
     ports:
       - "${JENKINS_HTTP_PORT:-8080}:8080"
       - "50000:50000"
@@ -91,12 +96,84 @@ services:
       GITEA_USER: ${GITEA_USER:-coin}
       GITEA_PASSWORD: ${GITEA_PASSWORD:-coin}
       NEXUS_ADMIN_PASSWORD: ${NEXUS_ADMIN_PASSWORD:-coin12345}
+      COIN_API_TOKEN: ${COIN_API_TOKEN:-dev-local-token}
       KUBECONFIG_PATH: /kubeconfig/config
       COIN_REGISTRY_PREFIX: localhost:${NEXUS_DOCKER_PORT:-8082}/${NEXUS_DOCKER_REPO:-coin-docker}
     volumes:
       - jenkins-home:/var/jenkins_home
       - k3s-kubeconfig:/kubeconfig:ro
       - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - coin
+
+  postgres:
+    image: postgres:16-alpine
+    platform: ${DOCKER_PLATFORM:-linux/arm64}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-coin}
+      POSTGRES_USER: ${POSTGRES_USER:-coin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-coin}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - coin
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-coin} -d ${POSTGRES_DB:-coin}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  coin-api:
+    build:
+      context: ../coin-api
+      dockerfile: Dockerfile
+    platform: ${DOCKER_PLATFORM:-linux/arm64}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nexus:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-coin}:${POSTGRES_PASSWORD:-coin}@postgres:5432/${POSTGRES_DB:-coin}?sslmode=disable
+      COIN_API_ADDR: ":8090"
+      AUTH_DISABLED: ${AUTH_DISABLED:-true}
+      COIN_API_TOKEN: ${COIN_API_TOKEN:-dev-local-token}
+      COIN_ADMIN_API_KEY: ${COIN_ADMIN_API_KEY:-dev-local-admin-key}
+      COIN_PUBLISHER_API_KEY: ${COIN_PUBLISHER_API_KEY:-dev-local-publisher-key}
+      COIN_READER_API_KEY: ${COIN_READER_API_KEY:-dev-local-reader-key}
+      OIDC_ENABLED: ${OIDC_ENABLED:-false}
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
+      OIDC_ROLES_CLAIM: ${OIDC_ROLES_CLAIM:-roles}
+      GITEA_URL: http://gitea:3000
+      GITEA_USER: ${GITEA_USER:-coin}
+      GITEA_PASSWORD: ${GITEA_PASSWORD:-coin}
+      GIT_EXPORT_DISABLED: "true"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NEXUS_URL: http://nexus:8081
+      NEXUS_MANIFEST_REPO: ${NEXUS_MANIFEST_REPO:-coin-manifests}
+      NEXUS_ADMIN_USER: admin
+      NEXUS_ADMIN_PASSWORD: ${NEXUS_ADMIN_PASSWORD:-coin12345}
+    ports:
+      - "${COIN_API_PORT:-8090}:8090"
+    networks:
+      - coin
+
+  coin-ui:
+    build:
+      context: ../coin-ui
+      dockerfile: Dockerfile
+    platform: ${DOCKER_PLATFORM:-linux/arm64}
+    restart: unless-stopped
+    depends_on:
+      coin-api:
+        condition: service_started
+    ports:
+      - "${COIN_UI_PORT:-8091}:80"
     networks:
       - coin
 
@@ -110,3 +187,4 @@ volumes:
   k3s-kubeconfig:
   gitea-data:
   jenkins-home:
+  postgres-data:

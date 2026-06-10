@@ -1,0 +1,52 @@
+# Fleet scanner CronJob — nightly scan через coin-api Admin API.
+# Требует Endpoints coin-api в k3s: make endpoints
+apiVersion: v1
+kind: Secret
+metadata:
+  name: coin-admin
+  namespace: default
+type: Opaque
+stringData:
+  api-key: dev-local-admin-key
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: coin-fleet-scanner
+  namespace: default
+  labels:
+    app: coin-fleet-scanner
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 7200
+      template:
+        metadata:
+          labels:
+            app: coin-fleet-scanner
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: scan
+              image: curlimages/curl:8.5.0
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: COIN_ADMIN_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: coin-admin
+                      key: api-key
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  echo "Starting fleet scan via coin-api..."
+                  curl -sfS -X POST \
+                    -H "X-API-Key: ${COIN_ADMIN_API_KEY}" \
+                    "http://coin-api:8090/v1/admin/scan"
+                  echo "Fleet scan complete"

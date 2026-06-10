@@ -153,7 +153,7 @@ CMD {{APP_CMD}}
 
 ## После изменений в monorepo coin
 
-- Agent image: Jenkins job `coin-agents` → обновить `catalog.yaml`, promote через `sync-agent-images.sh` → `coin-lib/resources/images.yaml`.
+- Agent image: Jenkins job `agents-build` → обновить `agents/catalog.yaml`, push через `make coin-platform`.
 - GP runtime Dockerfile: `coin-golden-paths/<name>/vN/Dockerfile` + `scripts/build.sh`.
 
 ## Дополнительно

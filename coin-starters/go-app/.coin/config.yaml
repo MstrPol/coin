@@ -1,6 +1,6 @@
 coin:
-  template: go-app
-  templateVersion: v1
+  goldenPath: go-app
+  version: "1.0.0"
 
 jenkins:
   credentials:

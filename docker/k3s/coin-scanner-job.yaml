@@ -1,0 +1,34 @@
+# One-off Job для ручного запуска fleet scan (без ожидания CronJob schedule).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: coin-fleet-scanner-manual
+  namespace: default
+  labels:
+    app: coin-fleet-scanner
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 7200
+  template:
+    metadata:
+      labels:
+        app: coin-fleet-scanner
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: scan
+          image: curlimages/curl:8.5.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: COIN_ADMIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: coin-admin
+                  key: api-key
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              curl -sfS -X POST \
+                -H "X-API-Key: ${COIN_ADMIN_API_KEY}" \
+                "http://coin-api:8090/v1/admin/scan?force=${FORCE:-false}"
