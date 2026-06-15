@@ -25,7 +25,7 @@ alwaysApply: true
 |------|-----|------|
 | **Content** | coin-api + PostgreSQL + Nexus | scripts, Dockerfile, schema |
 | **Metadata** | PostgreSQL (coin-api) | GP releases, composition, registry, audit |
-| **Runtime cache** | Nexus `coin-manifests` | immutable manifest JSON |
+| **Runtime cache** | Nexus `maven-releases` / `maven-snapshots` | immutable manifest blobs + mutable pointers |
 
 CI: primary resolve через coin-api, fallback Nexus. Live DB **не** required на build path.
 
@@ -47,9 +47,11 @@ coin:
 | **coin-executor** | validate, run stages, report |
 | **coin-jenkins-agents** | agent stacks, catalog |
 | **coin-starters** | product scaffolding |
-| **Jenkins** | адаптер: resolve + pod + creds + вызов executor |
+| **coin-lib** | Jenkins Shared Library — glue only (resolve, pod, creds, executor stages) |
+| **coin-gp-content** | scripts, Dockerfile, schema per GP stack |
+| **Jenkins** | thin bootstrap: `@Library('coin-lib@1.0.0') _` → `coinPipeline()` |
 
-Orchestration Groovy — **в manifest/Nexus**, не в продуктовом repo (см. активный plan [coin-ui-operator-console](../plans/coin-ui-operator-console.plan.md); platform-first delivery завершён).
+Jenkins glue — в `coin-lib` Shared Library; GP content — в `coin-gp-content` (см. активный plan [jenkins-lib-nexus](../plans/jenkins-lib-nexus.plan.md), ADR [jenkins-lib-http-nexus](../plans/adr/jenkins-lib-http-nexus.md)).
 
 ## Архитектурные решения
 
@@ -61,6 +63,7 @@ Orchestration Groovy — **в manifest/Nexus**, не в продуктовом r
 
 - GP-only-in-git без control plane
 - CPR / Nexus zip bundle
-- coin-lib / coin-cli / Shared Library с бизнес-логикой
+- coin-lib / coin-cli / Shared Library с бизнес-логикой сборки (исключение: `coin-lib` glue only)
+- pipeline-bundle component type (заменён на `lib` + `gp-content`)
 - Release train через CASC + coin-lib semver
 - Fat Jenkinsfile (186+ строк) в каждом продуктовом repo

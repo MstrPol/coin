@@ -3,18 +3,24 @@ import type {
   ArtifactMeta,
   AuditLogEntry,
   BlastRadius,
+  BuildReport,
+  CanaryContext,
   CanaryOverview,
   CatalogOverview,
   Component,
+  ComponentDetail,
   ComponentVersion,
+  ComponentVersionDetail,
   DashboardStats,
   DraftGPResult,
   GPProfile,
+  GPProfileSlot,
   GPRelease,
   GPReleaseDetail,
   HealthSummary,
   ListResponse,
   MeResponse,
+  PlatformSettings,
   Project,
   PublishGPResult,
   ResolvePreviewResult,
@@ -94,6 +100,24 @@ async function apiGet<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function apiList<T>(path: string): Promise<ListResponse<T>> {
+  const data = await apiGet<ListResponse<T>>(path);
+  return { items: data.items ?? [] };
+}
+
+/** Like apiList but returns empty items on 404 (unknown component). */
+async function apiListOptional<T>(path: string): Promise<ListResponse<T>> {
+  const res = await fetch(`${base}${path}`, { headers: headers() });
+  if (res.status === 404) {
+    return { items: [] };
+  }
+  if (!res.ok) {
+    throw new Error(await parseError(res, path));
+  }
+  const data = (await res.json()) as ListResponse<T>;
+  return { items: data.items ?? [] };
+}
+
 async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${base}${path}`, {
     method: "POST",
@@ -131,24 +155,44 @@ async function apiPut<T>(path: string, body: unknown): Promise<T> {
 }
 
 export const api = {
-  ready: () => apiGet<{ status: string }>("/ready"),
+  ready: () => apiGet<{ status: string; version?: string }>("/ready"),
   me: () => apiGet<MeResponse>("/v1/admin/me"),
   stats: () => apiGet<DashboardStats>("/v1/admin/stats"),
-  projects: (goldenPath?: string, version?: string) => {
+  buildReports: (params?: {
+    project?: string;
+    goldenPath?: string;
+    result?: string;
+    limit?: number;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.project) q.set("project", params.project);
+    if (params?.goldenPath) q.set("goldenPath", params.goldenPath);
+    if (params?.result) q.set("result", params.result);
+    if (params?.limit) q.set("limit", String(params.limit));
+    const qs = q.toString();
+    return apiList<BuildReport>(`/v1/admin/build-reports${qs ? `?${qs}` : ""}`);
+  },
+  projects: (goldenPath?: string, version?: string, stale?: boolean) => {
     const q = new URLSearchParams();
     if (goldenPath) q.set("goldenPath", goldenPath);
     if (version) q.set("version", version);
+    if (stale) q.set("stale", "true");
     const qs = q.toString();
-    return apiGet<ListResponse<Project>>(`/v1/admin/projects${qs ? `?${qs}` : ""}`);
+    return apiList<Project>(`/v1/admin/projects${qs ? `?${qs}` : ""}`);
   },
-  gpNames: () => apiGet<ListResponse<string>>("/v1/admin/golden-paths/names"),
+  gpNames: () => apiList<string>("/v1/admin/golden-paths/names"),
   gpProfile: (name: string) => apiGet<GPProfile>(`/v1/admin/golden-paths/${name}/profile`),
+  createGPProfile: (body: {
+    name: string;
+    slots: GPProfileSlot[];
+    actor?: string;
+  }) => apiPost<{ status: string; name: string }>("/v1/admin/golden-paths/profiles", body),
   gpReleases: (name?: string, includeDrafts = false) => {
     const q = new URLSearchParams();
     if (name) q.set("name", name);
     if (includeDrafts) q.set("includeDrafts", "true");
     const qs = q.toString();
-    return apiGet<ListResponse<GPRelease>>(`/v1/admin/golden-paths${qs ? `?${qs}` : ""}`);
+    return apiList<GPRelease>(`/v1/admin/golden-paths${qs ? `?${qs}` : ""}`);
   },
   gpRelease: (name: string, version: string) =>
     apiGet<GPReleaseDetail>(`/v1/admin/golden-paths/${name}/versions/${version}`),
@@ -202,7 +246,7 @@ export const api = {
       `/v1/admin/golden-paths/${name}/versions/${encodeURIComponent(version)}/health?channel=${encodeURIComponent(channel)}`,
     ),
   listArtifacts: (name: string, version: string) =>
-    apiGet<ListResponse<ArtifactMeta>>(
+    apiList<ArtifactMeta>(
       `/v1/admin/golden-paths/${name}/versions/${encodeURIComponent(version)}/artifacts`,
     ),
   getArtifact: (name: string, version: string, key: string) =>
@@ -214,16 +258,48 @@ export const api = {
       `/v1/admin/golden-paths/${name}/versions/${encodeURIComponent(version)}/artifacts/${encodeURIComponent(key)}`,
       { body },
     ),
-  resolvePreview: (name: string, pin: string, project?: string) => {
+  resolvePreview: (
+    name: string,
+    pin: string,
+    project?: string,
+    forceChannel?: "canary" | "stable",
+  ) => {
     const q = new URLSearchParams({ pin });
     if (project) q.set("project", project);
+    if (forceChannel) q.set("forceChannel", forceChannel);
     return apiGet<ResolvePreviewResult>(
       `/v1/admin/golden-paths/${name}/resolve-preview?${q.toString()}`,
     );
   },
-  components: () => apiGet<ListResponse<Component>>("/v1/admin/components"),
+  canaryContext: (gpName: string, project: string) =>
+    apiGet<CanaryContext>(
+      `/v1/admin/golden-paths/${gpName}/projects/${encodeURIComponent(project)}/canary-context`,
+    ),
+  platformSettings: () => apiGet<PlatformSettings>("/v1/admin/platform/settings"),
+  updatePlatformSettings: (body: {
+    nexusMavenBase: string;
+    nexusCredentialsId: string;
+    actor?: string;
+  }) => apiPut<{ status: string }>("/v1/admin/platform/settings", body),
+  components: () => apiList<Component>("/v1/admin/components"),
+  createComponent: (body: { type: string; name: string; actor?: string }) =>
+    apiPost<{ status: string; type: string; name: string }>("/v1/admin/components", body),
+  componentDetail: (type: string, name: string) =>
+    apiGet<ComponentDetail>(`/v1/admin/components/${type}/${name}`),
   componentVersions: (type: string, name: string) =>
-    apiGet<ListResponse<ComponentVersion>>(`/v1/admin/components/${type}/${name}/versions`),
+    apiList<ComponentVersion>(`/v1/admin/components/${type}/${name}/versions`),
+  componentVersionsOptional: (type: string, name: string) =>
+    apiListOptional<ComponentVersion>(`/v1/admin/components/${type}/${name}/versions`),
+  componentVersionDetail: (type: string, name: string, version: string) =>
+    apiGet<ComponentVersionDetail>(
+      `/v1/admin/components/${type}/${name}/versions/${encodeURIComponent(version)}`,
+    ),
+  publishComponentVersion: (
+    type: string,
+    name: string,
+    body: { version: string; metadata?: Record<string, unknown>; contentRef?: Record<string, unknown>; actor?: string },
+  ) =>
+    apiPost<{ status: string }>(`/v1/admin/components/${type}/${name}/versions`, body),
   auditLog: (params?: {
     entityType?: string;
     action?: string;
@@ -236,7 +312,7 @@ export const api = {
     if (params?.limit != null) q.set("limit", String(params.limit));
     if (params?.offset != null) q.set("offset", String(params.offset));
     const qs = q.toString();
-    return apiGet<ListResponse<AuditLogEntry>>(`/v1/admin/audit-log${qs ? `?${qs}` : ""}`);
+    return apiList<AuditLogEntry>(`/v1/admin/audit-log${qs ? `?${qs}` : ""}`);
   },
   blastRadius: (name: string, version: string) =>
     apiGet<BlastRadius>(`/v1/admin/golden-paths/${name}/versions/${version}/blast-radius`),

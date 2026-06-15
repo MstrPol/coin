@@ -18,12 +18,27 @@ type Policy struct {
 	Deprecated   []string
 }
 
-func Check(policy Policy, version string) (warning string, err error) {
+// CheckResolve applies policy at manifest resolve time (deprecated warning only).
+func CheckResolve(policy Policy, version string) (warning string, err error) {
+	return checkDeprecated(policy, version)
+}
+
+// CheckValidate applies full policy during coin-executor validate (minimum + deprecated).
+func CheckValidate(policy Policy, version string) (warning string, err error) {
 	if policy.Minimum != "" {
 		if semver.Compare(norm(version), norm(policy.Minimum)) < 0 {
 			return "", fmt.Errorf("%w: %s@%s minimum is %s", ErrBelowMinimum, policy.GPName, version, policy.Minimum)
 		}
 	}
+	return checkDeprecated(policy, version)
+}
+
+// Check is an alias for CheckValidate (tests and legacy callers).
+func Check(policy Policy, version string) (warning string, err error) {
+	return CheckValidate(policy, version)
+}
+
+func checkDeprecated(policy Policy, version string) (warning string, err error) {
 	for _, dep := range policy.Deprecated {
 		if dep == version {
 			return fmt.Sprintf(`299 - "GP %s version %s is deprecated"`, policy.GPName, version), nil

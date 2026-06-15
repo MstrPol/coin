@@ -1,32 +1,42 @@
 # coin-jenkins-agents
 
-CI agent images для Jenkins dynamic agents (K8s pod, контейнер `stack`).
+CI agent images для Jenkins dynamic agents.
 
-**Corp target repo:** `coin/coin-jenkins-agents` (PF-16 split из monolithic `coin-platform`).
+## Структура
 
-## Сборка
-
-Job **`agents-build`** — `Jenkinsfile` в корне repo.
-
-```bash
-cd docker && make agents-build   # регистрация job
-cd docker && make coin-jenkins-agents   # push → Gitea (local pilot)
+```
+agents/{stack}/{runtime}.Dockerfile
+Jenkinsfile
 ```
 
-## catalog.yaml
+Пример multi-runtime Go:
 
-Manifest agent images. Job **пишет** `rev`, `tag`, `digest` после каждой сборки.
+```
+agents/go/1.22.Dockerfile
+agents/go/1.24.Dockerfile
+```
 
-`make coin-jenkins-agents` перед push подтягивает `catalog.yaml` из Gitea, если локально не меняли с прошлого push.
+## Сборка (job `agents-build`)
 
-Полный ref: `{registry.default}/{image}:{tag}` → `nexus:8082/coin-docker/ci-go:1.22-r1`.
+Единственный параметр — **путь к Dockerfile**:
 
-## Связь с GP
+| DOCKERFILE | component | runtime |
+|------------|-----------|---------|
+| `agents/go/1.22.Dockerfile` | `agent/go` | 1.22 |
+| `agents/go/1.24.Dockerfile` | `agent/go` | 1.24 |
+| `agents/python-uv/3.13.Dockerfile` | `agent/python-uv` | 3.13 |
 
-Composition slot `agent` в GP release → `manifest.runtime.image` в pod template.
+Flow:
 
-Legacy v1 `profile.yaml` (agent.stack/runtime) — superseded; см. GP composition в coin-api.
+1. `GET .../agent/{stack}/next-version?runtime=` → `1.22-r{N+1}`
+2. `docker build -f $DOCKERFILE` → push `ci-{stack}:{version}`
+3. `POST .../agent/{stack}/versions`
 
-## Build context
+Image repo: `ci-{stack}` (`java-maven` → `ci-jvm-maven`, `java-gradle` → `ci-jvm-gradle`).
 
-Корень repo (Dockerfile paths в catalog относительно этой папки).
+Registry: `COIN_REGISTRY_PREFIX` (`localhost:8082/...` для push через host docker.sock), `COIN_REGISTRY_RUNTIME_PREFIX` (`nexus:8082/...` в metadata для k3s). Cred: `nexus-docker`.
+
+```bash
+cd docker && make agents-build
+cd docker && make coin-jenkins-agents
+```

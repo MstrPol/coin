@@ -11,11 +11,13 @@ load_env
 API="${COIN_API_URL:-http://localhost:8090}"
 NEXUS_PORT="${NEXUS_HTTP_PORT:-8081}"
 NEXUS="${NEXUS_URL:-http://localhost:${NEXUS_PORT}}"
-REPO="${NEXUS_MANIFEST_REPO:-coin-manifests}"
-BASE="${NEXUS}/repository/${REPO}"
+MAVEN_RELEASES="${NEXUS_MAVEN_RELEASES:-maven-releases}"
+MAVEN_SNAPSHOTS="${NEXUS_MAVEN_SNAPSHOTS:-maven-snapshots}"
+RELEASES_BASE="${NEXUS}/repository/${MAVEN_RELEASES}"
+SNAPSHOTS_BASE="${NEXUS}/repository/${MAVEN_SNAPSHOTS}"
 GP="${COIN_E2E_GP:-go-app}"
-VER="${COIN_E2E_VERSION:-1.0.0}"
-PIN_PATH="%3D${VER}"
+VER="${COIN_E2E_VERSION:-1.0.1}"
+PIN_PATH="pin-%3D${VER}"
 
 need() {
   command -v "$1" >/dev/null 2>&1 || { echo "missing required command: $1" >&2; exit 1; }
@@ -39,15 +41,18 @@ curl -fsS "${API}/ready" >/dev/null
 echo "==> resolve manifest (warms Nexus blob + pointer + content)"
 manifest="$(curl -fsS "${API}/v1/golden-paths/${GP}/versions/${VER}/manifest")"
 echo "${manifest}" | jq -e '.manifestHash | startswith("sha256:")' >/dev/null
-echo "${manifest}" | jq -e '.orchestration.url | length > 0' >/dev/null
 echo "${manifest}" | jq -e '.pipeline.stages[0].script.url | length > 0' >/dev/null
+if echo "${manifest}" | jq -e '.orchestration' >/dev/null 2>&1; then
+  echo "FAIL: manifest still contains orchestration (jenkins-lib model)" >&2
+  exit 1
+fi
 if echo "${manifest}" | grep -q gitRef; then
   echo "FAIL: manifest still contains gitRef" >&2
   exit 1
 fi
 
 echo "==> Nexus pointer (exact pin =${VER})"
-ptr="$(curl -fsS "${BASE}/pointers/${GP}/${PIN_PATH}.json")"
+ptr="$(curl -fsS "${SNAPSHOTS_BASE}/coin/manifest/${GP}/metadata/${GP}-metadata-${PIN_PATH}.json")"
 blob_url="$(echo "${ptr}" | jq -r .blobUrl)"
 expected_hash="$(echo "${ptr}" | jq -r .manifestHash)"
 [[ -n "${blob_url}" && "${blob_url}" != "null" ]]
@@ -58,11 +63,13 @@ actual_hash="$(curl -fsS "${blob_url}" | jq -r .manifestHash)"
 [[ "${expected_hash}" == "${actual_hash}" ]]
 
 echo "==> Nexus content artifact (test.sh)"
-curl -fsS "${BASE}/content/${GP}/${VER}/scripts/test.sh" | grep -q coin
+test_url="$(host_url "$(echo "${manifest}" | jq -r '.pipeline.stages[] | select(.name=="test") | .script.url')")"
+curl -fsS "${test_url}" | grep -q coin
 
-echo "==> orchestration groovy reachable"
-orch_url="$(host_url "$(echo "${manifest}" | jq -r .orchestration.url)")"
-curl -fsS "${orch_url}" | grep -q coinPipeline
+echo "==> GP composition uses coin-lib@1.0.0"
+curl -fsS "${API}/v1/admin/golden-paths/${GP}/versions/${VER}" \
+  -H "X-API-Key: ${COIN_PUBLISHER_API_KEY:-dev-local-publisher-key}" \
+  | jq -e '.composition[] | select(.type=="lib" and .name=="coin-lib" and .version=="1.0.0")'
 
 echo "==> API-down fallback simulation (pointer → blob only)"
 sim_hash="$(curl -fsS "${blob_url}" | jq -r .manifestHash)"

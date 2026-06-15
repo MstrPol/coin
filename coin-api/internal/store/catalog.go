@@ -18,11 +18,14 @@ func (s *Store) GetCatalogPolicy(ctx context.Context, gpName string) (catalog.Po
 		FROM catalog_policy WHERE gp_name = $1
 	`, gpName).Scan(&policy.GPName, &policy.Latest, &policy.LatestCanary, &policy.Minimum, &deprecated)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return catalog.Policy{GPName: gpName}, nil
+		return catalog.Policy{GPName: gpName, Deprecated: []string{}}, nil
 	}
 	if err != nil {
 		return catalog.Policy{}, err
 	}
 	_ = json.Unmarshal(deprecated, &policy.Deprecated)
+	if policy.Deprecated == nil {
+		policy.Deprecated = []string{}
+	}
 	return policy, nil
 }

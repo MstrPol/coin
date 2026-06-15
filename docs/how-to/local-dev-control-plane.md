@@ -32,7 +32,7 @@ make coin-jenkins-agents
 # executor binary в Nexus (локально или Jenkins job coin-executor PUBLISH=true):
 cd ../coin-executor && GOOS=linux GOARCH=arm64 go build -o /tmp/coin-executor ./cmd/coin-executor
 curl -u admin:coin12345 -X PUT --upload-file /tmp/coin-executor \
-  "http://localhost:8081/repository/coin-executor/0.1.0/coin-executor-linux-arm64"
+  "http://localhost:8081/repository/maven-releases/coin/executor/coin-executor/0.1.0/coin-executor-0.1.0-linux-arm64"
 
 make samples            # demo-go-app → Gitea + Jenkins multibranch
 ```
@@ -46,8 +46,8 @@ curl -fsS http://localhost:8090/v1/golden-paths/go-app/versions/1.0.0/manifest |
 Nexus fallback (после resolve прогрел cache):
 
 ```bash
-BASE=http://localhost:8081/repository/coin-manifests
-curl -fsS "${BASE}/pointers/go-app/%3D1.0.0.json" | jq .
+SNAPSHOTS=http://localhost:8081/repository/maven-snapshots
+curl -fsS "${SNAPSHOTS}/coin/manifest/go-app/metadata/go-app-metadata-pin-%3D1.0.0.json" | jq .
 ```
 
 E2E smoke (PF-11):
@@ -71,7 +71,7 @@ Jenkins: http://localhost:8080 → job **demo-go-app** / **main** → Build Now 
 |---------|---------|
 | Agent `offline`, JNLP Connection refused | `make endpoints` |
 | `lookup nexus: no such host` при docker build | `COIN_REGISTRY_PREFIX=localhost:8082/coin-docker` (уже в Jenkinsfile.coin) |
-| executor 404 | Опубликовать binary в Nexus raw `coin-executor/0.1.0/` |
+| executor 404 | Jenkins job `coin-executor` с `PUBLISH=true` или PUT в `maven-releases/coin/executor/...` |
 | manifest sha256 mismatch | `make coin-jenkins-agents` + rebuild coin-api |
 
 ## Ссылки

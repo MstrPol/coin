@@ -14,6 +14,7 @@ func TestLoadV2(t *testing.T) {
   version: "1.0.0"
 project:
   name: demo
+  artifactId: demo
 jenkins:
   credentials:
     docker: nexus-docker
@@ -27,5 +28,9 @@ jenkins:
 	}
 	if cfg.Coin.GoldenPath != "go-app" || cfg.Coin.Version != "1.0.0" {
 		t.Fatalf("unexpected coin meta: %+v", cfg.Coin)
+	}
+	spec, ok := cfg.Deliverables["app"]
+	if !ok || spec.Type != "image" {
+		t.Fatalf("expected default app:image deliverable, got %+v", cfg.Deliverables)
 	}
 }

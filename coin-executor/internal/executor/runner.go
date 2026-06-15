@@ -9,6 +9,7 @@ import (
 
 	"coin.local/coin-executor/internal/config"
 	"coin.local/coin-executor/internal/content"
+	"coin.local/coin-executor/internal/deliverables"
 	"coin.local/coin-executor/internal/manifest"
 )
 
@@ -21,6 +22,14 @@ type Runner struct {
 }
 
 func (r Runner) Run(cfg *config.Config, m *manifest.Manifest, opts RunOptions) error {
+	items := cfg.NormalizedDeliverables()
+	if err := deliverables.Validate(items, m.AllowedDeliverableTypes()); err != nil {
+		return err
+	}
+	if err := deliverables.WriteState(r.Workspace, items); err != nil {
+		return err
+	}
+
 	contentRoot, err := content.EnsureRoot(m)
 	if err != nil {
 		return err

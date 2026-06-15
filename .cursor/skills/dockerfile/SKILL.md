@@ -18,7 +18,7 @@ description: >-
 
 | Контекст | Путь | Назначение |
 |----------|------|------------|
-| CI agent (Jenkins stack container) | `coin-jenkins-agents/stacks/<stack>/<version>/Dockerfile` | Toolchain + coin CLI + docker CLI; `WORKDIR /workspace` |
+| CI agent (Jenkins stack container) | `coin-jenkins-agents/agents/<stack>/<runtime>.Dockerfile` | Toolchain + docker CLI; `WORKDIR /workspace` |
 | App runtime (managed) | `coin-golden-paths/<gp>/vN/Dockerfile` | **Runtime-only**: `COPY` артефактов после native build в agent |
 | App runtime (generated) | `.coin/generated/Dockerfile` | Render из GP при `coin run build` |
 
@@ -153,7 +153,7 @@ CMD {{APP_CMD}}
 
 ## После изменений в monorepo coin
 
-- Agent image: Jenkins job `agents-build` → обновить `agents/catalog.yaml`, push через `make coin-platform`.
+- Agent image: Jenkins job `agents-build` → версия в coin-api registry, push repo через `make coin-jenkins-agents`.
 - GP runtime Dockerfile: `coin-golden-paths/<name>/vN/Dockerfile` + `scripts/build.sh`.
 
 ## Дополнительно

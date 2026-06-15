@@ -1,6 +1,6 @@
 coin:
   goldenPath: go-app
-  version: "1.0.0"
+  version: "*"
 
 jenkins:
   credentials:
@@ -8,5 +8,6 @@ jenkins:
 
 project:
   name: my-service
+  artifactId: my-service
   groupId: com.example.team
-  repository: Nexus_PROD
+  repository: maven-releases

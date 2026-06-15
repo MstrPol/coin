@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Вычисляет версию сборки из coin-executor/VERSION.
+# Deprecated: версия берётся из coin-api next-version (Jenkins BUMP).
+# Локальный helper при отсутствии API.
 # Usage: compute-version.sh [VERSION_FILE] [BUMP] [SNAPSHOT]
 set -euo pipefail
 

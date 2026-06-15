@@ -8,12 +8,15 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"coin.local/coin-api/internal/compatibility"
+	"coin.local/coin-api/internal/gpcontent"
+	"coin.local/coin-api/internal/pin"
 )
 
 func (s *Store) ListPublishedGPVersions(ctx context.Context, name string) ([]string, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT version FROM gp_releases
 		WHERE name=$1 AND status='published'
+		  AND version NOT LIKE '%-snapshot.%'
 		ORDER BY version
 	`, name)
 	if err != nil {
@@ -143,8 +146,20 @@ func (s *Store) CreateDraftGPRelease(ctx context.Context, in PublishGPReleaseInp
 	}
 
 	// Seed artifact bodies from latest published release (draft editor starting point).
+	seeded := false
 	if latest, err := s.latestPublishedVersion(ctx, in.Name); err == nil && latest != "" {
-		_ = s.copyArtifactsBetween(ctx, in.Name, latest, in.Version)
+		if err := s.copyArtifactsBetween(ctx, in.Name, latest, in.Version); err == nil {
+			seeded = true
+		}
+	}
+	if !seeded {
+		if contentName, contentVer, err := s.gpContentVersionFromComposition(ctx, in.Name, in.Version); err == nil {
+			_ = s.seedGPArtifactsFromGPContent(ctx, releaseID, contentName, contentVer)
+			seeded = true
+		}
+	}
+	if !seeded {
+		_ = gpcontent.SeedArtifactsToRelease(ctx, s.pool, in.Name, releaseID)
 	}
 
 	return GPReleaseRow{Name: in.Name, Version: in.Version, Status: "draft"}, nil
@@ -189,6 +204,11 @@ func (s *Store) copyArtifactsBetween(ctx context.Context, gpName, fromVersion, t
 }
 
 func (s *Store) PromoteDraftToPublished(ctx context.Context, name, version, actor string) (GPReleaseRow, error) {
+	publishedVersion := pin.StripSnapshotVersion(version)
+	if publishedVersion == "" {
+		return GPReleaseRow{}, fmt.Errorf("invalid draft version %q", version)
+	}
+
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return GPReleaseRow{}, err
@@ -210,10 +230,31 @@ func (s *Store) PromoteDraftToPublished(ctx context.Context, name, version, acto
 		return GPReleaseRow{}, fmt.Errorf("release is not draft (status=%s)", status)
 	}
 
-	_, err = tx.Exec(ctx, `
-		UPDATE gp_releases SET status='published' WHERE id=$1
-	`, releaseID)
+	var exists int
+	err = tx.QueryRow(ctx, `
+		SELECT 1 FROM gp_releases
+		WHERE name=$1 AND version=$2 AND status='published' AND id <> $3
+	`, name, publishedVersion, releaseID).Scan(&exists)
+	if err == nil {
+		return GPReleaseRow{}, ErrDuplicateGPRelease
+	}
+	if err != nil && err != pgx.ErrNoRows {
+		return GPReleaseRow{}, err
+	}
+
+	if publishedVersion != version {
+		_, err = tx.Exec(ctx, `
+			UPDATE gp_releases SET version=$1, status='published' WHERE id=$2
+		`, publishedVersion, releaseID)
+	} else {
+		_, err = tx.Exec(ctx, `
+			UPDATE gp_releases SET status='published' WHERE id=$1
+		`, releaseID)
+	}
 	if err != nil {
+		if isUniqueViolation(err) {
+			return GPReleaseRow{}, ErrDuplicateGPRelease
+		}
 		return GPReleaseRow{}, err
 	}
 
@@ -221,16 +262,21 @@ func (s *Store) PromoteDraftToPublished(ctx context.Context, name, version, acto
 		INSERT INTO catalog_policy (gp_name, latest, minimum, deprecated)
 		VALUES ($1, $2, $2, '[]'::jsonb)
 		ON CONFLICT (gp_name) DO UPDATE SET latest = EXCLUDED.latest
-	`, name, version)
+	`, name, publishedVersion)
 	if err != nil {
 		return GPReleaseRow{}, err
 	}
 
-	entityKey := fmt.Sprintf("%s@%s", name, version)
+	auditPayload, _ := json.Marshal(map[string]any{
+		"status":           "published",
+		"draftVersion":     version,
+		"publishedVersion": publishedVersion,
+	})
+	entityKey := fmt.Sprintf("%s@%s", name, publishedVersion)
 	_, err = tx.Exec(ctx, `
 		INSERT INTO audit_log (action, entity_type, entity_key, actor, payload)
-		VALUES ('publish_gp_draft', 'gp_release', $1, $2, '{"status":"published"}'::jsonb)
-	`, entityKey, nullIfEmpty(actor))
+		VALUES ('publish_gp_draft', 'gp_release', $1, $2, $3)
+	`, entityKey, nullIfEmpty(actor), auditPayload)
 	if err != nil {
 		return GPReleaseRow{}, err
 	}
@@ -238,5 +284,5 @@ func (s *Store) PromoteDraftToPublished(ctx context.Context, name, version, acto
 	if err := tx.Commit(ctx); err != nil {
 		return GPReleaseRow{}, err
 	}
-	return GPReleaseRow{Name: name, Version: version, Status: "published"}, nil
+	return GPReleaseRow{Name: name, Version: publishedVersion, Status: "published"}, nil
 }

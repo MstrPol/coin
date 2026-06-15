@@ -173,3 +173,11 @@ func majorMinorParts(v string) (major, minor int) {
 func IsSnapshotVersion(v string) bool {
 	return strings.Contains(v, "-snapshot.")
 }
+
+// StripSnapshotVersion removes a trailing -snapshot.N suffix from a GP version.
+func StripSnapshotVersion(v string) string {
+	if i := strings.Index(v, "-snapshot."); i >= 0 {
+		return v[:i]
+	}
+	return v
+}

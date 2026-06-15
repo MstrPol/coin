@@ -39,7 +39,25 @@ stage('Build') {
 - Запуск тестов, сборки, публикации напрямую (минуя `coin-executor`)
 - Бизнес-логику release notes, bump-версии
 - Парсинг git-метаданных
-- `@Library(...)` Shared Library с бизнес-логикой
+- `@Library(...)` Shared Library с бизнес-логикой сборки (validate, build, publish, version bump)
+
+## Разрешённые исключения (актуализируется вручную)
+
+### `coin-lib` Jenkins Shared Library
+
+**Разрешено** вынести в `coin-lib` только Jenkins-only glue:
+- resolve manifest (HTTP coin-api + Nexus fallback)
+- K8s pod template и agent image из manifest
+- Jenkins Credentials binding перед вызовом `coin-executor`
+- thin stage orchestration: динамический вызов `coin-executor` stages из `manifest.pipeline.stages`
+
+**Запрещено** в Shared Library:
+- расчёт версий, тегов, image ref
+- валидация config.yaml
+- shell-команды сборки/тестов/публикации напрямую
+- бизнес-логика deliverables
+
+См. ADR [jenkins-lib-http-nexus.md](../plans/adr/jenkins-lib-http-nexus.md).
 
 ## Если что-то планируется добавить в Jenkinsfile
 
@@ -48,7 +66,3 @@ stage('Build') {
 Исключение возможно только если функциональность **технически невозможна вне Jenkins** (например, Jenkins plugin API, Credentials binding, parallel DSL). В этом случае:
 1. Пользователь осознанно подтверждает решение.
 2. Правило обновляется — добавляется новый разрешённый пункт с обоснованием.
-
-## Разрешённые исключения (актуализируется вручную)
-
-_Пока исключений нет._

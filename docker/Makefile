@@ -1,4 +1,4 @@
-.PHONY: up bootstrap down reset build-jenkins dashboard coin-platform coin-jenkins-agents coin-starters coin-executor agents-build samples e2e-mvp1 postgres-up coin-api-up coin-ui-up endpoints scan-fleet scan-cronjob-apply scan-cronjob-run
+.PHONY: up bootstrap down reset build-jenkins dashboard coin-platform coin-jenkins-agents coin-starters coin-executor coin-gp-content coin-lib agents-build register-jnlp wipe-gp samples e2e-mvp1 postgres-up coin-api-up coin-ui-up endpoints
 
 up:
 	docker compose up -d
@@ -6,35 +6,24 @@ up:
 postgres-up:
 	docker compose up -d postgres
 
-coin-api-up:
-	docker compose up -d postgres coin-api
+build-coin-api:
+	DOCKER_BUILDKIT=1 docker compose --progress plain build coin-api
 
-coin-ui-up:
-	docker compose up -d coin-api coin-ui
+coin-api-up: build-coin-api
+	docker compose up -d --force-recreate postgres coin-api
+
+build-coin-ui:
+	DOCKER_BUILDKIT=1 docker compose --progress plain build coin-ui
+
+coin-ui-up: build-coin-ui
+	docker compose up -d --force-recreate coin-api coin-ui
 
 openapi-ui:
 	cd ../coin-ui && $(MAKE) openapi-ui
 
-scan-fleet:
-	cd ../coin-api && \
-	  DATABASE_URL=postgres://$${POSTGRES_USER:-coin}:$${POSTGRES_PASSWORD:-coin}@localhost:$${POSTGRES_PORT:-5432}/$${POSTGRES_DB:-coin}?sslmode=disable \
-	  GITEA_URL=http://localhost:$${GITEA_HTTP_PORT:-3000} \
-	  GITEA_USER=$${GITEA_USER:-coin} \
-	  GITEA_PASSWORD=$${GITEA_PASSWORD:-coin} \
-	  GITEA_ORG=$${GITEA_ORG:-coin} \
-	  go run ./cmd/scanner
-
-scan-cronjob-apply:
-	docker compose exec -T k3s kubectl apply -f /k3s/coin-scanner-cronjob.yaml
-
-scan-cronjob-run:
-	docker compose exec -T k3s kubectl delete job coin-fleet-scanner-manual --ignore-not-found
-	docker compose exec -T k3s kubectl apply -f /k3s/coin-scanner-job.yaml
-	docker compose exec -T k3s kubectl wait --for=condition=complete job/coin-fleet-scanner-manual --timeout=7200s
-	docker compose exec -T k3s kubectl logs job/coin-fleet-scanner-manual
-
 endpoints:
-	chmod +x scripts/register-stack-endpoints.sh scripts/fix-k3s.sh
+	chmod +x scripts/sync-k3s-registries.sh scripts/register-stack-endpoints.sh scripts/fix-k3s.sh
+	./scripts/sync-k3s-registries.sh
 	./scripts/register-stack-endpoints.sh
 
 build-jenkins:
@@ -72,9 +61,29 @@ coin-executor:
 	chmod +x scripts/coin-executor.sh scripts/lib/common.sh
 	./scripts/coin-executor.sh
 
+coin-gp-content:
+	chmod +x scripts/coin-gp-content.sh scripts/lib/common.sh
+	./scripts/coin-gp-content.sh
+
+coin-lib:
+	chmod +x scripts/coin-lib.sh scripts/lib/common.sh
+	./scripts/coin-lib.sh
+
+coin-lib-http:
+	chmod +x scripts/coin-lib-http.sh scripts/lib/common.sh
+	./scripts/coin-lib-http.sh
+
 agents-build:
 	chmod +x scripts/agents-build.sh scripts/lib/common.sh
 	./scripts/agents-build.sh
+
+register-jnlp:
+	chmod +x scripts/register-jnlp-agent.sh scripts/lib/common.sh
+	./scripts/register-jnlp-agent.sh
+
+wipe-gp:
+	chmod +x scripts/wipe-gp.sh
+	./scripts/wipe-gp.sh
 
 samples:
 	chmod +x scripts/samples.sh scripts/lib/common.sh
@@ -83,3 +92,11 @@ samples:
 e2e-mvp1:
 	chmod +x scripts/e2e-mvp1.sh scripts/lib/common.sh
 	./scripts/e2e-mvp1.sh
+
+seed-jenkins-lib:
+	chmod +x scripts/seed-jenkins-lib-stack.sh scripts/lib/common.sh
+	./scripts/seed-jenkins-lib-stack.sh
+
+e2e-jenkins-lib:
+	chmod +x scripts/e2e-jenkins-lib.sh scripts/lib/common.sh
+	./scripts/e2e-jenkins-lib.sh

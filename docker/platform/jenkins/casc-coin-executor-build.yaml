@@ -1,7 +1,7 @@
 jobs:
   - script: >
       pipelineJob('coin-executor') {
-        description('Platform: coin-executor → Nexus raw (linux binary)')
+        description('Platform: coin-executor bump → build → Nexus maven2 + coin-api')
         definition {
           cpsScm {
             scm {

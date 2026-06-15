@@ -8,9 +8,16 @@
 
 ## Просмотр (Swagger UI)
 
+**Встроенный UI** (coin-api):
+
+- Прямой доступ: http://localhost:8090/docs/
+- Через coin-ui proxy: http://localhost:8091/api/docs/
+- Ссылка **API docs** в header operator console
+
+Спецификация YAML: `GET /openapi/v1.yaml`
+
 ```bash
-# онлайн — загрузить файл в https://editor.swagger.io
-# или локально:
+# альтернатива без coin-api:
 npx @redocly/cli preview-docs coin-api/openapi/v1.yaml
 ```
 
@@ -29,17 +36,23 @@ cd coin-ui && make openapi-ui
 | GET | `/v1/golden-paths/{name}/versions/{ver}/manifest` | Bearer | Resolve manifest |
 | POST | `/v1/builds/report` | Bearer | Build telemetry |
 | GET | `/v1/admin/me` | X-API-Key / Bearer | Current user roles |
-| GET | `/v1/admin/projects` | X-API-Key | Project list |
+| GET | `/v1/admin/projects` | X-API-Key | Project list (`?stale=true`) |
+| GET | `/v1/admin/build-reports` | X-API-Key | Build reports list |
 | GET | `/v1/admin/golden-paths` | X-API-Key | GP releases |
 | GET | `/v1/admin/golden-paths/{name}/versions/{ver}` | X-API-Key | GP release detail + composition |
 | POST | `/v1/admin/golden-paths/{name}/versions` | X-API-Key | Publish GP |
 | GET | `/v1/admin/golden-paths/{name}/versions/{ver}/blast-radius` | X-API-Key | Blast radius |
 | GET | `/v1/admin/components` | X-API-Key | Component registry list |
+| GET | `/v1/admin/components/{type}/{name}` | X-API-Key | Component detail |
+| GET | `/v1/admin/components/{type}/{name}/versions/{ver}` | X-API-Key | Version metadata |
+| GET | `/v1/admin/components/agent/{stack}/next-version?runtime=` | X-API-Key | Следующий `{runtime}-r{N}` для agents-build |
 | POST | `/v1/admin/components/{type}/{name}/versions` | X-API-Key | Publish component |
+| GET/PUT | `/v1/admin/platform/settings` | X-API-Key | Nexus global settings |
+| GET | `/v1/admin/golden-paths/{name}/resolve-preview` | X-API-Key | Resolve debug |
+| GET | `/v1/admin/golden-paths/{name}/projects/{project}/canary-context` | X-API-Key | Canary audience |
 | GET | `/v1/admin/audit-log` | X-API-Key | Audit log list |
 | GET | `/v1/admin/golden-paths/names` | X-API-Key | GP names for wizard |
 | GET | `/v1/admin/golden-paths/{name}/profile` | X-API-Key | Composition slots |
-| POST | `/v1/admin/scan` | X-API-Key | Run fleet scanner |
-| GET | `/metrics` | — | Prometheus (incl. `coin_scan_*`) |
+| GET | `/metrics` | — | Prometheus |
 
 JSON Schema manifest: [`coin-api/manifest.schema.json`](../coin-api/manifest.schema.json)

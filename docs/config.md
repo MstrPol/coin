@@ -96,6 +96,25 @@ Credentials → env при publish: `COIN_REGISTRY_USER`, `COIN_REGISTRY_PASSWOR
 
 ---
 
+## Jenkins glue config layers
+
+`coin-lib` собирает runtime-конфиг для Jenkins из трёх слоёв (поздний побеждает):
+
+| Слой | Источник | Примеры |
+|------|----------|---------|
+| lib | `coin-lib/resources/coin-lib-defaults.yaml` + env | `coin.apiUrl`, credential IDs, registry prefix |
+| GP | resolved `manifest.json` | `runtime.image`, `executor.url`, `pipeline.stages` |
+| project | `.coin/config.yaml` | `coin.goldenPath`, `project.*`, `jenkins.credentials.docker` |
+
+В workspace pod пишутся runtime artifacts (в `.gitignore`):
+
+- `.coin/manifest.json` — для `coin-executor`
+- `.coin/effective-config.yaml` — merged Jenkins glue (debug)
+
+`coin-executor` и GP scripts читают **project** `.coin/config.yaml`, не effective config.
+
+---
+
 ## Verify
 
 ```bash

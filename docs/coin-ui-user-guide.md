@@ -1,11 +1,10 @@
 # coin-ui — руководство пользователя
 
-**Ticket:** P2-08, P3-03  
 **URL (local):** http://localhost:8091
 
 ## Назначение
 
-Operator UI для Control Plane: fleet analytics, GP publish/draft, catalog pins, canary и resolve preview.
+Operator UI для Control Plane: fleet analytics, GP releases, политика версий, canary, resolve preview, component registry, platform settings.
 
 ## Вход
 
@@ -14,66 +13,97 @@ Operator UI для Control Plane: fleet analytics, GP publish/draft, catalog pin
 3. **SSO** — если заданы `VITE_OIDC_AUTHORITY` + `VITE_OIDC_CLIENT_ID` (corp)
 4. **Пропустить** — local dev при `AUTH_DISABLED=true` (роль admin)
 
-После входа header показывает subject и роль. **Publish** виден только `publisher`/`admin`.
+После входа header показывает subject, роль и ссылку **API docs ↗** (Swagger UI).
 
 ### RBAC (local demo)
 
-| Key (docker/.env) | Роль | Publish GP |
-|-------------------|------|------------|
-| `dev-local-admin-key` | admin | ✅ + fleet scan |
+| Key (docker/.env) | Роль | Publish GP / components |
+|-------------------|------|-------------------------|
+| `dev-local-admin-key` | admin | ✅ |
 | `dev-local-publisher-key` | publisher | ✅ |
-| `dev-local-reader-key` | reader | ❌ (403) |
+| `dev-local-reader-key` | reader | ❌ (403 на POST/PUT/PATCH) |
 
 Key или OIDC access token хранится в `localStorage`.
+
+## Nav
+
+| Пункт | Route | RBAC |
+|-------|-------|------|
+| Dashboard | `/` | reader+ |
+| Projects | `/projects` | reader+ |
+| GP Releases | `/releases` | reader+ |
+| GP Policy | `/catalog` | reader+ |
+| Resolve | `/resolve` | reader+ |
+| Canary | `/canary` | reader+ |
+| Components | `/components` | reader+ |
+| Platform | `/platform-settings` | reader+ (edit — publisher+) |
+| Audit | `/audit` | reader+ |
+| Build reports | `/build-reports` | reader+ |
+
+**Publish wizard** — только с GP Releases (кнопка Publish), не в top nav. Route: `/releases/publish`.
 
 ## Страницы
 
 ### Dashboard
 
-- Статус coin-api (`/ready`)
-- Счётчики: projects, GP releases, build reports, golden paths
-- Клик по карточке → Projects / GP Releases
+- Статус coin-api (`GET /ready`) + semver **coin-api** и **coin-ui**
+- Счётчики: projects, **stale projects**, GP releases, build reports, golden paths
+- Клик по карточке → соответствующая страница
 
 ### Projects
 
-Таблица projects с **последним GP binding** (из build report или scanner).
+Регистрация при **первом build report**, обновление при каждом `POST /v1/builds/report`.
 
-Фильтры: `goldenPath`, `version`. URL: `/projects?goldenPath=go-app&version=1.0.0`
+Колонки: name, groupId, artifactId, git repo (ссылка), GP pin, version pin, canary mode, last build, branch.
+
+Фильтры: `goldenPath`, `version`, `stale` (`/projects?stale=1` — без билда >90 дней).
 
 **Canary mode** per project: `default` | `canary` | `stable` — override для pin `*` (см. [canary.md](canary.md)).
 
+### Build reports
+
+История `POST /v1/builds/report`: project, GP, pin, resolved version, result, channel, branch, build URL, время.
+
+Фильтры: project, goldenPath, result.
+
 ### GP Releases
 
-Список published + draft releases из `gp_releases`.
+Список published + draft releases. Dropdown-фильтр по GP.
 
-- **Publish** — wizard ([`/releases/publish`](http://localhost:8091/releases/publish)): create draft snapshot, direct publish, promote draft
-- **Detail** — composition, artifact editor (draft only), blast radius (published)
+- **Publish** — wizard (`/releases/publish`): draft snapshot, direct publish, promote
+- **Detail** — composition, artifact editor (draft), blast radius (published)
 
-### Catalog
+### GP Policy (бывш. Catalog)
 
-Pointer status для GP: `*`, `=latest`, `~`, `^`, `canary:latest`.
+Политика версий GP: latest stable, latest canary, minimum, deprecated.
 
-Редактирование `latest`, `latest_canary`, `minimum`, deprecated list (publisher/admin).
+Превью resolve для pin `*` — stable и canary линии (★).
 
 ### Resolve preview
 
-Тест resolve engine: pin + optional `project` → resolved version, channel header, manifest hash preview.
+Тест resolve engine: pin + project из registry → resolved version, channel, manifest JSON.
+
+При выбранном project — панель **Canary status** (audience, mode, bucket, rollout).
+
+Override **auto | stable | canary** — только для preview (`forceChannel`), не меняет project в БД.
 
 ### Canary
 
-Slider `canary_percent`, preview audience (сколько projects в canary bucket), health badge по build reports.
-
-Пороги degraded/critical — из `canary_policy`.
-
-### Audit log
-
-Журнал append-only mutations: `publish_gp_release`, `publish_component_version`.
-
-Фильтры по `entityType` / `action`, pagination, раскрытие JSON payload.
+Slider `canary_percent`, preview audience, health badge по build reports.
 
 ### Components
 
-Component registry (read-only): type, name, latest version, count versions.
+Component registry (SoT — coin-api). Список → **Detail** (`/components/:type/:name`).
+
+На detail: версии, metadata/contentRef, использование в GP releases, **Publish new version** (publisher).
+
+### Platform settings
+
+Глобальные настройки Nexus (`nexus.mavenBase`, `nexus.credentialsId`) — бывший `platform.yaml`.
+
+### Audit log
+
+Журнал mutations: `publish_gp_release`, `publish_component_version`, `update_platform_settings`, …
 
 ## Запуск
 
@@ -94,17 +124,18 @@ cd coin-ui && npm run dev   # :5173, proxy /api → :8090
 |-----------|----------|
 | Docker | `/api` → nginx → `coin-api:8090` |
 | Vite dev | `/api` → vite proxy → localhost:8090 |
+| Swagger UI | `/api/docs/` → coin-api `/docs/` |
 
 ## Ограничения (pilot)
 
-- Component publish — curl/Admin API (wizard — GP only)
-- Fleet scanner — [scanner-ops.md](runbooks/scanner-ops.md) (`make scan-fleet`, CronJob)
-- Auto-rollback canary — не реализован (только health signal)
 - Corp rollout — [prod-repo-split.md](runbooks/prod-repo-split.md) после corp gate
+- Auto-rollback canary — не реализован (только health signal)
+- Manifest tree viewer — вне scope (resolve preview — JSON)
 
 ## Связанные документы
 
 - [canary.md](canary.md)
 - [fleet-analytics-pm.md](how-to/fleet-analytics-pm.md)
+- [openapi.md](openapi.md)
 - [coin-ui/README.md](../coin-ui/README.md)
 - [local-dev-control-plane.md](how-to/local-dev-control-plane.md)

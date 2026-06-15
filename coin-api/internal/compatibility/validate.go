@@ -46,14 +46,23 @@ func Validate(slots []CompositionSlot, composition map[string]string, rules []Ru
 	}
 
 	for _, rule := range rules {
-		slot, ok := byKey["pipeline"]
+		slot, ok := byKey["gp-content"]
+		if !ok {
+			slot, ok = byKey["pipeline-bundle"]
+		}
+		if !ok {
+			slot, ok = byKey["pipeline"]
+		}
 		if !ok {
 			continue
 		}
-		if rule.SourceType != slot.Type || rule.SourceName != slot.Name {
+		if rule.SourceType != slot.Type && rule.SourceType != "pipeline" {
 			continue
 		}
-		pipelineVer := composition["pipeline"]
+		if rule.SourceName != slot.Name {
+			continue
+		}
+		pipelineVer := composition[slot.Key]
 		if !versionHasPrefix(pipelineVer, rule.VersionPrefix) {
 			continue
 		}

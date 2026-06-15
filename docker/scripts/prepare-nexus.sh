@@ -11,8 +11,8 @@ cd "${ROOT}"
 NEXUS_HTTP_PORT="${NEXUS_HTTP_PORT:-8081}"
 NEXUS_DOCKER_PORT="${NEXUS_DOCKER_PORT:-8082}"
 NEXUS_DOCKER_REPO="${NEXUS_DOCKER_REPO:-coin-docker}"
-NEXUS_MANIFEST_REPO="${NEXUS_MANIFEST_REPO:-coin-manifests}"
-NEXUS_EXECUTOR_REPO="${NEXUS_EXECUTOR_REPO:-coin-executor}"
+NEXUS_MAVEN_RELEASES="${NEXUS_MAVEN_RELEASES:-maven-releases}"
+NEXUS_MAVEN_SNAPSHOTS="${NEXUS_MAVEN_SNAPSHOTS:-maven-snapshots}"
 NEXUS_ADMIN_PASSWORD="${NEXUS_ADMIN_PASSWORD:-coin12345}"
 NEXUS_DOCKER_USER="${NEXUS_DOCKER_USER:-coin}"
 NEXUS_DOCKER_PASSWORD="${NEXUS_DOCKER_PASSWORD:-coin1234}"
@@ -73,6 +73,37 @@ fi
 
 accept_nexus_eula
 
+echo "==> anonymous read: ${NEXUS_MAVEN_RELEASES} + ${NEXUS_MAVEN_SNAPSHOTS} (CI curl без creds)"
+nexus_api -X PUT "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/security/anonymous" \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": true, "userId": "anonymous", "realmName": "NexusAuthorizingRealm"}' >/dev/null
+
+nexus_api -X POST "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/security/roles" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"id\": \"coin-maven-reader\",
+    \"name\": \"coin-maven-reader\",
+    \"description\": \"Anonymous read maven-releases/snapshots (local dev CI)\",
+    \"privileges\": [
+      \"nx-repository-view-maven2-${NEXUS_MAVEN_RELEASES}-browse\",
+      \"nx-repository-view-maven2-${NEXUS_MAVEN_RELEASES}-read\",
+      \"nx-repository-view-maven2-${NEXUS_MAVEN_SNAPSHOTS}-browse\",
+      \"nx-repository-view-maven2-${NEXUS_MAVEN_SNAPSHOTS}-read\"
+    ],
+    \"roles\": []
+  }" >/dev/null 2>&1 || true
+
+nexus_api -X PUT "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/security/users/anonymous" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "anonymous",
+    "firstName": "Anonymous",
+    "lastName": "User",
+    "emailAddress": "anonymous@local",
+    "status": "active",
+    "roles": ["coin-maven-reader", "nx-anonymous"]
+  }' >/dev/null 2>&1 || true
+
 echo "==> enabling Docker Bearer Token realm"
 active_realms="$(nexus_api "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/security/realms/active")"
 if ! echo "${active_realms}" | grep -q 'DockerToken'; then
@@ -108,41 +139,25 @@ if ! nexus_api "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories
     }"
 fi
 
-if ! nexus_api "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories/${NEXUS_MANIFEST_REPO}" >/dev/null 2>&1; then
-  echo "==> creating Nexus raw repo ${NEXUS_MANIFEST_REPO} (manifest cache)"
-  nexus_api -X POST "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories/raw/hosted" \
-    -H "Content-Type: application/json" \
-    -d "{
-      \"name\": \"${NEXUS_MANIFEST_REPO}\",
-      \"online\": true,
-      \"storage\": {
-        \"blobStoreName\": \"default\",
-        \"strictContentTypeValidation\": true,
-        \"writePolicy\": \"ALLOW_ONCE\"
-      },
-      \"raw\": {
-        \"contentDisposition\": \"ATTACHMENT\"
-      }
-    }"
-fi
-
-if ! nexus_api "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories/${NEXUS_EXECUTOR_REPO}" >/dev/null 2>&1; then
-  echo "==> creating Nexus raw repo ${NEXUS_EXECUTOR_REPO} (coin-executor binaries)"
-  nexus_api -X POST "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories/raw/hosted" \
-    -H "Content-Type: application/json" \
-    -d "{
-      \"name\": \"${NEXUS_EXECUTOR_REPO}\",
-      \"online\": true,
-      \"storage\": {
-        \"blobStoreName\": \"default\",
-        \"strictContentTypeValidation\": true,
-        \"writePolicy\": \"ALLOW\"
-      },
-      \"raw\": {
-        \"contentDisposition\": \"ATTACHMENT\"
-      }
-    }"
-fi
+echo "==> maven-snapshots: MIXED version policy (manifest pointers .../metadata/)"
+nexus_api -X PUT "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories/maven/hosted/${NEXUS_MAVEN_SNAPSHOTS}" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"name\": \"${NEXUS_MAVEN_SNAPSHOTS}\",
+    \"online\": true,
+    \"storage\": {
+      \"blobStoreName\": \"default\",
+      \"strictContentTypeValidation\": true,
+      \"writePolicy\": \"ALLOW\"
+    },
+    \"maven\": {
+      \"versionPolicy\": \"MIXED\",
+      \"layoutPolicy\": \"STRICT\"
+    },
+    \"component\": {
+      \"proprietaryComponents\": false
+    }
+  }" >/dev/null 2>&1 || echo "    WARN: could not update ${NEXUS_MAVEN_SNAPSHOTS} (pointers may fail)"
 
 echo "==> configuring role ${NEXUS_DOCKER_USER} for ${NEXUS_DOCKER_REPO}"
 nexus_api -X POST "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/security/roles" \
@@ -188,12 +203,15 @@ for _ in $(seq 1 60); do
   sleep 3
 done
 
+chmod +x "${ROOT}/scripts/sync-k3s-registries.sh" "${ROOT}/scripts/register-stack-endpoints.sh"
+"${ROOT}/scripts/sync-k3s-registries.sh"
+
 NEXUS_IP="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(docker compose ps -q nexus)" 2>/dev/null || true)"
 if [[ -n "${NEXUS_IP}" ]]; then
-  chmod +x "${ROOT}/scripts/register-stack-endpoints.sh"
   "${ROOT}/scripts/register-stack-endpoints.sh"
 fi
 
 echo "Nexus UI:     http://localhost:${NEXUS_HTTP_PORT} (admin / ${NEXUS_ADMIN_PASSWORD})"
 echo "Nexus Docker: localhost:${NEXUS_DOCKER_PORT}/${NEXUS_DOCKER_REPO} (${NEXUS_DOCKER_USER} / ${NEXUS_DOCKER_PASSWORD})"
-echo "Nexus manifests: http://localhost:${NEXUS_HTTP_PORT}/repository/${NEXUS_MANIFEST_REPO}/manifest-{gp}-{ver}.json"
+echo "Nexus maven2:   http://localhost:${NEXUS_HTTP_PORT}/repository/${NEXUS_MAVEN_RELEASES}/coin/..."
+echo "Nexus pointers: http://localhost:${NEXUS_HTTP_PORT}/repository/${NEXUS_MAVEN_SNAPSHOTS}/coin/manifest/{gp}/metadata/"

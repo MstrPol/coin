@@ -14,7 +14,7 @@
 | [how-to/troubleshoot-ci.md](how-to/troubleshoot-ci.md) | On-call — ошибки CI v2 |
 | [runbooks/wave-1-migration.md](runbooks/wave-1-migration.md) | PM — Wave 1 (50 repos) |
 | [runbooks/wave-3-migration.md](runbooks/wave-3-migration.md) | PM — Wave 3 (1500+) + comms templates |
-| [runbooks/scanner-ops.md](runbooks/scanner-ops.md) | DevOps — fleet scanner, CronJob |
+| [runbooks/scanner-ops.md](runbooks/scanner-ops.md) | ~~fleet scanner~~ (superseded — build reports) |
 | [how-to/publish-gp-release.md](how-to/publish-gp-release.md) | Platform — publish GP через Admin API |
 | [coin-ui-user-guide.md](coin-ui-user-guide.md) | PM — dashboard coin-ui |
 | [openapi.md](openapi.md) | OpenAPI / Swagger контракт |
@@ -60,7 +60,7 @@
 
 1. **Продукт** задаёт только `coin.goldenPath` + `coin.version` — всё остальное в manifest.
 2. **coin-api** собирает manifest из PostgreSQL + git content refs.
-3. **Nexus `coin-manifests`** — runtime cache; CI работает при недоступном API.
+3. **Nexus `maven-releases` / `maven-snapshots`** — runtime cache; CI работает при недоступном API.
 4. **coin-executor** — stateless runtime: validate, run stages, report.
 5. **Jenkinsfile.coin** — resolve → pod → executor (без Shared Library).
 

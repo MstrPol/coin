@@ -8,7 +8,8 @@ type Props = {
 
 export default function BlastRadiusChart({ blast, highlightVersion }: Props) {
   const target = highlightVersion ?? blast.version;
-  const max = Math.max(...blast.byVersion.map((v) => v.count), 1);
+  const byVersion = blast.byVersion ?? [];
+  const max = Math.max(...byVersion.map((v) => v.count), 1);
 
   return (
     <div className="space-y-4">
@@ -19,11 +20,11 @@ export default function BlastRadiusChart({ blast, highlightVersion }: Props) {
         </span>
       </p>
 
-      {blast.byVersion.length === 0 ? (
+      {byVersion.length === 0 ? (
         <p className="text-sm text-zinc-500">Нет projects на этом GP</p>
       ) : (
         <ul className="space-y-2">
-          {blast.byVersion.map((v) => {
+          {byVersion.map((v) => {
             const pct = Math.round((v.count / max) * 100);
             const isTarget = v.version === target;
             return (

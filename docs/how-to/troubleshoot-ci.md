@@ -98,8 +98,8 @@ cd docker && make endpoints
 **Fix:** опубликовать оба:
 
 ```
-coin-executor/0.1.0/coin-executor-linux-arm64
-coin-executor/0.1.0/coin-executor-linux-amd64
+maven-releases/coin/executor/coin-executor/0.1.0/coin-executor-0.1.0-linux-arm64
+maven-releases/coin/executor/coin-executor/0.1.0/coin-executor-0.1.0-linux-amd64
 ```
 
 Manifest `executor.url` должен указывать на правильный arch.
@@ -122,7 +122,7 @@ docker compose up -d --build coin-api
 
 **Симптом:** `curl: (22) … coin-executor/0.1.0/… 404`.
 
-**Fix:** platform job `coin-executor` с `PUBLISH=true` или ручной PUT в Nexus raw repo `coin-executor`.
+**Fix:** platform job `coin-executor` с `PUBLISH=true` или PUT в `maven-releases/coin/executor/...`.
 
 ## Report stage
 

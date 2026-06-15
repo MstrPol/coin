@@ -11,8 +11,8 @@ curl http://localhost:8090/health
 curl http://localhost:8090/v1/golden-paths/go-app/versions/1.0.0/manifest
 
 # Nexus fallback (after resolve warmed cache): pointer → blob
-BASE=http://localhost:8081/repository/coin-manifests
-curl -fsS "${BASE}/pointers/go-app/%3D1.0.0.json" | jq .
+BASE=http://localhost:8081/repository/maven-snapshots
+curl -fsS "${BASE}/coin/manifest/go-app/metadata/go-app-metadata-pin-%3D1.0.0.json" | jq .
 
 # MVP-1 E2E smoke (from docker/)
 make e2e-mvp1
@@ -48,11 +48,10 @@ curl -X POST http://localhost:8090/v1/admin/golden-paths/go-app/versions \
 | `OIDC_ISSUER_URL` | — | OIDC issuer (Keycloak realm URL) |
 | `OIDC_AUDIENCE` | — | JWT audience / client ID |
 | `OIDC_ROLES_CLAIM` | `roles` | JWT claim with `[admin,publisher,reader]` |
-| `GITEA_URL` | `http://gitea:3000` | Fleet scanner (list repos) |
-| `GITEA_ORG` | `coin` | Gitea user/org for fleet scanner |
 | `GIT_EXPORT_DISABLED` | `true` | Legacy Gitea tag export removed (PF-17) |
 | `NEXUS_URL` | `http://nexus:8081` | Manifest cache upload |
-| `NEXUS_MANIFEST_REPO` | `coin-manifests` | Raw repo name |
+| `NEXUS_MAVEN_RELEASES` | `maven-releases` | Maven2 hosted (releases) |
+| `NEXUS_MAVEN_SNAPSHOTS` | `maven-snapshots` | Maven2 hosted (pointers, snapshots) |
 
 Migrations run automatically on startup (goose).
 
@@ -61,8 +60,8 @@ Migrations run automatically on startup (goose).
 | Role | Admin API |
 |------|-----------|
 | `reader` | GET `/v1/admin/*` |
-| `publisher` | reader + POST publish GP/components |
-| `admin` | publisher + POST `/v1/admin/scan` |
+| `publisher` | reader + POST publish GP/components + PUT platform settings |
+| `admin` | same as publisher |
 
 ```bash
 curl -H "X-API-Key: dev-local-reader-key" http://localhost:8090/v1/admin/me
@@ -72,6 +71,18 @@ curl -H "X-API-Key: dev-local-publisher-key" -X POST .../golden-paths/go-app/ver
 ```
 
 OIDC: `OIDC_ENABLED=true` + Bearer JWT with `roles` claim. See [coin-ui user guide](../docs/coin-ui-user-guide.md).
+
+## Projects registry
+
+Проекты регистрируются при первом `POST /v1/builds/report` и обновляются при каждом билде.
+Fleet scanner удалён (UI-02).
+
+## Component registry SoT
+
+Версии компонентов (agent, executor, …) публикуются через `POST /v1/admin/components/{type}/{name}/versions`.
+CI repos (`coin-jenkins-agents`, `coin-executor`) отчитывают версии в API после publish артефакта.
+
+Глобальные настройки Nexus: `GET/PUT /v1/admin/platform/settings`.
 
 ## Layout
 
@@ -85,38 +96,8 @@ openapi/v1.yaml        API contract
 manifest.schema.json   Resolved manifest JSON Schema
 ```
 
-## Fleet scanner (P3-01)
+## API docs
 
-```bash
-# from host (Gitea on localhost:3000)
-export DATABASE_URL="postgres://coin:coin@localhost:5432/coin?sslmode=disable"
-export GITEA_URL=http://localhost:3000
-export GITEA_USER=coin GITEA_PASSWORD=coin GITEA_ORG=coin
+Swagger UI: http://localhost:8090/docs/
 
-go run ./cmd/scanner
-go run ./cmd/scanner -force   # ignore incremental SHA cache
-```
-
-Docker: `cd docker && make scan-fleet`
-
-## Fleet scanner API + CronJob (P3-02)
-
-```bash
-# Trigger scan via API (updates Prometheus metrics on coin-api /metrics)
-curl -X POST http://localhost:8090/v1/admin/scan \
-  -H "X-API-Key: dev-local-admin-key"
-
-curl http://localhost:8090/metrics | grep coin_scan
-```
-
-K8s (local k3s in docker-compose):
-
-```bash
-cd docker
-make endpoints              # coin-api Endpoints in k3s
-make scan-cronjob-apply     # nightly CronJob 02:00
-make scan-cronjob-run       # one-off Job + logs
-```
-
-Metrics: `coin_scan_duration_seconds`, `coin_repos_scanned`, `coin_scan_repos_total`,
-`coin_scan_repos_skipped`, `coin_scan_repos_failed`, `coin_scan_last_success_timestamp`.
+OpenAPI: `GET /openapi/v1.yaml`

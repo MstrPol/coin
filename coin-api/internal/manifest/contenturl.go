@@ -1,19 +1,23 @@
 package manifest
 
 import (
-	"fmt"
 	"os"
+	"strings"
+
+	"coin.local/coin-api/internal/nexus"
 )
 
-// ContentArtifactURL builds the Nexus URL for a GP content artifact (PF-15 publishes bytes there).
+// ContentArtifactURL builds the Nexus maven2 URL for a GP content artifact.
 func ContentArtifactURL(gpName, gpVersion, artifactKey string) string {
 	base := os.Getenv("NEXUS_URL")
 	if base == "" {
 		base = "http://nexus:8081"
 	}
-	repo := os.Getenv("NEXUS_MANIFEST_REPO")
-	if repo == "" {
-		repo = "coin-manifests"
+	ext := ""
+	if i := strings.LastIndex(artifactKey, "."); i >= 0 {
+		ext = artifactKey[i+1:]
 	}
-	return fmt.Sprintf("%s/repository/%s/content/%s/%s/%s", base, repo, gpName, gpVersion, artifactKey)
+	classifier := nexus.ClassifierFromArtifactKey(artifactKey)
+	repo := nexus.MavenRepoForVersion(gpVersion)
+	return nexus.MavenArtifactURL(base, repo, "coin.gp.content", gpName, gpVersion, classifier, ext)
 }

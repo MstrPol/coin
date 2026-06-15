@@ -12,7 +12,7 @@
 |------|-----|------|
 | Content | Git `coin-platform/content/` | scripts, Dockerfile, JSON Schema |
 | Metadata | PostgreSQL | composition GP, semver, registry, audit |
-| Runtime cache | Nexus `coin-manifests` | immutable manifest JSON per GP release |
+| Runtime cache | Nexus `maven-releases` / `maven-snapshots` | immutable manifest blobs + mutable pointers |
 
 Новые компоненты:
 

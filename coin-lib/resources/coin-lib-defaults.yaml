@@ -1,0 +1,28 @@
+# Jenkins glue defaults — lowest priority layer (lib < GP/manifest < project).
+coin:
+  apiUrl: http://coin-api:8090
+  manifestCacheBase: http://nexus:8081/repository/maven-snapshots
+
+jenkins:
+  credentials:
+    apiToken: coin-api-token
+    nexus: nexus-admin
+    docker: nexus-docker
+  registry:
+    prefix: localhost:8082/coin-docker
+  jnlp:
+    image: jenkins/inbound-agent:3327.v868139a_d00e0-8
+
+pod:
+  jnlp:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      memory: "512Mi"
+  stack:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      memory: "4Gi"

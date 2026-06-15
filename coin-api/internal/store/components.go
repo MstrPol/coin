@@ -9,7 +9,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-var ErrDuplicateVersion = errors.New("component version already exists")
+var (
+	ErrDuplicateVersion  = errors.New("component version already exists")
+	ErrDuplicateComponent = errors.New("component already exists")
+)
 
 type ComponentVersionInput struct {
 	Type       string
@@ -29,6 +32,25 @@ type ComponentVersionRow struct {
 	Status       string
 	Metadata     json.RawMessage
 	ContentRef   json.RawMessage
+}
+
+func (s *Store) CreateComponent(ctx context.Context, typ, name, actor string) error {
+	if typ == "" || name == "" {
+		return fmt.Errorf("type and name are required")
+	}
+	_, err := s.pool.Exec(ctx, `INSERT INTO components (type, name) VALUES ($1, $2)`, typ, name)
+	if isUniqueViolation(err) {
+		return ErrDuplicateComponent
+	}
+	if err != nil {
+		return err
+	}
+	entityKey := fmt.Sprintf("%s/%s", typ, name)
+	_, err = s.pool.Exec(ctx, `
+		INSERT INTO audit_log (action, entity_type, entity_key, actor, payload)
+		VALUES ('create_component', 'component', $1, $2, '{}'::jsonb)
+	`, entityKey, nullIfEmpty(actor))
+	return err
 }
 
 func (s *Store) PublishComponentVersion(ctx context.Context, in ComponentVersionInput) (ComponentVersionRow, error) {

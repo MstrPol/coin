@@ -1,8 +1,10 @@
 # Scanner ops — fleet scan runbook
 
+> **SUPERSEDED (UI-02, 2026-06):** Fleet scanner удалён. Projects registry — только через `POST /v1/builds/report`. CronJob и `make scan-fleet` больше не используются.
+
 **Ticket:** P3-05  
 **Audience:** Platform / DevOps on-call  
-**Component:** `coin-api/cmd/scanner`, CronJob `coin-fleet-scanner`
+**Component:** ~~`coin-api/cmd/scanner`~~, ~~CronJob `coin-fleet-scanner`~~
 
 ## Назначение
 

@@ -40,9 +40,9 @@ Split monorepo dev layout → production Gitea repos:
 | Repo | Source path | CI |
 |------|-------------|-----|
 | `coin/coin-api` | `coin-api/` | Jenkinsfile in repo, image → registry |
-| `coin/coin-executor` | `coin-executor/` | publish to Nexus raw |
+| `coin/coin-executor` | `coin-executor/` | publish to Nexus maven-releases |
 | `coin/coin-ui` | `coin-ui/` | image + static nginx |
-| `coin/coin-jenkins-agents` | `coin-jenkins-agents/` | Jenkinsfile, stacks, catalog.yaml, platform.yaml |
+| `coin/coin-jenkins-agents` | `coin-jenkins-agents/` | Jenkinsfile, agents/ |
 | `coin/coin-starters` | `coin-starters/` | product scaffolding |
 
 ### Checklist per repo

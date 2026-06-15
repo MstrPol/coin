@@ -1,0 +1,77 @@
+// Platform CI: bump semver → ZIP → Nexus → register lib/coin-lib.
+
+pipeline {
+    agent any
+
+    parameters {
+        choice(name: 'BUMP', choices: ['patch', 'minor', 'major'], description: 'Semver bump от latest в coin-api')
+    }
+
+    environment {
+        COIN_API_URL = 'http://coin-api:8090'
+        NEXUS_URL = 'http://nexus:8081'
+        NEXUS_MAVEN_RELEASES = 'maven-releases'
+        NEXUS_MAVEN_SNAPSHOTS = 'maven-snapshots'
+    }
+
+    stages {
+        stage('Resolve version') {
+            steps {
+                script {
+                    def alloc = nextLibVersion('coin-lib', params.BUMP)
+                    env.LIB_VERSION = alloc.nextVersion
+                    if (alloc.isFirst) {
+                        echo "==> lib/coin-lib: первая регистрация → ${alloc.nextVersion}"
+                    } else {
+                        echo "==> lib/coin-lib: ${alloc.currentVersion} + ${params.BUMP} → ${alloc.nextVersion}"
+                    }
+                }
+            }
+        }
+        stage('Publish lib') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'nexus-admin',
+                        usernameVariable: 'NEXUS_USER',
+                        passwordVariable: 'NEXUS_PASSWORD',
+                    ),
+                    string(credentialsId: 'coin-publisher-api-key', variable: 'COIN_API_KEY'),
+                ]) {
+                    sh './scripts/publish-lib.sh "${LIB_VERSION}"'
+                }
+            }
+        }
+    }
+}
+
+@NonCPS
+def parseNextLibVersionResponse(String json, String name, String bump) {
+    def parsed = new groovy.json.JsonSlurper().parseText(json)
+    return [
+        name: name,
+        bump: bump,
+        currentVersion: (parsed.currentVersion ?: '').toString(),
+        nextVersion: parsed.nextVersion.toString(),
+        isFirst: parsed.isFirst == true,
+    ]
+}
+
+def nextLibVersion(name, bump) {
+    withCredentials([string(credentialsId: 'coin-publisher-api-key', variable: 'COIN_API_KEY')]) {
+        def status = sh(
+            script: """
+                set +e
+                code=\$(curl -s -o next-ver.json -w '%{http_code}' \\
+                  -H "X-API-Key: \${COIN_API_KEY}" \\
+                  '${env.COIN_API_URL}/v1/admin/components/lib/${name}/next-version?bump=${bump}')
+                echo "\${code}"
+            """,
+            returnStdout: true,
+        ).trim()
+        if (status == '200') {
+            return parseNextLibVersionResponse(readFile('next-ver.json'), name, bump)
+        }
+        error("lib next-version HTTP ${status}")
+    }
+}

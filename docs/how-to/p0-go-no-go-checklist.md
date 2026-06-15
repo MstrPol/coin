@@ -11,7 +11,7 @@
 | # | Критерий | Статус | Verify |
 |---|----------|--------|--------|
 | 1 | demo-go-app E2E green без lib/cli | ✅ | Jenkins `demo-go-app/main` #13 SUCCESS + Report |
-| 2 | Manifest в Nexus cache | ✅ | pointer `pointers/go-app/%3D1.0.0.json` + blob |
+| 2 | Manifest в Nexus cache | ✅ | pointer `maven-snapshots/coin/manifest/go-app/metadata/...` + blob |
 | 3 | coin-api `/ready` | ✅ | `curl localhost:8090/ready` → `{"status":"ready"}` |
 | 4 | Resolve + fallback | ✅ | coin-api stopped → Nexus manifest readable |
 | 5 | Hard cut lib/cli | ✅ | `go-app/Jenkinsfile` без `@Library`; README DEPRECATED |
@@ -32,8 +32,8 @@
 
 ```bash
 curl -sf http://localhost:8090/ready
-BASE=http://localhost:8081/repository/coin-manifests
-curl -sf "${BASE}/pointers/go-app/%3D1.0.0.json" | jq .manifestHash
+SNAPSHOTS=http://localhost:8081/repository/maven-snapshots
+curl -sf "${SNAPSHOTS}/coin/manifest/go-app/metadata/go-app-metadata-pin-%3D1.0.0.json" | jq .manifestHash
 curl -sf -u admin:admin http://localhost:8080/job/demo-go-app/job/main/lastBuild/api/json?tree=result
 ```
 
@@ -41,7 +41,7 @@ curl -sf -u admin:admin http://localhost:8080/job/demo-go-app/job/main/lastBuild
 
 ```bash
 docker compose stop coin-api
-curl -sf "${BASE}/pointers/go-app/%3D1.0.0.json"  # OK
+curl -sf "${SNAPSHOTS}/coin/manifest/go-app/metadata/go-app-metadata-pin-%3D1.0.0.json"  # OK
 docker compose start coin-api
 cd docker && make e2e-mvp1
 ```

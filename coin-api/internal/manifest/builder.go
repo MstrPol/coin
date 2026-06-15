@@ -18,24 +18,35 @@ type GPRelease struct {
 }
 
 type Composition struct {
-	ExecutorVersion   string
-	AgentImage        string
-	AgentDigest       string
-	ExecutorURL       string
-	ExecutorSHA256    string
-	PipelineVersion   string
-	ValidateVersion   string
-	DockerfileVersion string
+	ExecutorVersion      string
+	AgentImage           string
+	AgentDigest          string
+	JnlpImage            string
+	JnlpDigest           string
+	ExecutorURL          string
+	ExecutorSHA256       string
+	LibName              string
+	LibVersion           string
+	GPContentName        string
+	GPContentVersion     string
+	PipelineVersion      string
+	ValidateVersion      string
+	DockerfileVersion    string
 }
 
 type ContentBundle struct {
-	SchemaArtifactKey         string
-	SchemaSHA256              string
-	DockerfileArtifactKey     string
-	DockerfileSHA256          string
-	OrchestrationArtifactKey  string
-	OrchestrationSHA256       string
-	Stages                    []StageScript
+	BundleURL             string
+	BundleSHA256          string
+	BundleEntrypoint      string
+	BuildControls         map[string]any
+	Capabilities          map[string]any
+	SchemaArtifactKey     string
+	SchemaSHA256          string
+	DockerfileArtifactKey string
+	DockerfileSHA256      string
+	OrchestrationArtifactKey string
+	OrchestrationSHA256      string
+	Stages                []StageScript
 }
 
 type StageScript struct {
@@ -54,22 +65,28 @@ func (b Builder) Build(release GPRelease) (map[string]any, string, error) {
 		},
 		"executor": map[string]string{
 			"version": release.Parts.ExecutorVersion,
-			"url":     release.Parts.ExecutorURL,
+			"url":     RuntimeNexusURL(release.Parts.ExecutorURL),
 			"sha256":  release.Parts.ExecutorSHA256,
 		},
 		"runtime": map[string]string{
 			"image":  release.Parts.AgentImage,
 			"digest": release.Parts.AgentDigest,
 		},
+		"jnlp": map[string]string{
+			"image":  release.Parts.JnlpImage,
+			"digest": release.Parts.JnlpDigest,
+		},
 		"pipeline": map[string]any{
 			"stages": b.stages(release),
 		},
-		"orchestration": contentRef(release.Name, release.Version, release.Content.OrchestrationArtifactKey, release.Content.OrchestrationSHA256),
 		"validateSchema": contentRef(release.Name, release.Version, release.Content.SchemaArtifactKey, release.Content.SchemaSHA256),
 		"dockerfileTemplate": contentRef(release.Name, release.Version, release.Content.DockerfileArtifactKey, release.Content.DockerfileSHA256),
 		"credentials": map[string]string{
 			"docker": "nexus-docker",
 		},
+	}
+	if len(release.Content.Capabilities) > 0 {
+		doc["capabilities"] = release.Content.Capabilities
 	}
 
 	raw, err := canonicalJSON(doc)

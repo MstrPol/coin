@@ -19,7 +19,9 @@
 - **coin-executor** — bounded runtime (см. [CHARTER](../coin-executor/CHARTER.md)).
 - **Agent images** — `coin-jenkins-agents/`.
 - **Universal Jenkinsfile** — `starters/Jenkinsfile.coin`.
-- Platform CI: `coin-executor`, `agents-build`.
+- Platform CI: `coin-executor`, `coin-gp-content`, `coin-lib`, `agents-build`.
+- **coin-lib** — Jenkins Shared Library (glue only: resolve, pod, credentials, stage dispatch).
+- **coin-gp-content** — scripts, Dockerfile, schema per golden path (Nexus + coin-api).
 
 ## Граница coin-executor
 
@@ -41,7 +43,8 @@
 | Артефакт | Владелец |
 |----------|----------|
 | `coin-api`, `coin-executor` | Platform |
-| GP content (scripts, Dockerfile) | coin-api + Nexus |
+| GP content (scripts, Dockerfile, schema) | `coin-gp-content` CI → Nexus + `gp_artifact_bodies` |
+| Jenkins glue (`coinPipeline`) | `coin-lib` (Gitea tag 1.0.0 phase 1, Nexus HTTP ZIP target) |
 | `.coin/config.yaml` | Команда |
 | App OCI image | Команда (registry) |
 

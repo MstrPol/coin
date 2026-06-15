@@ -57,6 +57,11 @@ credentials:
               id: coin-api-token
               secret: ${COIN_API_TOKEN:-dev-local-token}
               description: "coin-api Bearer token (Resolve + report)"
+          - string:
+              scope: GLOBAL
+              id: coin-publisher-api-key
+              secret: ${COIN_PUBLISHER_API_KEY:-dev-local-publisher-key}
+              description: "coin-api publisher API key (agent version register)"
 
 unclassified:
   location:

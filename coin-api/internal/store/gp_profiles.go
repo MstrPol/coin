@@ -19,8 +19,11 @@ type GPProfileSlot struct {
 }
 
 type GPProfile struct {
-	Name  string          `json:"name"`
-	Slots []GPProfileSlot `json:"slots"`
+	Name                  string          `json:"name"`
+	AgentStack            string          `json:"agentStack,omitempty"`
+	DefaultLib       string `json:"defaultLib,omitempty"`
+	DefaultGPContent string `json:"defaultGpContent,omitempty"`
+	Slots                 []GPProfileSlot `json:"slots"`
 }
 
 func (s *Store) profileSlots(ctx context.Context, name string) ([]compatibility.CompositionSlot, error) {
@@ -63,12 +66,38 @@ func (s *Store) ListGPNames(ctx context.Context) ([]string, error) {
 	return names, rows.Err()
 }
 
+func agentStackFromSlots(slots []GPProfileSlot) string {
+	for _, slot := range slots {
+		if slot.Key == "agent" {
+			return slot.Name
+		}
+	}
+	return ""
+}
+
+func agentStackFromCompositionSlots(slots []compatibility.CompositionSlot) string {
+	for _, slot := range slots {
+		if slot.Key == "agent" {
+			return slot.Name
+		}
+	}
+	return ""
+}
+
 func (s *Store) GetGPProfile(ctx context.Context, name string) (GPProfile, error) {
 	slots, err := s.profileSlots(ctx, name)
 	if err != nil {
 		return GPProfile{}, err
 	}
-	out := GPProfile{Name: name, Slots: make([]GPProfileSlot, len(slots))}
+	out := GPProfile{
+		Name:       name,
+		AgentStack: agentStackFromCompositionSlots(slots),
+		Slots:      make([]GPProfileSlot, len(slots)),
+	}
+	if out.AgentStack != "" {
+		out.DefaultLib = "lib/coin-lib"
+		out.DefaultGPContent = "gp-content/" + name
+	}
 	for i, slot := range slots {
 		out.Slots[i] = GPProfileSlot{Key: slot.Key, Type: slot.Type, Name: slot.Name}
 	}
@@ -92,8 +121,77 @@ func (s *Store) CreateGPProfile(ctx context.Context, name string, slots []GPProf
 	return err
 }
 
+func (s *Store) CreateGPProfileByAgentStack(ctx context.Context, name, agentStack string) error {
+	if name == "" || agentStack == "" {
+		return fmt.Errorf("name and agentStack are required")
+	}
+	return s.CreateGPProfile(ctx, name, CanonicalGPSlots(name, agentStack))
+}
+
+var canonicalSlotKeys = []string{"jnlp", "agent", "executor", "lib", "gp-content"}
+
+// ValidateCanonicalGPSlots ensures profile uses the five-component GP model.
+func ValidateCanonicalGPSlots(slots []GPProfileSlot) error {
+	if len(slots) != len(canonicalSlotKeys) {
+		return fmt.Errorf("gp profile must have exactly %d slots", len(canonicalSlotKeys))
+	}
+	seen := make(map[string]bool, len(slots))
+	for _, slot := range slots {
+		if slot.Key == "" || slot.Type == "" || slot.Name == "" {
+			return fmt.Errorf("slot key, type and name are required")
+		}
+		seen[slot.Key] = true
+	}
+	for _, key := range canonicalSlotKeys {
+		if !seen[key] {
+			return fmt.Errorf("missing slot %q", key)
+		}
+	}
+	for _, slot := range slots {
+		switch slot.Key {
+		case "jnlp":
+			if slot.Type != "agent" || slot.Name != "jnlp" {
+				return fmt.Errorf("jnlp slot must be agent/jnlp")
+			}
+		case "agent":
+			if slot.Type != "agent" || slot.Name == "" || slot.Name == "jnlp" {
+				return fmt.Errorf("agent slot must be agent/{stack}")
+			}
+		case "executor":
+			if slot.Type != "executor" || slot.Name != "coin-executor" {
+				return fmt.Errorf("executor slot must be executor/coin-executor")
+			}
+		case "lib":
+			if slot.Type != "lib" || slot.Name == "" {
+				return fmt.Errorf("lib slot must be lib/{name}")
+			}
+		case "gp-content":
+			if slot.Type != "gp-content" || slot.Name == "" {
+				return fmt.Errorf("gp-content slot must be gp-content/{golden-path}")
+			}
+		default:
+			return fmt.Errorf("unknown slot key %q", slot.Key)
+		}
+	}
+	return nil
+}
+
 func (s *Store) CreateGPProfileWithDefaults(ctx context.Context, name string, slots []GPProfileSlot, actor string) error {
 	if err := s.CreateGPProfile(ctx, name, slots); err != nil {
+		return err
+	}
+	if _, err := s.pool.Exec(ctx, `INSERT INTO canary_policy (gp_name) VALUES ($1) ON CONFLICT DO NOTHING`, name); err != nil {
+		return err
+	}
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO audit_log (action, entity_type, entity_key, actor, payload)
+		VALUES ('create_gp_profile', 'gp_profile', $1, $2, '{}'::jsonb)
+	`, name, nullIfEmpty(actor))
+	return err
+}
+
+func (s *Store) CreateGPProfileByAgentStackWithDefaults(ctx context.Context, name, agentStack, actor string) error {
+	if err := s.CreateGPProfileByAgentStack(ctx, name, agentStack); err != nil {
 		return err
 	}
 	if _, err := s.pool.Exec(ctx, `INSERT INTO canary_policy (gp_name) VALUES ($1) ON CONFLICT DO NOTHING`, name); err != nil {

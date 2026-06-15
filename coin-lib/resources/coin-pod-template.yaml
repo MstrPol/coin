@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+    - name: jnlp
+      image: ${JNLP_IMAGE}
+      resources:
+        requests:
+          cpu: "${JNLP_CPU_REQUEST}"
+          memory: "${JNLP_MEMORY_REQUEST}"
+        limits:
+          memory: "${JNLP_MEMORY_LIMIT}"
+    - name: stack
+      image: ${STACK_IMAGE}
+      command: ["sleep"]
+      args: ["infinity"]
+      tty: true
+      securityContext:
+        runAsUser: 0
+      env:
+        - name: COIN_REGISTRY_PREFIX
+          value: "${REGISTRY_PREFIX}"
+      volumeMounts:
+        - name: docker-sock
+          mountPath: /var/run/docker.sock
+      resources:
+        requests:
+          cpu: "${STACK_CPU_REQUEST}"
+          memory: "${STACK_MEMORY_REQUEST}"
+        limits:
+          memory: "${STACK_MEMORY_LIMIT}"
+  volumes:
+    - name: docker-sock
+      hostPath:
+        path: /var/run/docker.sock
+        type: Socket

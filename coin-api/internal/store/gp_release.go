@@ -9,7 +9,9 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"coin.local/coin-api/internal/compatibility"
+	"coin.local/coin-api/internal/gpcontent"
 	"coin.local/coin-api/internal/manifest"
+	"coin.local/coin-api/internal/pin"
 )
 
 var (
@@ -36,6 +38,9 @@ type GPReleaseRow struct {
 func (s *Store) PublishGPRelease(ctx context.Context, in PublishGPReleaseInput) (GPReleaseRow, error) {
 	if in.Name == "" || in.Version == "" {
 		return GPReleaseRow{}, fmt.Errorf("name and version are required")
+	}
+	if pin.IsSnapshotVersion(in.Version) {
+		return GPReleaseRow{}, fmt.Errorf("published version cannot contain snapshot suffix")
 	}
 
 	slots, err := s.profileSlots(ctx, in.Name)
@@ -116,6 +121,16 @@ func (s *Store) PublishGPRelease(ctx context.Context, in PublishGPReleaseInput) 
 
 	if err := tx.Commit(ctx); err != nil {
 		return GPReleaseRow{}, err
+	}
+
+	seeded := false
+	if contentName, contentVer, err := s.gpContentVersionFromComposition(ctx, in.Name, in.Version); err == nil {
+		if err := s.seedGPArtifactsFromGPContent(ctx, releaseID, contentName, contentVer); err == nil {
+			seeded = true
+		}
+	}
+	if !seeded {
+		_ = gpcontent.SeedArtifactsToRelease(ctx, s.pool, in.Name, releaseID)
 	}
 
 	return GPReleaseRow{
@@ -205,6 +220,16 @@ type pipelineRefDoc struct {
 }
 
 func (s *Store) loadContentBundle(ctx context.Context, gpName, gpVersion string) (manifest.ContentBundle, error) {
+	contentName, contentVer, err := s.gpContentVersionFromComposition(ctx, gpName, gpVersion)
+	if err == nil {
+		meta, cref, err := s.getGPContentRefs(ctx, contentName, contentVer)
+		if err != nil {
+			return manifest.ContentBundle{}, err
+		}
+		return contentBundleFromGPContent(meta, cref), nil
+	}
+
+	// Legacy 6-slot composition fallback
 	pipelineRaw, err := s.getCompositionContentRef(ctx, gpName, gpVersion, "pipeline", "go-build")
 	if err != nil {
 		return manifest.ContentBundle{}, err

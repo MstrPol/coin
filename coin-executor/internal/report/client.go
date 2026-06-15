@@ -11,12 +11,16 @@ import (
 
 	"coin.local/coin-executor/internal/config"
 	"coin.local/coin-executor/internal/manifest"
+	"coin.local/coin-executor/internal/outputs"
 )
 
 type Payload struct {
 	Project         string `json:"project"`
+	GroupID         string `json:"groupId,omitempty"`
+	ArtifactID      string `json:"artifactId,omitempty"`
 	GoldenPath      string `json:"goldenPath"`
 	Version         string `json:"version"`
+	ConfigVersion   string `json:"configVersion,omitempty"`
 	Branch          string `json:"branch,omitempty"`
 	BuildURL        string `json:"buildUrl,omitempty"`
 	Result          string `json:"result"`
@@ -25,7 +29,8 @@ type Payload struct {
 	Channel         string `json:"channel,omitempty"`
 	RequestedPin    string `json:"requestedPin,omitempty"`
 	FailedStage     string `json:"failedStage,omitempty"`
-	ResolvedVersion string `json:"resolvedVersion,omitempty"`
+	ResolvedVersion string          `json:"resolvedVersion,omitempty"`
+	Outputs         []outputs.Entry `json:"outputs,omitempty"`
 }
 
 func Submit(projectPath, manifestPath, buildURL, result string) error {
@@ -38,10 +43,16 @@ func Submit(projectPath, manifestPath, buildURL, result string) error {
 		return err
 	}
 
+	wd, _ := os.Getwd()
+	reportOutputs, _ := outputs.Load(wd)
+
 	payload := Payload{
 		Project:         cfg.Project.Name,
+		GroupID:         cfg.Project.GroupID,
+		ArtifactID:      cfg.Project.ArtifactID,
 		GoldenPath:      m.GoldenPath.Name,
 		Version:         m.GoldenPath.Version,
+		ConfigVersion:   cfg.Coin.Version,
 		Branch:          strings.TrimSpace(os.Getenv("GIT_BRANCH")),
 		BuildURL:        buildURL,
 		Result:          result,
@@ -51,6 +62,7 @@ func Submit(projectPath, manifestPath, buildURL, result string) error {
 		RequestedPin:    strings.TrimSpace(os.Getenv("COIN_REQUESTED_PIN")),
 		FailedStage:     strings.TrimSpace(os.Getenv("COIN_FAILED_STAGE")),
 		ResolvedVersion: m.GoldenPath.Version,
+		Outputs:         reportOutputs,
 	}
 
 	raw, err := json.Marshal(payload)

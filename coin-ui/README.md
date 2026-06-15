@@ -19,17 +19,25 @@ cd docker
 make coin-ui-up   # http://localhost:8091
 ```
 
-## Pages
+## Pages & nav
 
-| Route | Содержание | RBAC |
-|-------|------------|------|
-| `/` | Dashboard | reader+ |
-| `/projects` | Projects + filters | reader+ |
-| `/releases` | GP releases list | reader+ |
-| `/releases/:name/:version` | Detail + blast radius | reader+ |
-| `/releases/publish` | Publish wizard | publisher+ |
-| `/components` | Component registry | reader+ |
-| `/audit` | Audit log | reader+ |
+| Route | Содержание | Nav | RBAC |
+|-------|------------|-----|------|
+| `/` | Dashboard (status, versions, stats) | Dashboard | reader+ |
+| `/projects` | Projects registry + canary mode | Projects | reader+ |
+| `/build-reports` | Build reports list | — (Dashboard link) | reader+ |
+| `/releases` | GP releases + GP filter | GP Releases | reader+ |
+| `/releases/:name/:version` | Detail, artifacts, blast radius | — | reader+ |
+| `/releases/publish` | Publish wizard | — (кнопка на GP Releases) | publisher+ |
+| `/catalog` | GP Policy (version policy) | GP Policy | reader+ |
+| `/resolve` | Resolve preview + canary debug | Resolve | reader+ |
+| `/canary` | Canary policy + health | Canary | reader+ |
+| `/components` | Component list | Components | reader+ |
+| `/components/:type/:name` | Component detail + publish | — | reader+ |
+| `/platform-settings` | Nexus platform settings | Platform | reader+ / edit publisher+ |
+| `/audit` | Audit log | Audit | reader+ |
+
+Header: **API docs ↗** → `/api/docs/` (Swagger UI через proxy).
 
 User guide: [docs/coin-ui-user-guide.md](../docs/coin-ui-user-guide.md)
 

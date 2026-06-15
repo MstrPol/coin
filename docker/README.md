@@ -23,13 +23,15 @@ make coin-jenkins-agents            # agents → Gitea coin/coin-jenkins-agents
 make coin-starters                  # starters → Gitea (optional)
 make coin-platform                  # alias: agents + starters
 make coin-executor            # executor → Gitea + job coin-executor
+make coin-gp-content          # gp-content → Gitea + job coin-gp-content
+make coin-lib                 # Shared Library → Gitea (tag 1.0.0) + Global Lib + job
+make seed-jenkins-lib         # publish lib + gp-content + GP go-app@1.0.1
+make e2e-jenkins-lib          # API E2E checks (jenkins-lib model)
 make agents-build             # job agents-build (JCasC)
 make samples                  # demo-продукты → samples/ + Gitea + multibranch jobs
 make coin-api-up              # только postgres + coin-api
 make coin-ui-up               # coin-api + coin-ui → http://localhost:8091
-make scan-fleet               # Gitea scanner → projects registry (P3-01)
-make scan-cronjob-apply       # K8s CronJob nightly scan (P3-02)
-make scan-cronjob-run         # one-off scan Job в k3s
+# Projects registry — через build reports (fleet scanner удалён, UI-02)
 ```
 
 **Control Plane v2:** продуктовые repo используют `Jenkinsfile.coin` + `coin-executor`.
@@ -63,10 +65,12 @@ Docker registry: `localhost:8082/coin-docker` (`coin` / `coin1234`).
 
 | Команда | Gitea | Jenkins |
 |---------|-------|---------|
-| `make coin-jenkins-agents` | `coin/coin-jenkins-agents` | sync `catalog.yaml` из Gitea |
+| `make coin-jenkins-agents` | `coin/coin-jenkins-agents` | push repo в Gitea |
 | `make coin-starters` | `coin/coin-starters` | — |
 | `make coin-platform` | оба repo | Makefile alias |
 | `make coin-executor` | `coin/coin-executor` | job `coin-executor` |
+| `make coin-gp-content` | `coin/coin-gp-content` | job `coin-gp-content` |
+| `make coin-lib` | `coin/coin-lib` | job `coin-lib` + Global Lib (tag 1.0.0) |
 | `make agents-build` | — | job `agents-build` |
 | `make samples` | `coin/demo-*` | multibranch job на каждый demo-репо |
 
@@ -74,9 +78,8 @@ Docker registry: `localhost:8082/coin-docker` (`coin` / `coin1234`).
 
 | Команда | Sync из Gitea → monorepo | State file |
 |---------|--------------------------|------------|
-| `make coin-jenkins-agents` | `catalog.yaml` | `docker/.coin-jenkins-agents-sync.sha256` |
 
-JCasc reload — у `coin-executor`, `agents-build`, `samples`.
+JCasc reload — у `coin-executor`, `coin-gp-content`, `coin-lib`, `agents-build`, `samples`.
 
 ### Demo-продукты
 
@@ -101,6 +104,8 @@ make samples    # starters → samples/<repo>/ + Gitea + Jenkins multibranch job
 - `coin/coin-jenkins-agents`
 - `coin/coin-starters`
 - `coin/coin-executor`
+- `coin/coin-gp-content`
+- `coin/coin-lib`
 
 **Product demos** (после `make samples`)
 

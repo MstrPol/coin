@@ -23,9 +23,9 @@ func NewFromEnv() *Client {
 	if base == "" {
 		base = "http://nexus:8081"
 	}
-	repo := os.Getenv("NEXUS_MANIFEST_REPO")
+	repo := os.Getenv("NEXUS_MAVEN_RELEASES")
 	if repo == "" {
-		repo = "coin-manifests"
+		repo = MavenReleases
 	}
 	return &Client{
 		baseURL:    strings.TrimRight(base, "/"),
@@ -41,28 +41,33 @@ type PointerDoc struct {
 	BlobURL         string `json:"blobUrl"`
 }
 
-// UploadManifestBlob stores an immutable manifest snapshot keyed by manifestHash.
-func (c *Client) UploadManifestBlob(ctx context.Context, manifestHash string, doc map[string]any) (string, error) {
+// UploadManifestBlob stores an immutable manifest snapshot at coin/manifest/{gp}/{version}/{gp}-{version}.json.
+func (c *Client) UploadManifestBlob(ctx context.Context, gpName, version string, doc map[string]any) (string, error) {
 	raw, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		return "", err
 	}
-	path := fmt.Sprintf("manifest/blobs/%s.json", blobFileName(manifestHash))
-	return c.put(ctx, path, raw, "application/json")
+	repo := MavenRepoForVersion(version)
+	path := MavenRepoPath("coin.manifest", gpName, version, "", "json")
+	return c.putRepo(ctx, repo, path, raw, "application/json")
 }
 
 // UploadContentArtifact stores GP stage/schema/dockerfile bytes in Nexus.
 func (c *Client) UploadContentArtifact(ctx context.Context, gpName, version, artifactKey string, body []byte) (string, error) {
-	path := fmt.Sprintf("content/%s/%s/%s", gpName, version, artifactKey)
-	contentType := "application/octet-stream"
-	if strings.HasSuffix(artifactKey, ".json") {
-		contentType = "application/json"
-	} else if strings.HasSuffix(artifactKey, ".sh") {
-		contentType = "text/x-shellscript"
-	} else if artifactKey == "Dockerfile" {
-		contentType = "text/plain"
+	ext := ""
+	if i := strings.LastIndex(artifactKey, "."); i >= 0 {
+		ext = artifactKey[i+1:]
 	}
-	return c.put(ctx, path, body, contentType)
+	classifier := ClassifierFromArtifactKey(artifactKey)
+	repo := MavenRepoForVersion(version)
+	path := MavenRepoPath("coin.gp.content", gpName, version, classifier, ext)
+	contentType := "application/octet-stream"
+	if ext == "json" {
+		contentType = "application/json"
+	} else if ext == "sh" {
+		contentType = "text/x-shellscript"
+	}
+	return c.putRepo(ctx, repo, path, body, contentType)
 }
 
 // PutPointer updates the mutable pointer for a GP pin (e.g. "=1.0.0").
@@ -71,13 +76,14 @@ func (c *Client) PutPointer(ctx context.Context, gpName, pin string, pointer Poi
 	if err != nil {
 		return "", err
 	}
-	path := fmt.Sprintf("pointers/%s/%s.json", gpName, encodePinForPath(pin))
-	return c.put(ctx, path, raw, "application/json")
+	classifier := "pin-" + encodePinForPath(pin)
+	path := MavenRepoPath("coin.manifest", gpName, "metadata", classifier, "json")
+	return c.putRepo(ctx, MavenSnapshots, path, raw, "application/json")
 }
 
 // PublishManifest uploads the immutable blob and updates the exact-pin pointer.
 func (c *Client) PublishManifest(ctx context.Context, gpName, version, pin string, doc map[string]any, manifestHash string) (string, error) {
-	blobURL, err := c.UploadManifestBlob(ctx, manifestHash, doc)
+	blobURL, err := c.UploadManifestBlob(ctx, gpName, version, doc)
 	if err != nil {
 		return "", fmt.Errorf("upload blob: %w", err)
 	}
@@ -102,7 +108,11 @@ func (c *Client) UploadManifest(ctx context.Context, gpName, version string, doc
 }
 
 func (c *Client) put(ctx context.Context, repoPath string, body []byte, contentType string) (string, error) {
-	target := fmt.Sprintf("%s/repository/%s/%s", c.baseURL, c.repository, repoPath)
+	return c.putRepo(ctx, c.repository, repoPath, body, contentType)
+}
+
+func (c *Client) putRepo(ctx context.Context, repo, repoPath string, body []byte, contentType string) (string, error) {
+	target := fmt.Sprintf("%s/repository/%s/%s", c.baseURL, repo, repoPath)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, target, bytes.NewReader(body))
 	if err != nil {
 		return "", err
@@ -117,13 +127,14 @@ func (c *Client) put(ctx context.Context, repoPath string, body []byte, contentT
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("nexus upload %s: %s", resp.Status, string(respBody))
+		msg := string(respBody)
+		// Nexus Docker connector may put the reason in the status line, not the body.
+		if ImmutableConflict(resp.StatusCode, msg) || ImmutableConflict(resp.StatusCode, resp.Status) {
+			return target, nil
+		}
+		return "", fmt.Errorf("nexus upload %s: %s", resp.Status, msg)
 	}
 	return target, nil
-}
-
-func blobFileName(manifestHash string) string {
-	return strings.TrimPrefix(manifestHash, "sha256:")
 }
 
 func encodePinForPath(pin string) string {

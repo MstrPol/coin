@@ -116,7 +116,10 @@ Platform (после bootstrap):
   make coin-starters         # starters → Gitea coin/coin-starters
   make coin-platform         # both (PF-16 meta)
   make coin-executor       # coin-executor → Gitea + job coin-executor
+  make coin-gp-content        # gp-content → Gitea + job coin-gp-content
+  make coin-lib               # Jenkins Shared Library → Gitea (tag 1.0.0) + Global Lib
   make agents-build        # job agents-build (JCasC)
+  make register-jnlp       # jnlp → Nexus + coin-api (перед coin-executor / GP)
   make samples             # demo-продукты → samples/ + Gitea
 
 Teardown: make down  |  make reset

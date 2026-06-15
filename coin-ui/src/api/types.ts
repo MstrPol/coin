@@ -1,5 +1,20 @@
+export type BuildReport = {
+  id: number;
+  project: string;
+  goldenPath: string;
+  version: string;
+  resolvedVersion?: string;
+  branch?: string;
+  buildUrl?: string;
+  result: string;
+  channel?: string;
+  failedStage?: string;
+  reportedAt: string;
+};
+
 export type DashboardStats = {
   projects: number;
+  staleProjects: number;
   gpReleases: number;
   buildReports: number;
   goldenPaths: number;
@@ -7,11 +22,15 @@ export type DashboardStats = {
 
 export type Project = {
   name: string;
+  groupId?: string;
+  artifactId?: string;
+  gitRepoName?: string;
+  gitRepoUrl?: string;
   goldenPath: string;
   version: string;
   canaryMode?: string;
-  gitUrl?: string;
-  lastSeenAt: string;
+  branch?: string;
+  lastBuildAt?: string;
 };
 
 export type GPRelease = {
@@ -61,6 +80,9 @@ export type GPProfileSlot = {
 
 export type GPProfile = {
   name: string;
+  agentStack?: string;
+  defaultLib?: string;
+  defaultGpContent?: string;
   slots: GPProfileSlot[];
 };
 
@@ -68,6 +90,35 @@ export type ComponentVersion = {
   version: string;
   status: string;
   createdAt: string;
+};
+
+export type ComponentDetail = Component & {
+  gpUsage: { gpName: string; version: string; status: string }[];
+};
+
+export type ComponentVersionDetail = ComponentVersion & {
+  type: string;
+  name: string;
+  metadata: Record<string, unknown>;
+  contentRef?: Record<string, unknown>;
+};
+
+export type CanaryContext = {
+  project: string;
+  gpName: string;
+  canaryMode: string;
+  rolloutEnabled: boolean;
+  canaryPercent: number;
+  projectBucket: number;
+  useCanaryLine: boolean;
+  stableVersion: string;
+  canaryVersion: string;
+};
+
+export type PlatformSettings = {
+  nexusMavenBase: string;
+  nexusCredentialsId: string;
+  updatedAt: string;
 };
 
 export type AuditLogEntry = {
@@ -119,6 +170,8 @@ export type CatalogPolicy = {
 
 export type PointerStatus = {
   pin: string;
+  audience?: string;
+  line?: string;
   resolvedVersion: string;
   manifestHash?: string;
 };
@@ -133,6 +186,7 @@ export type ResolvePreviewResult = {
   resolvedVersion: string;
   channel: string;
   manifest: Record<string, unknown>;
+  canaryContext?: CanaryContext;
 };
 
 export type CanaryPolicy = {

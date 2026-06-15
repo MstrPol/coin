@@ -22,8 +22,87 @@ paths:
       responses:
         "200":
           description: Ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadyResponse"
         "503":
           description: Not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadyResponse"
+
+  /openapi/v1.yaml:
+    get:
+      summary: OpenAPI specification (YAML)
+      responses:
+        "200":
+          description: OpenAPI document
+          content:
+            application/yaml:
+              schema:
+                type: string
+
+  /docs/:
+    get:
+      summary: Swagger UI
+      responses:
+        "200":
+          description: HTML Swagger UI
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /v1/golden-paths/{name}/version:
+    get:
+      summary: Resolve coin-lib version for Jenkins bootstrap
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          example: go-app
+        - name: pin
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "~1.0.0"
+        - name: project
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lib version for dynamic library() call
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  goldenPath:
+                    type: string
+                  resolvedVersion:
+                    type: string
+                  library:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                        example: lib
+                      name:
+                        type: string
+                        example: coin-lib
+                      version:
+                        type: string
+                        example: "1.0.0"
+        "404":
+          description: GP release not found
 
   /v1/golden-paths/{name}/resolve:
     get:
@@ -132,9 +211,48 @@ paths:
         "401":
           description: Unauthorized
 
+  /v1/admin/build-reports:
+    get:
+      summary: List build reports
+      security:
+        - adminKey: []
+      parameters:
+        - name: project
+          in: query
+          schema:
+            type: string
+        - name: goldenPath
+          in: query
+          schema:
+            type: string
+        - name: result
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        "200":
+          description: Build report list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BuildReportRow"
+        "401":
+          description: Unauthorized
+
   /v1/admin/projects:
     get:
-      summary: List projects (latest GP binding)
+      summary: List projects (registry from build reports)
       security:
         - adminKey: []
       parameters:
@@ -146,6 +264,11 @@ paths:
           in: query
           schema:
             type: string
+        - name: stale
+          in: query
+          schema:
+            type: boolean
+          description: Only projects without build in 90 days
       responses:
         "200":
           description: Project list
@@ -265,35 +388,100 @@ paths:
         "401":
           description: Unauthorized
 
-  /v1/admin/scan:
-    post:
-      summary: Run fleet scanner (Gitea → project_bindings)
+  /v1/admin/platform/settings:
+    get:
+      summary: Global platform settings (Nexus defaults)
       security:
         - adminKey: []
-      parameters:
-        - name: force
-          in: query
-          schema:
-            type: boolean
-            default: false
-          description: Rescan all repos ignoring last SHA
       responses:
         "200":
-          description: Scan complete
+          description: Platform settings
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ScanResponse"
-        "207":
-          description: Scan complete with repo failures
+                $ref: "#/components/schemas/PlatformSettings"
         "401":
           description: Unauthorized
-        "500":
-          description: Scan failed
+    put:
+      summary: Update platform settings
+      security:
+        - adminKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlatformSettingsUpdate"
+      responses:
+        "200":
+          description: Updated
+        "401":
+          description: Unauthorized
+
+  /v1/admin/golden-paths/{name}/resolve-preview:
+    get:
+      summary: Resolve preview (admin debug)
+      security:
+        - adminKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: pin
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: project
+          in: query
+          schema:
+            type: string
+        - name: forceChannel
+          in: query
+          schema:
+            type: string
+            enum: [canary, stable]
+      responses:
+        "200":
+          description: Resolve preview result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResolvePreviewResult"
+        "401":
+          description: Unauthorized
+
+  /v1/admin/golden-paths/{name}/projects/{project}/canary-context:
+    get:
+      summary: Canary audience context for project
+      security:
+        - adminKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: project
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Canary context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CanaryContext"
+        "401":
+          description: Unauthorized
 
   /v1/admin/components:
     get:
-      summary: List component registry (read-only)
+      summary: List component registry
       security:
         - adminKey: []
       responses:
@@ -303,6 +491,97 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ComponentList"
+        "401":
+          description: Unauthorized
+
+  /v1/admin/components/agent/{name}/next-version:
+    get:
+      summary: Next agent version ({runtime}-r{N+1}) for agents-build
+      security:
+        - adminKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent stack (component name), e.g. go
+        - name: runtime
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "1.22"
+      responses:
+        "200":
+          description: Next version allocation preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NextAgentVersion"
+        "400":
+          description: Bad request
+        "401":
+          description: Unauthorized
+
+  /v1/admin/components/{type}/{name}:
+    get:
+      summary: Component detail with GP usage
+      security:
+        - adminKey: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Component detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComponentDetail"
+        "404":
+          description: Not found
+        "401":
+          description: Unauthorized
+
+  /v1/admin/components/{type}/{name}/versions/{version}:
+    get:
+      summary: Component version detail (metadata, contentRef)
+      security:
+        - adminKey: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Version detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComponentVersionDetail"
+        "404":
+          description: Not found
         "401":
           description: Unauthorized
 
@@ -524,17 +803,65 @@ components:
       properties:
         project:
           type: string
+        groupId:
+          type: string
+        artifactId:
+          type: string
         goldenPath:
           type: string
         version:
+          type: string
+        configVersion:
           type: string
         branch:
           type: string
         buildUrl:
           type: string
+        gitUrl:
+          type: string
         result:
           type: string
           enum: [success, failure, aborted]
+        channel:
+          type: string
+        requestedPin:
+          type: string
+        resolvedVersion:
+          type: string
+        failedStage:
+          type: string
+        outputs:
+          type: array
+          items:
+            type: object
+            required: [name, type]
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+                enum: [image, liquibase-image, artifact]
+              format:
+                type: string
+                example: zip
+              ref:
+                type: string
+              digest:
+                type: string
+              sha256:
+                type: string
+
+    BuildReportRow:
+      allOf:
+        - $ref: "#/components/schemas/BuildReport"
+        - type: object
+          required: [id, reportedAt]
+          properties:
+            id:
+              type: integer
+            reportedAt:
+              type: string
+              format: date-time
 
     PublishComponentVersion:
       type: object
@@ -603,11 +930,27 @@ components:
               count:
                 type: integer
 
+    ReadyResponse:
+      type: object
+      required: [status, version]
+      properties:
+        status:
+          type: string
+          example: ready
+        version:
+          type: string
+          example: "0.1.0"
+        reason:
+          type: string
+          description: Present when status is not ready
+
     DashboardStats:
       type: object
-      required: [projects, gpReleases, buildReports, goldenPaths]
+      required: [projects, staleProjects, gpReleases, buildReports, goldenPaths]
       properties:
         projects:
+          type: integer
+        staleProjects:
           type: integer
         gpReleases:
           type: integer
@@ -618,17 +961,156 @@ components:
 
     Project:
       type: object
-      required: [name, goldenPath, version, lastSeenAt]
+      required: [name, goldenPath, version]
       properties:
         name:
+          type: string
+        groupId:
+          type: string
+        artifactId:
+          type: string
+        gitRepoName:
+          type: string
+        gitRepoUrl:
           type: string
         goldenPath:
           type: string
         version:
           type: string
-        gitUrl:
+        canaryMode:
           type: string
-        lastSeenAt:
+        branch:
+          type: string
+        lastBuildAt:
+          type: string
+          format: date-time
+
+    PlatformSettings:
+      type: object
+      required: [nexusMavenBase, nexusCredentialsId, updatedAt]
+      properties:
+        nexusMavenBase:
+          type: string
+        nexusCredentialsId:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+
+    PlatformSettingsUpdate:
+      type: object
+      required: [nexusMavenBase, nexusCredentialsId]
+      properties:
+        nexusMavenBase:
+          type: string
+        nexusCredentialsId:
+          type: string
+        actor:
+          type: string
+
+    CanaryContext:
+      type: object
+      required:
+        - project
+        - gpName
+        - canaryMode
+        - rolloutEnabled
+        - canaryPercent
+        - projectBucket
+        - useCanaryLine
+        - stableVersion
+        - canaryVersion
+      properties:
+        project:
+          type: string
+        gpName:
+          type: string
+        canaryMode:
+          type: string
+        rolloutEnabled:
+          type: boolean
+        canaryPercent:
+          type: integer
+        projectBucket:
+          type: integer
+        useCanaryLine:
+          type: boolean
+        stableVersion:
+          type: string
+        canaryVersion:
+          type: string
+
+    ResolvePreviewResult:
+      type: object
+      required: [requestedPin, resolvedVersion, channel, manifest]
+      properties:
+        requestedPin:
+          type: string
+        resolvedVersion:
+          type: string
+        channel:
+          type: string
+        manifest:
+          type: object
+          additionalProperties: true
+        canaryContext:
+          $ref: "#/components/schemas/CanaryContext"
+
+    ComponentDetail:
+      allOf:
+        - $ref: "#/components/schemas/Component"
+        - type: object
+          required: [gpUsage]
+          properties:
+            gpUsage:
+              type: array
+              items:
+                type: object
+                required: [gpName, version, status]
+                properties:
+                  gpName:
+                    type: string
+                  version:
+                    type: string
+                  status:
+                    type: string
+
+    NextAgentVersion:
+      type: object
+      required: [stack, runtime, currentRev, nextRev, nextVersion]
+      properties:
+        stack:
+          type: string
+        runtime:
+          type: string
+        currentRev:
+          type: integer
+          description: Max existing -rN for runtime (0 if none)
+        nextRev:
+          type: integer
+        nextVersion:
+          type: string
+          example: "1.22-r6"
+
+    ComponentVersionDetail:
+      type: object
+      required: [type, name, version, status, metadata, createdAt]
+      properties:
+        type:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        status:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        contentRef:
+          type: object
+          additionalProperties: true
+        createdAt:
           type: string
           format: date-time
 
@@ -716,34 +1198,6 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/CompositionItem"
-
-    ScanResult:
-      type: object
-      required: [reposTotal, reposScanned, reposSkipped, reposFailed, startedAt, finishedAt]
-      properties:
-        reposTotal:
-          type: integer
-        reposScanned:
-          type: integer
-        reposSkipped:
-          type: integer
-        reposFailed:
-          type: integer
-        startedAt:
-          type: string
-          format: date-time
-        finishedAt:
-          type: string
-          format: date-time
-
-    ScanResponse:
-      type: object
-      required: [status, result]
-      properties:
-        status:
-          type: string
-        result:
-          $ref: "#/components/schemas/ScanResult"
 
     AuditLogEntry:
       type: object

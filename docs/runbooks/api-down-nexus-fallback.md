@@ -11,8 +11,8 @@ Resolve manifest в Jenkins:
 2. **Fallback (exact pin):** Nexus pointer → immutable blob → verify `manifestHash`
 
 ```
-pointers/{gp}/%3D{version}.json   →  { blobUrl, manifestHash, resolvedVersion }
-manifest/blobs/{hash}.json        →  full manifest JSON (immutable)
+maven-snapshots/coin/manifest/{gp}/metadata/{gp}-metadata-pin-%3D{version}.json  →  pointer
+maven-releases/coin/manifest/{gp}/{version}/{gp}-{version}.json                  →  blob (immutable)
 ```
 
 Report stage **не** имеет fallback — только POST в coin-api (best-effort; build не fail по дизайну executor).
@@ -31,17 +31,18 @@ Report stage **не** имеет fallback — только POST в coin-api (bes
 ```bash
 GP=go-app
 VER=1.0.0
-BASE=http://localhost:8081/repository/coin-manifests
+SNAPSHOTS=http://localhost:8081/repository/maven-snapshots
 
 # 1. API health
 curl -sf http://coin-api:8090/ready || echo "API DOWN"
 
+PTR_PATH="${SNAPSHOTS}/coin/manifest/${GP}/metadata/${GP}-metadata-pin-%3D${VER}.json"
+
 # 2. Pointer exists (exact pin =1.0.0 → %3D1.0.0)
-curl -sf -o /dev/null -w "%{http_code}\n" \
-  "${BASE}/pointers/${GP}/%3D${VER}.json"
+curl -sf -o /dev/null -w "%{http_code}\n" "${PTR_PATH}"
 
 # 3. Pointer → blob hash match
-PTR=$(curl -sf "${BASE}/pointers/${GP}/%3D${VER}.json")
+PTR=$(curl -sf "${PTR_PATH}")
 BLOB=$(echo "$PTR" | jq -r .blobUrl)
 EXPECTED=$(echo "$PTR" | jq -r .manifestHash)
 ACTUAL=$(curl -sf "$BLOB" | jq -r .manifestHash)
@@ -73,7 +74,7 @@ curl -sf http://localhost:8090/ready
 
 **Impact:** новые/обновлённые GP versions не резолвятся.
 
-1. Проверить path: `pointers/{gp}/%3D{version}.json` (encode `=` как `%3D`)
+1. Проверить path: `maven-snapshots/coin/manifest/{gp}/metadata/{gp}-metadata-pin-%3D{version}.json`
 2. Прогреть cache через resolve при живом API:
 
 ```bash

@@ -24,10 +24,10 @@ type BlastRadius struct {
 
 func (s *Store) BlastRadius(ctx context.Context, gpName, targetVersion string) (BlastRadius, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT DISTINCT ON (pb.project_id) pb.gp_version
-		FROM project_bindings pb
-		WHERE pb.gp_name = $1
-		ORDER BY pb.project_id, pb.last_seen_at DESC
+		SELECT DISTINCT ON (br.project_id) COALESCE(br.resolved_version, br.gp_version)
+		FROM build_reports br
+		WHERE br.gp_name = $1
+		ORDER BY br.project_id, br.reported_at DESC
 	`, gpName)
 	if err != nil {
 		return BlastRadius{}, err
@@ -78,6 +78,9 @@ func computeBlastRadius(gpName, targetVersion string, projectVersions []string) 
 		return semver.Compare(normSemver(result.ByVersion[i].Version), normSemver(result.ByVersion[j].Version)) > 0
 	})
 
+	if result.ByVersion == nil {
+		result.ByVersion = []VersionCount{}
+	}
 	return result
 }
 

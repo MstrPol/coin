@@ -17,7 +17,7 @@
 
 | Каталог | Назначение |
 |---------|------------|
-| [`coin-api/`](coin-api/README.md) | Resolve manifest, registry, admin API, fleet scanner |
+| [`coin-api/`](coin-api/README.md) | Resolve manifest, registry, admin API |
 | [`coin-executor/`](coin-executor/README.md) | Runtime pipeline: validate, stages, build report |
 | [`coin-ui/`](coin-ui/README.md) | Admin SPA: dashboard, publish wizard, audit log |
 | [`coin-jenkins-agents/`](coin-jenkins-agents/README.md) | CI agent images (`agents-build`) |
@@ -68,7 +68,7 @@ Jenkinsfile — [`coin-starters/Jenkinsfile.coin`](coin-starters/Jenkinsfile.coi
 
 ```
 coin/
-├── coin-api/           # HTTP API + scanner
+├── coin-api/           # HTTP API (control plane)
 ├── coin-executor/      # CLI runtime
 ├── coin-ui/            # Admin SPA
 ├── coin-jenkins-agents/  # CI agent stacks + catalog

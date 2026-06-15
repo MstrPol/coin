@@ -57,6 +57,7 @@ jenkins:
     docker: nexus-docker
 project:
   name: demo
+  artifactId: demo
   groupId: com.example
   repository: Nexus_PROD
 `

@@ -2,12 +2,15 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -19,7 +22,9 @@ import (
 	"coin.local/coin-api/internal/auth"
 	"coin.local/coin-api/internal/catalog"
 	"coin.local/coin-api/internal/config"
+	"coin.local/coin-api/internal/docs"
 	"coin.local/coin-api/internal/metrics"
+	"coin.local/coin-api/internal/version"
 	"coin.local/coin-api/internal/nexus"
 	"coin.local/coin-api/internal/report"
 	"coin.local/coin-api/internal/resolve"
@@ -58,16 +63,22 @@ func (s *Server) Router() http.Handler {
 	r.Use(middleware.Recoverer)
 
 	shortTimeout := middleware.Timeout(60 * time.Second)
-	scanTimeout := middleware.Timeout(2 * time.Hour)
+
+	docHandler := docs.NewHandler()
 
 	r.Get("/health", s.health)
 	r.Get("/ready", s.ready)
+	r.Get("/openapi/v1.yaml", docHandler.ServeOpenAPI)
+	r.Get("/docs", docHandler.ServeSwaggerUI)
+	r.Get("/docs/", docHandler.ServeSwaggerUI)
 	r.Handle("/metrics", promhttp.Handler())
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Use(auth.Bearer(s.cfg))
 		r.With(shortTimeout).Get("/golden-paths/{name}/versions/{version}/manifest", s.resolveManifest)
 		r.With(shortTimeout).Get("/golden-paths/{name}/resolve", s.resolveByPin)
+		r.With(shortTimeout).Get("/golden-paths/{name}/version", s.goldenPathVersion)
+		r.With(shortTimeout).Get("/golden-paths/{name}/policy-check", s.policyCheck)
 		r.With(shortTimeout).Post("/builds/report", s.buildReport)
 
 		r.Route("/admin", func(r chi.Router) {
@@ -77,6 +88,7 @@ func (s *Server) Router() http.Handler {
 			r.Group(func(r chi.Router) {
 				r.Use(auth.RequireRole(auth.RoleReader))
 				r.With(shortTimeout).Get("/stats", s.adminStats)
+				r.With(shortTimeout).Get("/build-reports", s.listBuildReports)
 				r.With(shortTimeout).Get("/projects", s.listProjects)
 				r.With(shortTimeout).Get("/golden-paths", s.listGPReleases)
 				r.With(shortTimeout).Get("/golden-paths/names", s.listGPNames)
@@ -88,29 +100,36 @@ func (s *Server) Router() http.Handler {
 				r.With(shortTimeout).Get("/golden-paths/{name}/versions/{version}/artifacts", s.listArtifacts)
 				r.With(shortTimeout).Get("/golden-paths/{name}/versions/{version}/artifacts/{key}", s.getArtifact)
 				r.With(shortTimeout).Get("/golden-paths/{name}/resolve-preview", s.resolvePreview)
+				r.With(shortTimeout).Get("/golden-paths/{name}/projects/{project}/canary-context", s.canaryContext)
+				r.With(shortTimeout).Get("/platform/settings", s.getPlatformSettings)
 				r.With(shortTimeout).Get("/components", s.listComponents)
+				r.With(shortTimeout).Get("/components/agent/{name}/next-version", s.nextAgentVersion)
+				r.With(shortTimeout).Get("/components/gp-content/{name}/next-version", s.nextGPContentVersion)
+				r.With(shortTimeout).Get("/components/lib/{name}/next-version", s.nextLibVersion)
+				r.With(shortTimeout).Get("/components/executor/{name}/next-version", s.nextExecutorVersion)
+				r.With(shortTimeout).Get("/components/{type}/{name}", s.getComponentDetail)
 				r.With(shortTimeout).Get("/components/{type}/{name}/versions", s.listComponentVersions)
+				r.With(shortTimeout).Get("/components/{type}/{name}/versions/{version}", s.getComponentVersionDetail)
 				r.With(shortTimeout).Get("/audit-log", s.listAuditLog)
 				r.With(shortTimeout).Get("/golden-paths/{name}/versions/{version}/blast-radius", s.blastRadius)
 			})
 
 			r.Group(func(r chi.Router) {
 				r.Use(auth.RequireRole(auth.RolePublisher))
+				r.With(shortTimeout).Post("/components", s.createComponent)
 				r.With(shortTimeout).Post("/components/{type}/{name}/versions", s.publishComponentVersion)
+				r.With(shortTimeout).Put("/components/{type}/{name}/versions/{version}/artifacts/*", s.putComponentArtifact)
 				r.With(shortTimeout).Post("/golden-paths/{name}/versions", s.publishGPRelease)
 				r.With(shortTimeout).Post("/golden-paths/{name}/drafts", s.createDraftGPRelease)
 				r.With(shortTimeout).Post("/golden-paths/{name}/versions/{version}/promote", s.promoteDraftGPRelease)
 				r.With(shortTimeout).Patch("/golden-paths/{name}/catalog", s.updateCatalog)
 				r.With(shortTimeout).Patch("/golden-paths/{name}/canary", s.updateCanary)
 				r.With(shortTimeout).Patch("/projects/{name}/canary-mode", s.updateProjectCanaryMode)
+				r.With(shortTimeout).Put("/platform/settings", s.updatePlatformSettings)
 				r.With(shortTimeout).Post("/golden-paths/profiles", s.createGPProfile)
 				r.With(shortTimeout).Put("/golden-paths/{name}/versions/{version}/artifacts/{key}", s.putArtifact)
 			})
 
-			r.Group(func(r chi.Router) {
-				r.Use(auth.RequireRole(auth.RoleAdmin))
-				r.With(scanTimeout).Post("/scan", s.runFleetScan)
-			})
 		})
 	})
 
@@ -127,13 +146,21 @@ func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 
 	if err := s.pool.Ping(ctx); err != nil {
 		s.logger.Warn("ready check failed", "err", err)
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
-			"status": "not ready",
-			"reason": "database",
-		})
+		writeJSON(w, http.StatusServiceUnavailable, readyPayload("not ready", "database"))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ready"})
+	writeJSON(w, http.StatusOK, readyPayload("ready", ""))
+}
+
+func readyPayload(status, reason string) map[string]string {
+	body := map[string]string{
+		"status":  status,
+		"version": version.Version,
+	}
+	if reason != "" {
+		body["reason"] = reason
+	}
+	return body
 }
 
 func (s *Server) resolveByPin(w http.ResponseWriter, r *http.Request) {
@@ -178,6 +205,29 @@ func (s *Server) resolveByPin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, res.Document)
 }
 
+func (s *Server) goldenPathVersion(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	pinRaw := r.URL.Query().Get("pin")
+	if pinRaw == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pin query parameter is required"})
+		return
+	}
+
+	res, err := s.resolve.LibraryVersion(r.Context(), name, pinRaw, resolve.ResolveOptions{
+		Project: r.URL.Query().Get("project"),
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "gp release not found"})
+		return
+	}
+	if err != nil {
+		s.logger.Error("golden path version", "err", err, "gp", name, "pin", pinRaw)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
 func (s *Server) resolveManifest(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	version := chi.URLParam(r, "version")
@@ -213,8 +263,11 @@ func (s *Server) resolveManifest(w http.ResponseWriter, r *http.Request) {
 
 type buildReportBody struct {
 	Project         string `json:"project"`
+	GroupID         string `json:"groupId"`
+	ArtifactID      string `json:"artifactId"`
 	GoldenPath      string `json:"goldenPath"`
 	Version         string `json:"version"`
+	ConfigVersion   string `json:"configVersion"`
 	Branch          string `json:"branch"`
 	BuildURL        string `json:"buildUrl"`
 	Result          string `json:"result"`
@@ -223,7 +276,8 @@ type buildReportBody struct {
 	Channel         string `json:"channel"`
 	RequestedPin    string `json:"requestedPin"`
 	FailedStage     string `json:"failedStage"`
-	ResolvedVersion string `json:"resolvedVersion"`
+	ResolvedVersion string           `json:"resolvedVersion"`
+	Outputs         []map[string]any `json:"outputs"`
 }
 
 func (s *Server) buildReport(w http.ResponseWriter, r *http.Request) {
@@ -241,8 +295,11 @@ func (s *Server) buildReport(w http.ResponseWriter, r *http.Request) {
 
 	id, err := s.report.Save(r.Context(), report.Input{
 		Project:         req.Project,
+		GroupID:         req.GroupID,
+		ArtifactID:      req.ArtifactID,
 		GoldenPath:      req.GoldenPath,
 		Version:         req.Version,
+		ConfigVersion:   req.ConfigVersion,
 		Branch:          req.Branch,
 		BuildURL:        req.BuildURL,
 		Result:          req.Result,
@@ -252,6 +309,7 @@ func (s *Server) buildReport(w http.ResponseWriter, r *http.Request) {
 		RequestedPin:    req.RequestedPin,
 		FailedStage:     req.FailedStage,
 		ResolvedVersion: req.ResolvedVersion,
+		Outputs:         req.Outputs,
 	})
 	if err != nil {
 		s.logger.Error("build report", "err", err)
@@ -259,6 +317,39 @@ func (s *Server) buildReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"id": id, "status": "accepted"})
+}
+
+type createComponentBody struct {
+	Type  string `json:"type"`
+	Name  string `json:"name"`
+	Actor string `json:"actor"`
+}
+
+func (s *Server) createComponent(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "read body failed"})
+		return
+	}
+	var req createComponentBody
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
+		return
+	}
+	if req.Type == "" || req.Name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "type and name are required"})
+		return
+	}
+	if err := s.admin.CreateComponent(r.Context(), req.Type, req.Name, req.Actor); err != nil {
+		if errors.Is(err, store.ErrDuplicateComponent) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "component already exists"})
+			return
+		}
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"status": "created", "type": req.Type, "name": req.Name})
 }
 
 type publishComponentBody struct {
@@ -431,6 +522,29 @@ func (s *Server) promoteDraftGPRelease(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) policyCheck(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	version := r.URL.Query().Get("version")
+	if version == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "version query parameter is required"})
+		return
+	}
+	_, warning, err := s.admin.PolicyCheck(r.Context(), name, version)
+	if errors.Is(err, catalog.ErrBelowMinimum) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"gpName":  name,
+		"version": version,
+		"warning": warning,
+	})
+}
+
 func (s *Server) getCatalog(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	overview, err := s.admin.GetCatalogOverview(r.Context(), name)
@@ -477,10 +591,7 @@ func (s *Server) listArtifacts(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	if items == nil {
-		items = []store.ArtifactMeta{}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	writeListJSON(w, items)
 }
 
 func (s *Server) getArtifact(w http.ResponseWriter, r *http.Request) {
@@ -534,7 +645,11 @@ func (s *Server) resolvePreview(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pin required"})
 		return
 	}
-	res, err := s.admin.ResolvePreview(r.Context(), name, pinRaw, r.URL.Query().Get("project"))
+	q := r.URL.Query()
+	res, err := s.admin.ResolvePreview(r.Context(), name, pinRaw, admin.ResolvePreviewOptions{
+		Project:      q.Get("project"),
+		ForceChannel: q.Get("forceChannel"),
+	})
 	if errors.Is(err, store.ErrNotFound) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 		return
@@ -543,12 +658,95 @@ func (s *Server) resolvePreview(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	out := map[string]any{
 		"requestedPin":    res.RequestedPin,
 		"resolvedVersion": res.ResolvedVersion,
 		"channel":         res.Channel,
 		"manifest":        res.Manifest,
-	})
+	}
+	if res.CanaryContext != nil {
+		out["canaryContext"] = res.CanaryContext
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) canaryContext(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	project := chi.URLParam(r, "project")
+	ctx, err := s.admin.GetCanaryContext(r.Context(), name, project)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, ctx)
+}
+
+func (s *Server) getPlatformSettings(w http.ResponseWriter, r *http.Request) {
+	settings, err := s.admin.GetPlatformSettings(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "get platform settings failed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, settings)
+}
+
+type platformSettingsBody struct {
+	NexusMavenBase     string `json:"nexusMavenBase"`
+	NexusCredentialsID string `json:"nexusCredentialsId"`
+	Actor              string `json:"actor"`
+}
+
+func (s *Server) updatePlatformSettings(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "read body failed"})
+		return
+	}
+	var req platformSettingsBody
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
+		return
+	}
+	if err := s.admin.UpdatePlatformSettings(r.Context(), store.PlatformSettings{
+		NexusMavenBase:     req.NexusMavenBase,
+		NexusCredentialsID: req.NexusCredentialsID,
+	}, req.Actor); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}
+
+func (s *Server) getComponentDetail(w http.ResponseWriter, r *http.Request) {
+	detail, err := s.admin.GetComponentDetail(r.Context(), chi.URLParam(r, "type"), chi.URLParam(r, "name"))
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "get component failed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, detail)
+}
+
+func (s *Server) getComponentVersionDetail(w http.ResponseWriter, r *http.Request) {
+	detail, err := s.admin.GetComponentVersionDetail(
+		r.Context(),
+		chi.URLParam(r, "type"),
+		chi.URLParam(r, "name"),
+		chi.URLParam(r, "version"),
+	)
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "get component version failed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, detail)
 }
 
 func (s *Server) blastRadius(w http.ResponseWriter, r *http.Request) {
@@ -591,18 +789,35 @@ func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, stats)
 }
 
+func (s *Server) listBuildReports(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	offset, _ := strconv.Atoi(q.Get("offset"))
+	items, err := s.admin.ListBuildReports(r.Context(), store.ListBuildReportsFilter{
+		Project:    q.Get("project"),
+		GoldenPath: q.Get("goldenPath"),
+		Result:     q.Get("result"),
+		Limit:      limit,
+		Offset:     offset,
+	})
+	if err != nil {
+		s.logger.Error("list build reports", "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "list build reports failed"})
+		return
+	}
+	writeListJSON(w, items)
+}
+
 func (s *Server) listProjects(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	rows, err := s.admin.ListProjects(r.Context(), q.Get("goldenPath"), q.Get("version"))
+	staleOnly := q.Get("stale") == "true" || q.Get("stale") == "1"
+	rows, err := s.admin.ListProjects(r.Context(), q.Get("goldenPath"), q.Get("version"), staleOnly)
 	if err != nil {
 		s.logger.Error("list projects", "err", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "list projects failed"})
 		return
 	}
-	if rows == nil {
-		rows = []store.ProjectRow{}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": rows})
+	writeListJSON(w, rows)
 }
 
 func (s *Server) listGPReleases(w http.ResponseWriter, r *http.Request) {
@@ -619,10 +834,7 @@ func (s *Server) listGPReleases(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "list gp releases failed"})
 		return
 	}
-	if rows == nil {
-		rows = []store.GPReleaseListItem{}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": rows})
+	writeListJSON(w, rows)
 }
 
 func (s *Server) getGPRelease(w http.ResponseWriter, r *http.Request) {
@@ -648,7 +860,67 @@ func (s *Server) listComponents(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "list components failed"})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": rows})
+	writeListJSON(w, rows)
+}
+
+func (s *Server) nextAgentVersion(w http.ResponseWriter, r *http.Request) {
+	stack := chi.URLParam(r, "name")
+	runtime := r.URL.Query().Get("runtime")
+	if runtime == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "runtime query param required"})
+		return
+	}
+	res, err := s.admin.NextAgentVersion(r.Context(), stack, runtime)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (s *Server) nextGPContentVersion(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	bump := r.URL.Query().Get("bump")
+	if bump == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bump query param required (major, minor, patch)"})
+		return
+	}
+	res, err := s.admin.NextGPContentVersion(r.Context(), name, bump)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (s *Server) nextLibVersion(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	bump := r.URL.Query().Get("bump")
+	if bump == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bump query param required (major, minor, patch)"})
+		return
+	}
+	res, err := s.admin.NextLibVersion(r.Context(), name, bump)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (s *Server) nextExecutorVersion(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	bump := r.URL.Query().Get("bump")
+	if bump == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bump query param required (major, minor, patch)"})
+		return
+	}
+	res, err := s.admin.NextExecutorVersion(r.Context(), name, bump)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }
 
 func (s *Server) listComponentVersions(w http.ResponseWriter, r *http.Request) {
@@ -664,28 +936,7 @@ func (s *Server) listComponentVersions(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "list component versions failed"})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": rows})
-}
-
-func (s *Server) runFleetScan(w http.ResponseWriter, r *http.Request) {
-	force := r.URL.Query().Get("force") == "true"
-	result, err := s.admin.RunFleetScan(r.Context(), force)
-	if err != nil {
-		s.logger.Error("fleet scan", "err", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]any{
-			"error":  "scan failed",
-			"result": result,
-		})
-		return
-	}
-	status := http.StatusOK
-	if result.ReposFailed > 0 {
-		status = http.StatusMultiStatus
-	}
-	writeJSON(w, status, map[string]any{
-		"status": "complete",
-		"result": result,
-	})
+	writeListJSON(w, rows)
 }
 
 func (s *Server) listGPNames(w http.ResponseWriter, r *http.Request) {
@@ -694,7 +945,7 @@ func (s *Server) listGPNames(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": names})
+	writeListJSON(w, names)
 }
 
 func (s *Server) getGPProfile(w http.ResponseWriter, r *http.Request) {
@@ -737,7 +988,7 @@ func (s *Server) listAuditLog(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "audit log failed"})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": rows})
+	writeListJSON(w, rows)
 }
 
 func (s *Server) getCanary(w http.ResponseWriter, r *http.Request) {
@@ -820,6 +1071,49 @@ func (s *Server) getHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, summary)
 }
 
+func (s *Server) putComponentArtifact(w http.ResponseWriter, r *http.Request) {
+	typ := chi.URLParam(r, "type")
+	name := chi.URLParam(r, "name")
+	version := chi.URLParam(r, "version")
+	key := strings.TrimPrefix(chi.URLParam(r, "*"), "/")
+	if decoded, err := url.PathUnescape(key); err == nil {
+		key = decoded
+	}
+	defer r.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "read body failed"})
+		return
+	}
+	var req struct {
+		Body       string `json:"body"`
+		BodyBase64 string `json:"bodyBase64"`
+	}
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
+		return
+	}
+	var raw []byte
+	switch {
+	case req.Body != "":
+		raw = []byte(req.Body)
+	case req.BodyBase64 != "":
+		raw, err = base64.StdEncoding.DecodeString(req.BodyBase64)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid bodyBase64"})
+			return
+		}
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "body or bodyBase64 required"})
+		return
+	}
+	if err := s.admin.SaveComponentArtifact(r.Context(), typ, name, version, key, raw); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
+}
+
 func (s *Server) createGPProfile(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
@@ -828,23 +1122,47 @@ func (s *Server) createGPProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name  string                `json:"name"`
-		Slots []store.GPProfileSlot `json:"slots"`
-		Actor string                `json:"actor"`
+		Name       string                `json:"name"`
+		AgentStack string                `json:"agentStack"`
+		Slots      []store.GPProfileSlot `json:"slots"`
+		Actor      string                `json:"actor"`
 	}
 	if err := json.Unmarshal(body, &req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
 		return
 	}
-	if err := s.admin.CreateGPProfile(r.Context(), req.Name, req.Slots, req.Actor); err != nil {
-		if errors.Is(err, store.ErrDuplicateGPProfile) {
+	var createErr error
+	switch {
+	case len(req.Slots) > 0:
+		if err := store.ValidateCanonicalGPSlots(req.Slots); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		createErr = s.admin.CreateGPProfile(r.Context(), req.Name, req.Slots, req.Actor)
+	case req.AgentStack != "":
+		createErr = s.admin.CreateGPProfileByAgentStack(r.Context(), req.Name, req.AgentStack, req.Actor)
+	default:
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "slots are required (jnlp, agent, executor, lib, gp-content)",
+		})
+		return
+	}
+	if createErr != nil {
+		if errors.Is(createErr, store.ErrDuplicateGPProfile) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "gp profile already exists"})
 			return
 		}
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": createErr.Error()})
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]string{"status": "created", "name": req.Name})
+}
+
+func writeListJSON[T any](w http.ResponseWriter, items []T) {
+	if items == nil {
+		items = []T{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

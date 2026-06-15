@@ -2,10 +2,14 @@ configuration-as-code
 kubernetes
 kubernetes-credentials
 workflow-aggregator
+pipeline-stage-view
+pipeline-graph-view
 pipeline-groovy-lib
 git
 credentials-binding
 pipeline-utility-steps
+http_request
+workflow-cps-global-lib-http
 job-dsl
 credentials
 scm-api

@@ -51,10 +51,12 @@ func TestBuilderContentRefsURLShaped(t *testing.T) {
 	if !ok || script["url"] == "" || script["sha256"] == "" {
 		t.Fatalf("stage script not url-shaped: %#v", rawStages[0])
 	}
-
-	orch, ok := doc["orchestration"].(map[string]string)
-	if !ok || orch["url"] == "" || orch["sha256"] == "" {
-		t.Fatalf("orchestration not url-shaped: %#v", doc["orchestration"])
+	if _, hasOrch := doc["orchestration"]; hasOrch {
+		t.Fatal("manifest must not contain orchestration.bundle")
+	}
+	jnlp, ok := doc["jnlp"].(map[string]string)
+	if !ok || jnlp["image"] == "" {
+		t.Fatalf("jnlp missing: %#v", doc["jnlp"])
 	}
 }
 
@@ -63,20 +65,23 @@ func sampleRelease() GPRelease {
 		Name:    "go-app",
 		Version: "1.0.0",
 		Parts: Composition{
-			ExecutorVersion: "0.1.0",
-			AgentImage:      "localhost:8082/coin-docker/ci-go:1.22.5",
-			AgentDigest:     "sha256:deadbeef",
-			ExecutorURL:     "http://localhost:8081/repository/raw/coin-executor/0.1.0/coin-executor-linux-amd64",
-			ExecutorSHA256:  "sha256:abc",
-			PipelineVersion: "2.1.0",
+			ExecutorVersion:  "0.1.0",
+			AgentImage:       "localhost:8082/coin-docker/ci-go:1.22.5",
+			AgentDigest:      "sha256:deadbeef",
+			JnlpImage:        "jenkins/inbound-agent:latest",
+			JnlpDigest:       "sha256:jnlp",
+			ExecutorURL:      "http://localhost:8081/repository/maven-releases/coin/executor/coin-executor/0.1.0/coin-executor-0.1.0-linux-amd64.bin",
+			ExecutorSHA256:   "sha256:abc",
+			LibName:          "coin-lib",
+			LibVersion:       "1.0.0",
+			GPContentName:    "go-app",
+			GPContentVersion: "1.0.0",
 		},
 		Content: ContentBundle{
-			SchemaArtifactKey:        "schema/config.v2.schema.json",
-			SchemaSHA256:             "sha256:schema",
-			DockerfileArtifactKey:    "Dockerfile",
-			DockerfileSHA256:         "sha256:dockerfile",
-			OrchestrationArtifactKey: "orchestration/coinPipeline.groovy",
-			OrchestrationSHA256:      "sha256:orch",
+			SchemaArtifactKey:     "schemas/config.v2.schema.json",
+			SchemaSHA256:          "sha256:schema",
+			DockerfileArtifactKey: "dockerfiles/go-runtime.Dockerfile",
+			DockerfileSHA256:      "sha256:dockerfile",
 			Stages: []StageScript{
 				{Name: "validate", ArtifactKey: "scripts/validate.sh", SHA256: "sha256:v"},
 				{Name: "test", ArtifactKey: "scripts/test.sh", SHA256: "sha256:t"},

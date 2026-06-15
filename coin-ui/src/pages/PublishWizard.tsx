@@ -1,13 +1,20 @@
 import { FormEvent, useEffect, useState, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { GPProfileSlot, GPRelease } from "../api/types";
 import { api, getActor, setActor } from "../lib/api";
+import { isCanonicalProfile, SLOT_LABELS, sortProfileSlots } from "../lib/gpSlots";
 
 type SlotVersions = Record<string, string[]>;
 type Tab = "draft" | "publish" | "promote";
 
+function stripSnapshot(version: string): string {
+  const idx = version.indexOf("-snapshot.");
+  return idx >= 0 ? version.slice(0, idx) : version;
+}
+
 function nextSnapshotVersion(drafts: GPRelease[], base: string): string {
-  const prefix = `${base}-snapshot.`;
+  const cleanBase = stripSnapshot(base);
+  const prefix = `${cleanBase}-snapshot.`;
   let maxN = 0;
   for (const d of drafts) {
     if (d.version.startsWith(prefix)) {
@@ -15,14 +22,15 @@ function nextSnapshotVersion(drafts: GPRelease[], base: string): string {
       if (!Number.isNaN(n) && n > maxN) maxN = n;
     }
   }
-  return `${base}-snapshot.${maxN + 1}`;
+  return `${cleanBase}-snapshot.${maxN + 1}`;
 }
 
 export default function PublishWizard() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [tab, setTab] = useState<Tab>("draft");
   const [gpNames, setGpNames] = useState<string[]>([]);
-  const [gpName, setGpName] = useState("go-app");
+  const [gpName, setGpName] = useState(searchParams.get("name") ?? "");
   const [slots, setSlots] = useState<GPProfileSlot[]>([]);
   const [composition, setComposition] = useState<Record<string, string>>({});
   const [versionOptions, setVersionOptions] = useState<SlotVersions>({});
@@ -41,22 +49,35 @@ export default function PublishWizard() {
       .gpNames()
       .then((r) => {
         setGpNames(r.items);
-        if (r.items.length > 0 && !r.items.includes(gpName)) {
-          setGpName(r.items[0]);
+        if (r.items.length === 0) {
+          setGpName("");
+        } else {
+          const fromUrl = searchParams.get("name");
+          setGpName((prev) => {
+            if (fromUrl && r.items.includes(fromUrl)) return fromUrl;
+            if (prev && r.items.includes(prev)) return prev;
+            return r.items[0];
+          });
         }
       })
       .catch((err: Error) => setError(err.message));
   }, []);
 
   useEffect(() => {
-    if (!gpName) return;
+    if (!gpName) {
+      setLoading(false);
+      setSlots([]);
+      setComposition({});
+      setVersionOptions({});
+      return;
+    }
     setLoading(true);
     setError(null);
     setSuccess(null);
 
     Promise.all([api.gpProfile(gpName), api.gpReleases(gpName, true)])
       .then(async ([profile, releases]) => {
-        setSlots(profile.slots);
+        setSlots(sortProfileSlots(profile.slots));
         setDrafts(releases.items.filter((r) => r.status === "draft"));
 
         const published = releases.items.filter((r) => r.status === "published");
@@ -240,11 +261,32 @@ export default function PublishWizard() {
         </p>
       )}
 
+      {gpNames.length === 0 && (
+        <div className="rounded-lg border border-amber-900/40 bg-amber-950/20 px-4 py-4 text-sm text-amber-200">
+          <p>Нет Golden Path на платформе.</p>
+          <p className="mt-2">
+            <Link to="/releases/new-gp" className="font-medium text-sky-400 hover:underline">
+              Создайте GP profile
+            </Link>{" "}
+            — затем вернитесь к publish.
+          </p>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-zinc-500">Загрузка profile…</p>
-      ) : (
+      ) : gpName ? (
         <>
           <GpSelector gpNames={gpNames} gpName={gpName} onChange={setGpName} />
+          {!isCanonicalProfile(slots) && (
+            <p className="rounded border border-amber-500/40 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
+              Профиль использует устаревшие slots (не 4-component model). Создайте новый GP через{" "}
+              <Link to="/releases/new-gp" className="text-sky-400 hover:underline">
+                Новый GP
+              </Link>
+              .
+            </p>
+          )}
           <CompositionSection
             slots={slots}
             composition={composition}
@@ -376,7 +418,9 @@ export default function PublishWizard() {
             </section>
           )}
         </>
-      )}
+      ) : gpNames.length > 0 ? (
+        <p className="text-zinc-500">Выберите Golden path.</p>
+      ) : null}
     </div>
   );
 }
@@ -392,15 +436,23 @@ function GpSelector({
 }) {
   return (
     <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
-      <Field label="Golden path">
-        <select value={gpName} onChange={(e) => onChange(e.target.value)} className={inputClass}>
-          {gpNames.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-      </Field>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <Field label="Golden path">
+          <select value={gpName} onChange={(e) => onChange(e.target.value)} className={inputClass}>
+            {gpNames.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Link
+          to="/releases/new-gp"
+          className="rounded-lg border border-sky-500/70 bg-sky-950/50 px-4 py-2 text-sm font-semibold text-sky-300 hover:border-sky-400 hover:bg-sky-900/60"
+        >
+          + Новый GP
+        </Link>
+      </div>
     </section>
   );
 }
@@ -418,19 +470,22 @@ function CompositionSection({
 }) {
   return (
     <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
-      <h2 className="font-medium">Composition</h2>
+      <h2 className="font-medium">Composition (4 runtime pins)</h2>
       <p className="mt-1 text-sm text-zinc-500">
-        Prefill из latest published; compatibility проверяется на сервере
+        jnlp · agent · executor · lib · gp-content. Prefill из latest published.
       </p>
       <div className="mt-4 space-y-4">
         {slots.map((slot) => (
           <div
             key={slot.key}
-            className="grid gap-2 sm:grid-cols-[8rem_1fr_1fr] sm:items-center"
+            className="grid gap-2 sm:grid-cols-[9rem_1fr_1fr] sm:items-center"
           >
             <span className="font-mono text-sm text-sky-400">{slot.key}</span>
             <span className="text-sm text-zinc-500">
-              {slot.type}/{slot.name}
+              {SLOT_LABELS[slot.key] ?? `${slot.type}/${slot.name}`}
+              <span className="mt-0.5 block font-mono text-xs text-zinc-600">
+                {slot.type}/{slot.name}
+              </span>
             </span>
             <select
               value={composition[slot.key] ?? ""}

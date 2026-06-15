@@ -34,7 +34,8 @@ for i in $(seq 1 30); do
 done
 
 "${ROOT}/scripts/setup-jenkins-k8s-auth.sh"
-chmod +x "${ROOT}/scripts/register-stack-endpoints.sh"
+chmod +x "${ROOT}/scripts/sync-k3s-registries.sh" "${ROOT}/scripts/register-stack-endpoints.sh"
+"${ROOT}/scripts/sync-k3s-registries.sh"
 "${ROOT}/scripts/register-stack-endpoints.sh"
 
 echo "k3s finalized"

@@ -3,6 +3,11 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+
+	"golang.org/x/mod/semver"
+
+	"coin.local/coin-api/internal/pin"
 )
 
 type CatalogPolicyRow struct {
@@ -18,13 +23,61 @@ func (s *Store) GetCatalogPolicyRow(ctx context.Context, gpName string) (Catalog
 	if err != nil {
 		return CatalogPolicyRow{}, err
 	}
+	dep := policy.Deprecated
+	if dep == nil {
+		dep = []string{}
+	}
 	return CatalogPolicyRow{
 		GPName:       policy.GPName,
 		Latest:       policy.Latest,
 		LatestCanary: policy.LatestCanary,
 		Minimum:      policy.Minimum,
-		Deprecated:   policy.Deprecated,
+		Deprecated:   dep,
 	}, nil
+}
+
+func (s *Store) ValidateCatalogPolicyUpdate(ctx context.Context, gpName, latest, latestCanary, minimum string, deprecated []string) error {
+	published, err := s.ListPublishedGPVersions(ctx, gpName)
+	if err != nil {
+		return err
+	}
+	pubSet := make(map[string]struct{}, len(published))
+	for _, v := range published {
+		pubSet[v] = struct{}{}
+	}
+	ensurePublished := func(label, version string, required bool) error {
+		if version == "" {
+			if required {
+				return fmt.Errorf("%s is required", label)
+			}
+			return nil
+		}
+		if pin.IsSnapshotVersion(version) {
+			return fmt.Errorf("%s cannot be a snapshot version", label)
+		}
+		if _, ok := pubSet[version]; !ok {
+			return fmt.Errorf("%s version %s is not published", label, version)
+		}
+		return nil
+	}
+	if err := ensurePublished("latest", latest, true); err != nil {
+		return err
+	}
+	if err := ensurePublished("minimum", minimum, true); err != nil {
+		return err
+	}
+	if err := ensurePublished("latestCanary", latestCanary, false); err != nil {
+		return err
+	}
+	for _, v := range deprecated {
+		if err := ensurePublished("deprecated", v, true); err != nil {
+			return err
+		}
+	}
+	if minimum != "" && latest != "" && semver.Compare(normSemver(minimum), normSemver(latest)) > 0 {
+		return fmt.Errorf("minimum cannot be greater than latest")
+	}
+	return nil
 }
 
 func (s *Store) UpdateCatalogPolicy(ctx context.Context, gpName, latest, latestCanary, minimum string, deprecated []string, actor string) error {

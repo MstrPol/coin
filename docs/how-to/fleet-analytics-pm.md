@@ -10,7 +10,7 @@
 
 | Источник | Что пишет | Когда |
 |----------|-----------|-------|
-| **Fleet scanner** | `projects`, `project_bindings`, `git_url` | Nightly CronJob / `make scan-fleet` |
+| **Build reports** | `projects`, `build_reports`, git link | Каждый CI build через executor `report` |
 | **Build report** | `build_reports`, обновляет `last_seen_at` | Каждый успешный Jenkins build |
 
 PM использует analytics **до** publish GP bump — чтобы понять blast radius и план коммуникации.
@@ -44,7 +44,7 @@ PM использует analytics **до** publish GP bump — чтобы пон
 
 Пример: «сколько projects на go-app 1.0.0» → фильтр обоих полей, число строк в таблице.
 
-Колонка **Last seen** — последняя активность (scanner или build report).
+Колонка **Last build** — последний build report.
 
 ### GP Releases → Detail → Blast radius
 
@@ -91,7 +91,7 @@ curl -sf -H "X-API-Key: ${COIN_ADMIN_API_KEY}" \
 
 > **Pilot:** метрика `stale_projects` в dashboard — roadmap. Сейчас — SQL + Projects **Last seen**.
 
-**Определение stale:** project без build report и без scanner update **> 90 дней**.
+**Определение stale:** project без build report **> 90 дней**.
 
 ```sql
 -- Projects stale > 90d (последний binding)

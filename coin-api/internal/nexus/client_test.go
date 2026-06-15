@@ -14,13 +14,14 @@ func TestPublishManifestBlobAndPointer(t *testing.T) {
 	var blobPath, pointerPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
-		if strings.Contains(r.URL.Path, "/manifest/blobs/") {
+		if strings.Contains(r.URL.Path, "/coin/manifest/go-app/1.0.0/") {
 			blobPath = r.URL.Path
-			if !strings.HasSuffix(blobPath, ".json") {
-				t.Errorf("blob path: %s", blobPath)
+			wantSuffix := "/coin/manifest/go-app/1.0.0/go-app-1.0.0.json"
+			if !strings.HasSuffix(blobPath, wantSuffix) {
+				t.Errorf("blob path: got %s want suffix %s", blobPath, wantSuffix)
 			}
 		}
-		if strings.Contains(r.URL.Path, "/pointers/go-app/") {
+		if strings.Contains(r.URL.Path, "/coin/manifest/go-app/metadata/") {
 			pointerPath = r.URL.Path
 			var ptr PointerDoc
 			if err := json.Unmarshal(body, &ptr); err != nil {
@@ -36,7 +37,7 @@ func TestPublishManifestBlobAndPointer(t *testing.T) {
 
 	c := &Client{
 		baseURL:    srv.URL,
-		repository: "coin-manifests",
+		repository: MavenReleases,
 		httpClient: srv.Client(),
 	}
 	doc := map[string]any{
@@ -50,7 +51,7 @@ func TestPublishManifestBlobAndPointer(t *testing.T) {
 	if blobPath == "" || pointerPath == "" {
 		t.Fatalf("blob=%q pointer=%q", blobPath, pointerPath)
 	}
-	if !strings.Contains(pointerPath, "pointers/go-app/") {
+	if !strings.Contains(pointerPath, "/coin/manifest/go-app/metadata/") {
 		t.Fatalf("unexpected pointer path %s", pointerPath)
 	}
 }

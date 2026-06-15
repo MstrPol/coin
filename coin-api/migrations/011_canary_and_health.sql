@@ -14,8 +14,6 @@ CREATE TABLE canary_policy (
     critical_consecutive_failures INT NOT NULL DEFAULT 3 CHECK (critical_consecutive_failures >= 1)
 );
 
-INSERT INTO canary_policy (gp_name) VALUES ('go-app') ON CONFLICT (gp_name) DO NOTHING;
-
 ALTER TABLE build_reports ADD COLUMN IF NOT EXISTS channel TEXT;
 ALTER TABLE build_reports ADD COLUMN IF NOT EXISTS requested_pin TEXT;
 ALTER TABLE build_reports ADD COLUMN IF NOT EXISTS failed_stage TEXT;

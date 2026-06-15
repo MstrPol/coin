@@ -8,7 +8,7 @@
 |------|-----|------------|
 | **Content** | PostgreSQL + Nexus `content/` | scripts, Dockerfile, schema, orchestration |
 | **Metadata** | PostgreSQL | GP releases, composition, catalog policy |
-| **Runtime cache** | Nexus `coin-manifests` | immutable manifest blobs + mutable pointers |
+| **Runtime cache** | Nexus `maven-releases` / `maven-snapshots` | immutable manifest blobs + mutable pointers |
 
 Manifest — **канонический JSON** с `manifestHash` (sha256). Собирается coin-api при Resolve и кешируется в Nexus.
 
@@ -27,10 +27,10 @@ Manifest — **канонический JSON** с `manifestHash` (sha256). Со�
   "manifestVersion": 1,
   "manifestHash": "sha256:…",
   "goldenPath": { "name": "go-app", "version": "1.0.0" },
-  "executor": { "version": "0.1.0", "url": "http://nexus:8081/repository/coin-executor/0.1.0/coin-executor-linux-arm64" },
+  "executor": { "version": "0.1.0", "url": "http://nexus:8081/repository/maven-releases/coin/executor/coin-executor/0.1.0/coin-executor-0.1.0-linux-arm64" },
   "runtime": { "image": "nexus:8082/coin-docker/ci-go:1.22-r2" },
   "pipeline": { "stages": [ … ] },
-  "orchestration": { "url": "http://nexus:8081/repository/coin-manifests/content/go-app/1.0.0/orchestration/coinPipeline.groovy", "sha256": "…" },
+  "pipeline": { "stages": [ { "name": "validate", "script": { "url": "…", "sha256": "…" } } ] },
   "dockerfileTemplate": { "url": "…", "sha256": "…" },
   "credentials": { "docker": "nexus-docker" }
 }

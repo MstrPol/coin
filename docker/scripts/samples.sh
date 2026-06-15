@@ -41,12 +41,19 @@ write_jenkinsfile() {
   cp "${STARTERS}/Jenkinsfile.coin" "${dest}/Jenkinsfile"
 }
 
-patch_config() {
-  local cfg="$1"
+patch_sample_project() {
+  local dest="$1"
   local project="$2"
+  local cfg="${dest}/.coin/config.yaml"
+
   sed -i.bak "s/^  name: .*/  name: ${project}/" "${cfg}"
-  sed -i.bak 's|^  serviceUrl: .*|  serviceUrl: http://nexus:8081|' "${cfg}"
-  rm -f "${cfg}.bak"
+  sed -i.bak "s/^  artifactId: .*/  artifactId: ${project}/" "${cfg}"
+  sed -i.bak 's|^const serviceName = .*|const serviceName = "'"${project}"'"|' "${dest}/main.go" 2>/dev/null || true
+  if [[ -f "${dest}/go.mod" ]]; then
+    sed -i.bak "s|^module .*|module example.com/${project}|" "${dest}/go.mod"
+    rm -f "${dest}/go.mod.bak"
+  fi
+  rm -f "${cfg}.bak" "${dest}/main.go.bak"
 }
 
 ensure_sample_git_repo() {
@@ -83,6 +90,7 @@ EOF
                 credentialsId('gitea-git')
                 traits {
                   gitBranchDiscovery()
+                  gitTagDiscovery()
                 }
               }
             }
@@ -137,7 +145,7 @@ while IFS= read -r line; do
 
     rsync -a --delete --exclude '.git' "${src}/" "${dest}/"
     write_jenkinsfile "${dest}"
-    patch_config "${dest}/.coin/config.yaml" "${repo}"
+    patch_sample_project "${dest}" "${repo}"
 
     url="http://${GITEA_USER}:${GITEA_PASSWORD}@localhost:${GITEA_HTTP_PORT}/coin/${repo}.git"
 

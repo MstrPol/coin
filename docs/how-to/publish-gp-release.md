@@ -80,8 +80,8 @@ curl -sf http://localhost:8090/v1/golden-paths/go-app/versions/1.0.3/manifest \
   | jq '{hash: .manifestHash, orch: .orchestration.url}'
 
 # Nexus pointer (exact pin)
-BASE=http://localhost:8081/repository/coin-manifests
-curl -sf "${BASE}/pointers/go-app/%3D1.0.3.json" | jq '{manifestHash, blobUrl}'
+SNAPSHOTS=http://localhost:8081/repository/maven-snapshots
+curl -sf "${SNAPSHOTS}/coin/manifest/go-app/metadata/go-app-metadata-pin-%3D1.0.3.json" | jq '{manifestHash, blobUrl}'
 
 # Blast radius (coin-ui или curl)
 curl -sf -H "X-API-Key: ${COIN_ADMIN_API_KEY:-dev-local-reader-key}" \

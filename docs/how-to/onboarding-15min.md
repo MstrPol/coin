@@ -60,8 +60,8 @@ curl -sf http://localhost:8090/v1/golden-paths/go-app/versions/1.0.0/manifest \
 Nexus cache (fallback path — pointer → blob):
 
 ```bash
-BASE=http://localhost:8081/repository/coin-manifests
-curl -sf "${BASE}/pointers/go-app/%3D1.0.0.json" | jq '{manifestHash, blobUrl}'
+SNAPSHOTS=http://localhost:8081/repository/maven-snapshots
+curl -sf "${SNAPSHOTS}/coin/manifest/go-app/metadata/go-app-metadata-pin-%3D1.0.0.json" | jq '{manifestHash, blobUrl}'
 ```
 
 ## Шаг 4 — Jenkins E2E (4 min)
@@ -75,7 +75,7 @@ curl -sf "${BASE}/pointers/go-app/%3D1.0.0.json" | jq '{manifestHash, blobUrl}'
 ## Шаг 5 — Optional (1 min)
 
 ```bash
-make scan-fleet          # Gitea scanner → project_bindings
+# Projects registry — автоматически при первом build report (fleet scanner удалён)
 curl -sf http://localhost:8090/metrics | grep coin_scan
 ```
 
@@ -93,7 +93,7 @@ coin-ui: **GP Releases** → Detail → blast radius chart.
 
 | Роль | Документ |
 |------|----------|
-| Platform | [publish-gp-release.md](publish-gp-release.md), [scanner-ops.md](../runbooks/scanner-ops.md) |
+| Platform | [publish-gp-release.md](publish-gp-release.md), [coin-ui-user-guide.md](../coin-ui-user-guide.md) |
 | Команда сервиса | [add-new-service-repo.md](add-new-service-repo.md) |
 | PM | [fleet-analytics-pm.md](fleet-analytics-pm.md) |
 | Миграция v1 | [migrate-config-v1-to-v2.md](migrate-config-v1-to-v2.md) |

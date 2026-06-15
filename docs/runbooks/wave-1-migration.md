@@ -21,7 +21,7 @@
 ## Prerequisites (platform)
 
 - [ ] coin-api `/ready`, auth policy согласована (`AUTH_DISABLED` только dev)
-- [ ] Nexus: `coin-manifests`, `coin-executor/{ver}/`
+- [ ] Nexus: `maven-releases`, `maven-snapshots`, `coin-docker`
 - [ ] Jenkins credential `coin-api-token`
 - [ ] `make endpoints` после restart docker/k3s
 - [ ] coin-executor опубликован для целевых arch (arm64/amd64)
@@ -65,7 +65,7 @@ Env overrides (optional):
 | Var | Default |
 |-----|---------|
 | `COIN_API_URL` | `http://coin-api:8090` |
-| `COIN_MANIFEST_CACHE_BASE` | Nexus `coin-manifests` |
+| `COIN_MANIFEST_CACHE_BASE` | Nexus `maven-snapshots` (pointer fallback) |
 
 ### 4. Verify локально (optional)
 

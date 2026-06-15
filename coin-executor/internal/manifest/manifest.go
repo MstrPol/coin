@@ -19,6 +19,18 @@ type Manifest struct {
 	ValidateSchema     ContentRef        `json:"validateSchema"`
 	DockerfileTemplate ContentRef        `json:"dockerfileTemplate"`
 	Credentials        Credentials       `json:"credentials"`
+	Capabilities       Capabilities      `json:"capabilities"`
+}
+
+type Capabilities struct {
+	Deliverables []string `json:"deliverables"`
+}
+
+func (m *Manifest) AllowedDeliverableTypes() []string {
+	if len(m.Capabilities.Deliverables) > 0 {
+		return m.Capabilities.Deliverables
+	}
+	return nil
 }
 
 type GoldenPath struct {

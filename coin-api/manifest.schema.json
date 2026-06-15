@@ -10,6 +10,7 @@
     "goldenPath",
     "executor",
     "runtime",
+    "jnlp",
     "pipeline",
     "orchestration"
   ],
@@ -50,6 +51,15 @@
         "digest": { "type": "string" }
       }
     },
+    "jnlp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["image"],
+      "properties": {
+        "image": { "type": "string" },
+        "digest": { "type": "string" }
+      }
+    },
     "pipeline": {
       "type": "object",
       "additionalProperties": false,
@@ -61,7 +71,12 @@
         }
       }
     },
-    "orchestration": { "$ref": "#/$defs/contentRef" },
+    "orchestration": {
+      "oneOf": [
+        { "$ref": "#/$defs/contentRef" },
+        { "$ref": "#/$defs/bundleRef" }
+      ]
+    },
     "validateSchema": { "$ref": "#/$defs/contentRef" },
     "dockerfileTemplate": { "$ref": "#/$defs/contentRef" },
     "credentials": {
@@ -70,6 +85,23 @@
     }
   },
   "$defs": {
+    "bundleRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bundle"],
+      "properties": {
+        "bundle": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["url", "sha256", "entrypoint"],
+          "properties": {
+            "url": { "type": "string", "format": "uri" },
+            "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+            "entrypoint": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
     "contentRef": {
       "type": "object",
       "additionalProperties": false,

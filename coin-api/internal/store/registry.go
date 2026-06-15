@@ -6,19 +6,24 @@ import (
 )
 
 type DashboardStats struct {
-	Projects     int `json:"projects"`
-	GPReleases   int `json:"gpReleases"`
-	BuildReports int `json:"buildReports"`
-	GoldenPaths  int `json:"goldenPaths"`
+	Projects      int `json:"projects"`
+	StaleProjects int `json:"staleProjects"`
+	GPReleases    int `json:"gpReleases"`
+	BuildReports  int `json:"buildReports"`
+	GoldenPaths   int `json:"goldenPaths"`
 }
 
 type ProjectRow struct {
-	Name       string    `json:"name"`
-	GoldenPath string    `json:"goldenPath"`
-	Version    string    `json:"version"`
-	CanaryMode string    `json:"canaryMode"`
-	GitURL     *string   `json:"gitUrl,omitempty"`
-	LastSeenAt time.Time `json:"lastSeenAt"`
+	Name         string     `json:"name"`
+	GroupID      string     `json:"groupId,omitempty"`
+	ArtifactID   string     `json:"artifactId,omitempty"`
+	GitRepoName  string     `json:"gitRepoName,omitempty"`
+	GitRepoURL   string     `json:"gitRepoUrl,omitempty"`
+	GoldenPath   string     `json:"goldenPath"`
+	Version      string     `json:"version"`
+	CanaryMode   string     `json:"canaryMode"`
+	Branch       string     `json:"branch,omitempty"`
+	LastBuildAt  *time.Time `json:"lastBuildAt,omitempty"`
 }
 
 type GPReleaseListItem struct {
@@ -36,28 +41,50 @@ func (s *Store) DashboardStats(ctx context.Context) (DashboardStats, error) {
 	err := s.pool.QueryRow(ctx, `
 		SELECT
 			(SELECT COUNT(*)::int FROM projects),
+			(SELECT COUNT(*)::int FROM projects p
+			 WHERE NOT EXISTS (
+			   SELECT 1 FROM build_reports br
+			   WHERE br.project_id = p.id
+			     AND br.reported_at > now() - interval '90 days'
+			 )),
 			(SELECT COUNT(*)::int FROM gp_releases WHERE status = 'published'),
 			(SELECT COUNT(*)::int FROM build_reports),
 			(SELECT COUNT(*)::int FROM gp_profiles)
-	`).Scan(&stats.Projects, &stats.GPReleases, &stats.BuildReports, &stats.GoldenPaths)
+	`).Scan(&stats.Projects, &stats.StaleProjects, &stats.GPReleases, &stats.BuildReports, &stats.GoldenPaths)
 	return stats, err
 }
 
-func (s *Store) ListProjects(ctx context.Context, goldenPath, version string) ([]ProjectRow, error) {
+func (s *Store) ListProjects(ctx context.Context, goldenPath, version string, staleOnly bool) ([]ProjectRow, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT p.name, pb.gp_name, pb.gp_version, p.canary_mode::text, pb.git_url, pb.last_seen_at
+		SELECT p.name,
+		       COALESCE(p.group_id, ''),
+		       COALESCE(p.artifact_id, p.name),
+		       COALESCE(p.git_repo_name, ''),
+		       COALESCE(p.git_repo_url, ''),
+		       COALESCE(p.gp_pin, ''),
+		       COALESCE(p.version_pin, ''),
+		       p.canary_mode::text,
+		       COALESCE(lb.branch, ''),
+		       lb.reported_at
 		FROM projects p
-		JOIN LATERAL (
-			SELECT gp_name, gp_version, git_url, last_seen_at
-			FROM project_bindings pb2
-			WHERE pb2.project_id = p.id
-			ORDER BY pb2.last_seen_at DESC
+		LEFT JOIN LATERAL (
+			SELECT branch, reported_at
+			FROM build_reports br
+			WHERE br.project_id = p.id
+			ORDER BY br.reported_at DESC
 			LIMIT 1
-		) pb ON true
-		WHERE ($1 = '' OR pb.gp_name = $1)
-		  AND ($2 = '' OR pb.gp_version = $2)
+		) lb ON true
+		WHERE ($1 = '' OR p.gp_pin = $1)
+		  AND ($2 = '' OR p.version_pin = $2)
+		  AND (
+		    NOT $3::bool OR NOT EXISTS (
+		      SELECT 1 FROM build_reports br2
+		      WHERE br2.project_id = p.id
+		        AND br2.reported_at > now() - interval '90 days'
+		    )
+		  )
 		ORDER BY p.name
-	`, goldenPath, version)
+	`, goldenPath, version, staleOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -66,9 +93,14 @@ func (s *Store) ListProjects(ctx context.Context, goldenPath, version string) ([
 	var out []ProjectRow
 	for rows.Next() {
 		var row ProjectRow
-		if err := rows.Scan(&row.Name, &row.GoldenPath, &row.Version, &row.CanaryMode, &row.GitURL, &row.LastSeenAt); err != nil {
+		var lastBuild *time.Time
+		if err := rows.Scan(
+			&row.Name, &row.GroupID, &row.ArtifactID, &row.GitRepoName, &row.GitRepoURL,
+			&row.GoldenPath, &row.Version, &row.CanaryMode, &row.Branch, &lastBuild,
+		); err != nil {
 			return nil, err
 		}
+		row.LastBuildAt = lastBuild
 		out = append(out, row)
 	}
 	return out, rows.Err()

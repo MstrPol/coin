@@ -5,5 +5,8 @@ mirrors:
 
 configs:
   "nexus:8082":
+    auth:
+      username: coin
+      password: coin1234
     tls:
       insecure_skip_verify: true

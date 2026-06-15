@@ -6,7 +6,7 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
   isActive ? "text-sky-400" : "text-zinc-400 hover:text-zinc-200";
 
 export default function Layout() {
-  const { logout, roles, subject, can } = useAuth();
+  const { logout, roles, subject } = useAuth();
   const role = highestRole(roles);
 
   return (
@@ -25,7 +25,7 @@ export default function Layout() {
               GP Releases
             </NavLink>
             <NavLink to="/catalog" className={linkClass}>
-              Catalog
+              GP Policy
             </NavLink>
             <NavLink to="/resolve" className={linkClass}>
               Resolve
@@ -36,16 +36,22 @@ export default function Layout() {
             <NavLink to="/components" className={linkClass}>
               Components
             </NavLink>
-            {can("publisher") && (
-              <NavLink to="/releases/publish" className={linkClass}>
-                Publish
-              </NavLink>
-            )}
+            <NavLink to="/platform-settings" className={linkClass}>
+              Platform
+            </NavLink>
             <NavLink to="/audit" className={linkClass}>
               Audit
             </NavLink>
           </nav>
           <div className="ml-auto flex items-center gap-3">
+            <a
+              href="/api/docs/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-zinc-500 hover:text-zinc-300"
+            >
+              API docs ↗
+            </a>
             {roles.length > 0 && (
               <span className="text-xs text-zinc-500">
                 {subject ?? "user"} · <span className="font-mono text-zinc-400">{role}</span>
