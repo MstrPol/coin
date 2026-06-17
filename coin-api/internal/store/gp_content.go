@@ -12,11 +12,10 @@ import (
 	"coin.local/coin-api/internal/manifest"
 )
 
-// CanonicalGPSlots returns the five platform composition slots for a golden path.
-func CanonicalGPSlots(gpName, agentStack string) []GPProfileSlot {
+// CanonicalGPSlots returns the four platform composition slots for a golden path.
+func CanonicalGPSlots(gpName string) []GPProfileSlot {
 	return []GPProfileSlot{
-		{Key: "jnlp", Type: "agent", Name: "jnlp"},
-		{Key: "agent", Type: "agent", Name: agentStack},
+		{Key: "agent", Type: "agent", Name: "coin-agent"},
 		{Key: "executor", Type: "executor", Name: "coin-executor"},
 		{Key: "lib", Type: "lib", Name: "coin-lib"},
 		{Key: "gp-content", Type: "gp-content", Name: gpName},
@@ -24,20 +23,40 @@ func CanonicalGPSlots(gpName, agentStack string) []GPProfileSlot {
 }
 
 type gpContentContentRef struct {
-	Stages []struct {
-		Name        string `json:"name"`
-		When        string `json:"when"`
-		ArtifactKey string `json:"artifactKey"`
-		SHA256      string `json:"sha256"`
-	} `json:"stages"`
+	Pipeline struct {
+		Stages []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+			When string `json:"when"`
+		} `json:"stages"`
+	} `json:"pipeline"`
+	Build struct {
+		Engine   string `json:"engine"`
+		Buildkit struct {
+			Dockerfile       string            `json:"dockerfile"`
+			Targets          map[string]string `json:"targets"`
+			CacheRefTemplate string            `json:"cacheRefTemplate"`
+		} `json:"buildkit"`
+		Buildpack struct {
+			Builder          string `json:"builder"`
+			RunImage         string `json:"runImage"`
+			CacheRefTemplate string `json:"cacheRefTemplate"`
+		} `json:"buildpack"`
+		Dockerfile struct {
+			File             string `json:"file"`
+			ImageTarget      string `json:"imageTarget"`
+			TestTarget       string `json:"testTarget"`
+			CacheRefTemplate string `json:"cacheRefTemplate"`
+		} `json:"dockerfile"`
+	} `json:"build"`
 	ValidateSchema struct {
 		ArtifactKey string `json:"artifactKey"`
 		SHA256      string `json:"sha256"`
 	} `json:"validateSchema"`
-	DockerfileTemplate struct {
+	Containerfile struct {
 		ArtifactKey string `json:"artifactKey"`
 		SHA256      string `json:"sha256"`
-	} `json:"dockerfileTemplate"`
+	} `json:"containerfile"`
 }
 
 type gpContentMetadata struct {
@@ -73,26 +92,43 @@ func (s *Store) getGPContentRefs(ctx context.Context, name, version string) (gpC
 }
 
 func contentBundleFromGPContent(meta gpContentMetadata, cref gpContentContentRef) manifest.ContentBundle {
-	stages := make([]manifest.StageScript, 0, len(cref.Stages))
-	for _, st := range cref.Stages {
-		stages = append(stages, manifest.StageScript{
-			Name:        st.Name,
-			When:        st.When,
-			ArtifactKey: st.ArtifactKey,
-			SHA256:      st.SHA256,
+	stages := make([]manifest.TypedStage, 0, len(cref.Pipeline.Stages))
+	for _, st := range cref.Pipeline.Stages {
+		stages = append(stages, manifest.TypedStage{
+			ID:   st.ID,
+			Name: st.Name,
+			When: st.When,
 		})
 	}
 	return manifest.ContentBundle{
-		BundleURL:             meta.URL,
-		BundleSHA256:          meta.SHA256,
-		BuildControls:         meta.BuildControls,
-		Capabilities:          meta.Capabilities,
-		SchemaArtifactKey:     cref.ValidateSchema.ArtifactKey,
-		SchemaSHA256:          cref.ValidateSchema.SHA256,
-		DockerfileArtifactKey: cref.DockerfileTemplate.ArtifactKey,
-		DockerfileSHA256:      cref.DockerfileTemplate.SHA256,
-		Stages:                stages,
+		BundleURL:           meta.URL,
+		BundleSHA256:        meta.SHA256,
+		BuildControls:       meta.BuildControls,
+		Capabilities:        meta.Capabilities,
+		SchemaArtifactKey:   cref.ValidateSchema.ArtifactKey,
+		SchemaSHA256:        cref.ValidateSchema.SHA256,
+		ContainerfileKey:    cref.Containerfile.ArtifactKey,
+		ContainerfileSHA256: cref.Containerfile.SHA256,
+		BuildEngine:         cref.Build.Engine,
+		BuildkitDockerfile:  cref.Build.Buildkit.Dockerfile,
+		BuildkitTargets:     cref.Build.Buildkit.Targets,
+		BuildpackBuilder:      cref.Build.Buildpack.Builder,
+		BuildpackRunImage:     cref.Build.Buildpack.RunImage,
+		DockerfileImageTarget: cref.Build.Dockerfile.ImageTarget,
+		DockerfileTestTarget:  cref.Build.Dockerfile.TestTarget,
+		CacheRefTemplate:    cacheRefTemplateFromContent(cref),
+		Stages:              stages,
 	}
+}
+
+func cacheRefTemplateFromContent(cref gpContentContentRef) string {
+	if t := strings.TrimSpace(cref.Build.Buildkit.CacheRefTemplate); t != "" {
+		return t
+	}
+	if t := strings.TrimSpace(cref.Build.Buildpack.CacheRefTemplate); t != "" {
+		return t
+	}
+	return strings.TrimSpace(cref.Build.Dockerfile.CacheRefTemplate)
 }
 
 func (s *Store) seedGPArtifactsFromGPContent(ctx context.Context, releaseID int64, name, version string) error {
@@ -100,11 +136,10 @@ func (s *Store) seedGPArtifactsFromGPContent(ctx context.Context, releaseID int6
 	if err != nil {
 		return err
 	}
-	keys := make([]string, 0, len(cref.Stages)+2)
-	for _, st := range cref.Stages {
-		keys = append(keys, st.ArtifactKey)
+	keys := []string{cref.ValidateSchema.ArtifactKey}
+	if cf := strings.TrimSpace(cref.Containerfile.ArtifactKey); cf != "" {
+		keys = append(keys, cf)
 	}
-	keys = append(keys, cref.ValidateSchema.ArtifactKey, cref.DockerfileTemplate.ArtifactKey)
 
 	var componentVersionID int64
 	err = s.pool.QueryRow(ctx, `

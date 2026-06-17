@@ -19,6 +19,6 @@ cp coin-starters/Jenkinsfile.coin my-service/Jenkinsfile
 
 Каждый starter: `.coin/config.yaml`, thin `Jenkinsfile` (`coinPipeline()`), минимальный код.
 
-Эталон thin Jenkins: [`Jenkinsfile.coin`](Jenkinsfile.coin) · orchestration из manifest (platform-first).
+Эталон thin Jenkins: [`Jenkinsfile.coin`](Jenkinsfile.coin) — `@Library('coin-lib@1.0.0')` + `coinPipeline()`; stages из resolved manifest.
 
 Local pilot: `cd docker && make coin-starters` → Gitea `coin/coin-starters`.

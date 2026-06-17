@@ -45,13 +45,35 @@ func MavenRepoPath(groupID, artifactID, version, classifier, ext string) string 
 	return fmt.Sprintf("%s/%s/%s/%s", groupPath, artifactID, version, file)
 }
 
+var knownArtifactExts = map[string]struct{}{
+	"json": {}, "sh": {}, "yaml": {}, "yml": {}, "md": {}, "txt": {},
+}
+
+// ArtifactMavenCoords maps GP content artifact key to Maven classifier + extension.
+// Keys without a known extension (e.g. dockerfiles/Containerfile) keep the full
+// dotted path as classifier and use a synthetic ext so Nexus maven-hosted accepts PUT.
+func ArtifactMavenCoords(key string) (classifier, ext string) {
+	normalized := strings.NewReplacer("/", ".", " ", "_").Replace(key)
+	if i := strings.LastIndex(key, "."); i >= 0 {
+		candidate := strings.ToLower(key[i+1:])
+		if _, ok := knownArtifactExts[candidate]; ok {
+			return normalized[:strings.LastIndex(normalized, ".")], candidate
+		}
+	}
+	base := key
+	if j := strings.LastIndex(key, "/"); j >= 0 {
+		base = key[j+1:]
+	}
+	if strings.EqualFold(base, "Containerfile") {
+		return normalized, "containerfile"
+	}
+	return normalized, ""
+}
+
 // ClassifierFromArtifactKey maps artifact key to Maven classifier (extension stripped).
 func ClassifierFromArtifactKey(key string) string {
-	repl := strings.NewReplacer("/", ".", " ", "_").Replace(key)
-	if i := strings.LastIndex(repl, "."); i > 0 {
-		return repl[:i]
-	}
-	return repl
+	classifier, _ := ArtifactMavenCoords(key)
+	return classifier
 }
 
 // ImmutableConflict reports Nexus maven-hosted 400 when the asset already exists.

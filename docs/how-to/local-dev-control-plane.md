@@ -1,12 +1,12 @@
 # Local dev: Control Plane v2
 
-**Цель:** поднять стенд, получить manifest, прогнать demo-go-app E2E.
+**Цель:** поднять стенд, получить manifest, прогнать E2E build engines.
 
 **Gate:** P0 go/no-go.
 
 ## Prerequisites
 
-- Docker Desktop (running)
+- Docker Desktop (running, 20+ GB disk)
 - `make`, `curl`, `jq` (optional)
 
 ## Шаги
@@ -28,19 +28,18 @@ curl -sf http://localhost:8080/login -u admin:admin -o /dev/null
 Platform + product:
 
 ```bash
-make coin-jenkins-agents
-# executor binary в Nexus (локально или Jenkins job coin-executor PUBLISH=true):
-cd ../coin-executor && GOOS=linux GOARCH=arm64 go build -o /tmp/coin-executor ./cmd/coin-executor
-curl -u admin:coin12345 -X PUT --upload-file /tmp/coin-executor \
-  "http://localhost:8081/repository/maven-releases/coin/executor/coin-executor/0.1.0/coin-executor-0.1.0-linux-arm64"
-
-make samples            # demo-go-app → Gitea + Jenkins multibranch
+# Apple Silicon:
+make publish-agent GOARCH=arm64
+make coin-lib
+make seed-jenkins-lib
+make samples
 ```
 
 Resolve manifest:
 
 ```bash
-curl -fsS http://localhost:8090/v1/golden-paths/go-app/versions/1.0.0/manifest | jq '.goldenPath, .runtime, .orchestration.url'
+curl -fsS "http://localhost:8090/v1/golden-paths/go-app/resolve?pin=*" \
+  | jq '{gp: .goldenPath, engine: .build.engine, runtime: .runtime.image}'
 ```
 
 Nexus fallback (после resolve прогрел cache):
@@ -50,18 +49,19 @@ SNAPSHOTS=http://localhost:8081/repository/maven-snapshots
 curl -fsS "${SNAPSHOTS}/coin/manifest/go-app/metadata/go-app-metadata-pin-%3D1.0.0.json" | jq .
 ```
 
-E2E smoke (PF-11):
+E2E:
 
 ```bash
-make e2e-mvp1
+make e2e-mvp1              # smoke без Jenkins
+make e2e-build-engines     # 3 jobs: buildkit, buildpack, dockerfile
 ```
 
-Jenkins: http://localhost:8080 → job **demo-go-app** / **main** → Build Now → SUCCESS.
+Jenkins: http://localhost:8080 → **demo-go-app** / **main** → Build Now → SUCCESS.
 
 ## Verify (acceptance)
 
 - [ ] `/ready` → `{"status":"ready"}`
-- [ ] manifest содержит `goldenPath.name=go-app`, `runtime.image`
+- [ ] manifest: `goldenPath.name=go-app`, `build.engine`, `runtime.image` (coin-agent)
 - [ ] demo-go-app: validate → test → build green
 - [ ] Образ `localhost:8082/coin-docker/app:<build>` создан
 
@@ -70,12 +70,14 @@ Jenkins: http://localhost:8080 → job **demo-go-app** / **main** → Build Now 
 | Симптом | Решение |
 |---------|---------|
 | Agent `offline`, JNLP Connection refused | `make endpoints` |
-| `lookup nexus: no such host` при docker build | `COIN_REGISTRY_PREFIX=localhost:8082/coin-docker` (уже в Jenkinsfile.coin) |
-| executor 404 | Jenkins job `coin-executor` с `PUBLISH=true` или PUT в `maven-releases/coin/executor/...` |
-| manifest sha256 mismatch | `make coin-jenkins-agents` + rebuild coin-api |
+| `lookup nexus: no such host` | `COIN_REGISTRY_PREFIX=localhost:8082/coin-docker` |
+| manifest sha256 mismatch | Новый gp-content semver + `make seed-jenkins-lib` (Nexus immutable) |
+| Pod killed (ephemeral-storage) | `bash scripts/prune-k3s-disk.sh --all` |
+| buildpack pod pending | Диск + `procMount: Unmasked` в pod template |
 
 ## Ссылки
 
 - [docker/README.md](../../docker/README.md)
-- [onboarding-15min.md](onboarding-15min.md) — быстрый старт для новых dev
+- [onboarding-15min.md](onboarding-15min.md)
+- [agent-build-model.md](../agent-build-model.md)
 - [jenkins-setup.md](../jenkins-setup.md)

@@ -5,11 +5,12 @@ import "testing"
 func TestBuilderStableHash(t *testing.T) {
 	b := Builder{}
 	release := sampleRelease()
-	doc1, hash1, err := b.Build(release)
+	opts := BuildOptions{Project: "demo-go-app", RegistryHost: "localhost:8082"}
+	doc1, hash1, err := b.Build(release, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc2, hash2, err := b.Build(release)
+	doc2, hash2, err := b.Build(release, opts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,9 +22,9 @@ func TestBuilderStableHash(t *testing.T) {
 	}
 }
 
-func TestBuilderContentRefsURLShaped(t *testing.T) {
+func TestBuilderBuildEngineContract(t *testing.T) {
 	b := Builder{}
-	doc, _, err := b.Build(sampleRelease())
+	doc, _, err := b.Build(sampleRelease(), BuildOptions{Project: "demo-go-app", RegistryHost: "localhost:8082"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,8 +36,28 @@ func TestBuilderContentRefsURLShaped(t *testing.T) {
 	if schema["url"] == "" || schema["sha256"] == "" {
 		t.Fatalf("validateSchema not url-shaped: %#v", schema)
 	}
-	if _, hasGit := schema["gitRef"]; hasGit {
-		t.Fatal("validateSchema must not contain gitRef")
+
+	build, ok := doc["build"].(map[string]any)
+	if !ok {
+		t.Fatal("build missing")
+	}
+	if build["engine"] != "buildkit" {
+		t.Fatalf("unexpected engine: %#v", build["engine"])
+	}
+	buildkit, ok := build["buildkit"].(map[string]any)
+	if !ok {
+		t.Fatal("build.buildkit missing")
+	}
+	if buildkit["dockerfile"] != ".coin/Containerfile" {
+		t.Fatalf("unexpected dockerfile path: %#v", buildkit["dockerfile"])
+	}
+	cacheRef, _ := buildkit["cacheRef"].(string)
+	if cacheRef != "localhost:8082/coin-cache/demo-go-app:buildkit" {
+		t.Fatalf("unexpected cacheRef: %q", cacheRef)
+	}
+	cf, ok := buildkit["containerfile"].(map[string]string)
+	if !ok || cf["url"] == "" {
+		t.Fatalf("containerfile ref missing: %#v", buildkit["containerfile"])
 	}
 
 	pipeline, ok := doc["pipeline"].(map[string]any)
@@ -47,16 +68,96 @@ func TestBuilderContentRefsURLShaped(t *testing.T) {
 	if !ok || len(rawStages) == 0 {
 		t.Fatal("pipeline stages missing")
 	}
-	script, ok := rawStages[0]["script"].(map[string]string)
-	if !ok || script["url"] == "" || script["sha256"] == "" {
-		t.Fatalf("stage script not url-shaped: %#v", rawStages[0])
+	if rawStages[0]["id"] != "validate" {
+		t.Fatalf("unexpected stage id: %#v", rawStages[0])
 	}
-	if _, hasOrch := doc["orchestration"]; hasOrch {
-		t.Fatal("manifest must not contain orchestration.bundle")
+	if _, hasScript := rawStages[0]["script"]; hasScript {
+		t.Fatal("typed stages must not contain script")
 	}
-	jnlp, ok := doc["jnlp"].(map[string]string)
-	if !ok || jnlp["image"] == "" {
-		t.Fatalf("jnlp missing: %#v", doc["jnlp"])
+	if _, hasJnlp := doc["jnlp"]; hasJnlp {
+		t.Fatal("manifest must not contain jnlp")
+	}
+	runtime, ok := doc["runtime"].(map[string]string)
+	if !ok || runtime["image"] == "" {
+		t.Fatalf("runtime missing: %#v", doc["runtime"])
+	}
+}
+
+func TestBuilderBuildpackEngine(t *testing.T) {
+	b := Builder{}
+	release := sampleRelease()
+	release.Content.BuildEngine = "buildpack"
+	release.Content.BuildpackBuilder = "paketobuildpacks/builder-jammy-base"
+	release.Content.CacheRefTemplate = "{{registryHost}}/coin-cache/{{project}}:buildpack"
+	release.Content.ContainerfileKey = ""
+	release.Content.ContainerfileSHA256 = ""
+
+	doc, _, err := b.Build(release, BuildOptions{Project: "demo-go-app", RegistryHost: "localhost:8082"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	build, ok := doc["build"].(map[string]any)
+	if !ok {
+		t.Fatal("build missing")
+	}
+	if build["engine"] != "buildpack" {
+		t.Fatalf("unexpected engine: %#v", build["engine"])
+	}
+	bp, ok := build["buildpack"].(map[string]any)
+	if !ok {
+		t.Fatal("build.buildpack missing")
+	}
+	if bp["builder"] != "paketobuildpacks/builder-jammy-base" {
+		t.Fatalf("unexpected builder: %#v", bp["builder"])
+	}
+	cacheRef, _ := bp["cacheRef"].(string)
+	if cacheRef != "localhost:8082/coin-cache/demo-go-app:buildpack" {
+		t.Fatalf("unexpected cacheRef: %q", cacheRef)
+	}
+	if _, hasBuildkit := build["buildkit"]; hasBuildkit {
+		t.Fatal("buildpack manifest must not include buildkit section")
+	}
+}
+
+func TestBuilderDockerfileEngine(t *testing.T) {
+	b := Builder{}
+	release := sampleRelease()
+	release.Content.BuildEngine = "dockerfile"
+	release.Content.DockerfileImageTarget = "runtime"
+	release.Content.DockerfileTestTarget = "test"
+	release.Content.CacheRefTemplate = "{{registryHost}}/coin-cache/{{project}}:dockerfile"
+
+	doc, _, err := b.Build(release, BuildOptions{Project: "demo-go-app", RegistryHost: "localhost:8082"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	build, ok := doc["build"].(map[string]any)
+	if !ok {
+		t.Fatal("build missing")
+	}
+	if build["engine"] != "dockerfile" {
+		t.Fatalf("unexpected engine: %#v", build["engine"])
+	}
+	df, ok := build["dockerfile"].(map[string]any)
+	if !ok {
+		t.Fatal("build.dockerfile missing")
+	}
+	if df["dockerfile"] != ".coin/Containerfile" {
+		t.Fatalf("unexpected dockerfile path: %#v", df["dockerfile"])
+	}
+	if df["imageTarget"] != "runtime" || df["testTarget"] != "test" {
+		t.Fatalf("unexpected targets: %#v", df)
+	}
+	cacheRef, _ := df["cacheRef"].(string)
+	if cacheRef != "localhost:8082/coin-cache/demo-go-app:dockerfile" {
+		t.Fatalf("unexpected cacheRef: %q", cacheRef)
+	}
+	cf, ok := df["containerfile"].(map[string]string)
+	if !ok || cf["url"] == "" {
+		t.Fatalf("containerfile ref missing: %#v", df["containerfile"])
+	}
+	if _, hasBuildkit := build["buildkit"]; hasBuildkit {
+		t.Fatal("dockerfile manifest must not include buildkit section")
 	}
 }
 
@@ -66,10 +167,8 @@ func sampleRelease() GPRelease {
 		Version: "1.0.0",
 		Parts: Composition{
 			ExecutorVersion:  "0.1.0",
-			AgentImage:       "localhost:8082/coin-docker/ci-go:1.22.5",
+			AgentImage:       "localhost:8082/coin-docker/coin-agent:1.0.0",
 			AgentDigest:      "sha256:deadbeef",
-			JnlpImage:        "jenkins/inbound-agent:latest",
-			JnlpDigest:       "sha256:jnlp",
 			ExecutorURL:      "http://localhost:8081/repository/maven-releases/coin/executor/coin-executor/0.1.0/coin-executor-0.1.0-linux-amd64.bin",
 			ExecutorSHA256:   "sha256:abc",
 			LibName:          "coin-lib",
@@ -80,13 +179,22 @@ func sampleRelease() GPRelease {
 		Content: ContentBundle{
 			SchemaArtifactKey:     "schemas/config.v2.schema.json",
 			SchemaSHA256:          "sha256:schema",
-			DockerfileArtifactKey: "dockerfiles/go-runtime.Dockerfile",
-			DockerfileSHA256:      "sha256:dockerfile",
-			Stages: []StageScript{
-				{Name: "validate", ArtifactKey: "scripts/validate.sh", SHA256: "sha256:v"},
-				{Name: "test", ArtifactKey: "scripts/test.sh", SHA256: "sha256:t"},
-				{Name: "build", ArtifactKey: "scripts/build.sh", SHA256: "sha256:b"},
-				{Name: "publish", When: "tag", ArtifactKey: "scripts/publish.sh", SHA256: "sha256:p"},
+			ContainerfileKey:      "dockerfiles/Containerfile",
+			ContainerfileSHA256:   "sha256:containerfile",
+			BuildEngine:           "buildkit",
+			BuildkitDockerfile:    "dockerfiles/Containerfile",
+			BuildkitTargets: map[string]string{
+				"validate": "validate",
+				"test":     "test",
+				"image":    "runtime",
+				"artifact": "artifact",
+			},
+			CacheRefTemplate: "{{registryHost}}/coin-cache/{{project}}:buildkit",
+			Stages: []TypedStage{
+				{ID: "validate", Name: "Validate"},
+				{ID: "test", Name: "Test"},
+				{ID: "build", Name: "Build"},
+				{ID: "publish", Name: "Publish", When: "tag"},
 			},
 		},
 	}

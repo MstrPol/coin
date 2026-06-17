@@ -35,8 +35,8 @@
 
 ## Шаг 3 — Jenkinsfile
 
-- [ ] Удалён v1 Shared Library pipeline (`coinPipeline()`)
-- [ ] Содержимое = [`Jenkinsfile.coin`](../../coin-starters/Jenkinsfile.coin)
+- [ ] Удалён v1 fat pipeline (бизнес-логика в Groovy / legacy `@Library`)
+- [ ] Содержимое = [`Jenkinsfile.coin`](../../coin-starters/Jenkinsfile.coin): `@Library('coin-lib@…')` + `coinPipeline()`
 - [ ] (Optional) env `COIN_API_URL`, `COIN_MANIFEST_CACHE_BASE`
 
 ## Шаг 4 — PR / merge

@@ -1,4 +1,4 @@
-// Вызов одного stage coin-executor внутри stack-контейнера.
+// Вызов одного stage coin-executor внутри agent-контейнера.
 
 /**
  * Запускает coin-executor run для указанного stage из manifest.pipeline.stages.
@@ -11,10 +11,11 @@ def call(String stageName) {
     withCredentials([string(credentialsId: apiTokenCredId, variable: 'COIN_API_TOKEN')]) {
         sh """
             set -eu
-            export PATH="\${WORKSPACE}:\${PATH}"
+            export PATH="/usr/local/bin:\${PATH}"
             export COIN_REGISTRY_PREFIX="\${COIN_REGISTRY_PREFIX:-localhost:8082/coin-docker}"
             export COIN_API_URL='${env.COIN_API_URL}'
             export COIN_API_TOKEN="\${COIN_API_TOKEN}"
+            export BUILDKIT_HOST="\${BUILDKIT_HOST:-unix:///tmp/buildkit.sock}"
             coin-executor run --manifest .coin/manifest.json --stage ${stageName}
         """
     }

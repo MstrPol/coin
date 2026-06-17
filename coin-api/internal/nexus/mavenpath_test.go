@@ -9,6 +9,20 @@ func TestClassifierFromArtifactKey(t *testing.T) {
 	if got := ClassifierFromArtifactKey("schemas/config.v2.schema.json"); got != "schemas.config.v2.schema" {
 		t.Fatalf("got %q", got)
 	}
+	if got := ClassifierFromArtifactKey("dockerfiles/Containerfile"); got != "dockerfiles.Containerfile" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestArtifactMavenCoords(t *testing.T) {
+	c, e := ArtifactMavenCoords("dockerfiles/Containerfile")
+	if c != "dockerfiles.Containerfile" || e != "containerfile" {
+		t.Fatalf("Containerfile coords: %q %q", c, e)
+	}
+	c, e = ArtifactMavenCoords("schemas/config.v2.schema.json")
+	if c != "schemas.config.v2.schema" || e != "json" {
+		t.Fatalf("schema coords: %q %q", c, e)
+	}
 }
 
 func TestImmutableConflict(t *testing.T) {

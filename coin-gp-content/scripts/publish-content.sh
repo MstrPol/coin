@@ -30,7 +30,11 @@ rm -rf "${PAYLOAD_DIR}" "${ZIP}"
 
 (
   cd "${STACK_DIR}"
-  zip -qr "${ZIP}" content.yaml scripts dockerfiles schemas
+  zip_items=(content.yaml)
+  [[ -d schemas ]] && zip_items+=(schemas)
+  [[ -d dockerfiles ]] && zip_items+=(dockerfiles)
+  [[ -f project.toml ]] && zip_items+=(project.toml)
+  zip -qr "${ZIP}" "${zip_items[@]}"
 )
 
 SHA256="sha256:$(sha256sum "${ZIP}" | awk '{print $1}')"
@@ -78,21 +82,26 @@ def sha(p: pathlib.Path) -> str:
     return f"sha256:{hashlib.sha256(p.read_bytes()).hexdigest()}"
 
 stages = []
-for st in content.get("stages", []):
-    key = st["artifactKey"]
-    item = {"name": st["name"], "artifactKey": key, "sha256": sha(stack / key)}
+for st in content.get("pipeline", {}).get("stages", []):
+    item = {"id": st["id"], "name": st["name"]}
     if st.get("when"):
         item["when"] = st["when"]
     stages.append(item)
 
 vs = content["validateSchema"]["artifactKey"]
-df = content["dockerfileTemplate"]["artifactKey"]
+build = content.get("build") or {}
 
 cref = {
-    "stages": stages,
+    "pipeline": {"stages": stages},
+    "build": build,
     "validateSchema": {"artifactKey": vs, "sha256": sha(stack / vs)},
-    "dockerfileTemplate": {"artifactKey": df, "sha256": sha(stack / df)},
 }
+keys = [vs]
+if content.get("containerfile"):
+    cf = content["containerfile"]["artifactKey"]
+    cref["containerfile"] = {"artifactKey": cf, "sha256": sha(stack / cf)}
+    keys.append(cf)
+
 controls = content.get("controls") or {}
 capabilities = content.get("capabilities") or {}
 meta = {
@@ -101,12 +110,18 @@ meta = {
     "buildControls": controls,
     "capabilities": capabilities,
 }
-keys = [s["artifactKey"] for s in stages] + [vs, df]
 
 (out / "content-ref.json").write_text(json.dumps(cref))
 (out / "metadata.json").write_text(json.dumps(meta))
 (out / "keys.json").write_text(json.dumps(keys))
 PY
+
+echo "==> upload gp-content artifact bodies to Nexus"
+jq -r '.[]' "${PAYLOAD_DIR}/keys.json" | while IFS= read -r key; do
+  file="${STACK_DIR}/${key}"
+  artifact_url="$(gp_content_artifact_url "${STACK}" "${VERSION}" "${key}")"
+  nexus_upload "${artifact_url}" "${file}"
+done
 
 echo "==> register gp-content/${STACK}@${VERSION}"
 register_body="$(jq -n \
@@ -126,7 +141,22 @@ if [[ "${register_code}" != "201" && "${register_code}" != "409" ]]; then
   exit 1
 fi
 if [[ "${register_code}" == "409" ]]; then
-  echo "==> version already registered in coin-api, continue"
+  echo "==> version already registered in coin-api, updating content_ref"
+  cref_json="$(jq -c . "${PAYLOAD_DIR}/content-ref.json")"
+  meta_json="$(jq -c . "${PAYLOAD_DIR}/metadata.json")"
+  update_code="$(curl -sS -o /dev/null -w '%{http_code}' -X PATCH \
+    "${COIN_API_URL}/v1/admin/components/gp-content/${STACK}/versions/${VERSION}" \
+    -H "Content-Type: application/json" \
+    -H "X-API-Key: ${API_KEY}" \
+    -d "{\"metadata\":${meta_json},\"contentRef\":${cref_json}}")"
+  if [[ "${update_code}" != "200" ]]; then
+    if [[ "${update_code}" == "405" ]]; then
+      echo "==> warn: coin-api PATCH not available (HTTP 405), content_ref unchanged"
+    else
+      echo "coin-api content_ref update failed HTTP ${update_code}" >&2
+      exit 1
+    fi
+  fi
 fi
 rm -f "${register_tmp}"
 

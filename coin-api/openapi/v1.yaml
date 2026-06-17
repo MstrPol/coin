@@ -496,7 +496,7 @@ paths:
 
   /v1/admin/components/agent/{name}/next-version:
     get:
-      summary: Next agent version ({runtime}-r{N+1}) for agents-build
+      summary: Next agent version ({runtime}-r{N+1}); legacy stack agents only (coin-agent uses semver via publish-agent)
       security:
         - adminKey: []
       parameters:
@@ -505,7 +505,7 @@ paths:
           required: true
           schema:
             type: string
-          description: Agent stack (component name), e.g. go
+          description: Agent component name (legacy stack, e.g. go) or coin-agent
         - name: runtime
           in: query
           required: true
@@ -734,8 +734,8 @@ components:
         - goldenPath
         - executor
         - runtime
+        - build
         - pipeline
-        - orchestration
       properties:
         manifestVersion:
           type: integer
@@ -753,37 +753,203 @@ components:
               type: string
         executor:
           type: object
+          required: [version, url, sha256]
           properties:
             version:
               type: string
             url:
               type: string
+              format: uri
             sha256:
               type: string
         runtime:
           type: object
+          required: [image]
           properties:
             image:
               type: string
+              description: Universal coin-agent image ref
             digest:
               type: string
+        build:
+          $ref: "#/components/schemas/ManifestBuild"
         pipeline:
           type: object
+          required: [stages]
           properties:
             stages:
               type: array
               items:
-                type: object
-        orchestration:
-          $ref: "#/components/schemas/ContentRef"
+                $ref: "#/components/schemas/ManifestStage"
         validateSchema:
-          $ref: "#/components/schemas/ContentRef"
-        dockerfileTemplate:
           $ref: "#/components/schemas/ContentRef"
         credentials:
           type: object
           additionalProperties:
             type: string
+        capabilities:
+          type: object
+          additionalProperties: true
+
+    ManifestBuild:
+      type: object
+      required: [engine]
+      properties:
+        engine:
+          type: string
+          enum: [buildkit, buildpack, dockerfile]
+        buildkit:
+          $ref: "#/components/schemas/ManifestBuildkit"
+        buildpack:
+          $ref: "#/components/schemas/ManifestBuildpack"
+        dockerfile:
+          $ref: "#/components/schemas/ManifestDockerfileEngine"
+
+    ManifestDockerfileEngine:
+      type: object
+      required: [dockerfile, containerfile]
+      properties:
+        dockerfile:
+          type: string
+          description: Resolved path in workspace, e.g. .coin/Containerfile
+          example: ".coin/Containerfile"
+        imageTarget:
+          type: string
+          example: runtime
+        testTarget:
+          type: string
+          example: test
+        cacheRef:
+          type: string
+          example: "localhost:8082/coin-cache/demo-go-app:dockerfile"
+        containerfile:
+          $ref: "#/components/schemas/ContentRef"
+
+    ManifestBuildpack:
+      type: object
+      required: [builder]
+      properties:
+        builder:
+          type: string
+          example: paketobuildpacks/builder-jammy-base
+        runImage:
+          type: string
+        cacheRef:
+          type: string
+          example: "localhost:8082/coin-cache/demo-go-app:buildpack"
+
+    ManifestBuildkit:
+      type: object
+      required: [dockerfile, targets, containerfile]
+      properties:
+        dockerfile:
+          type: string
+          description: Resolved path in workspace, e.g. .coin/Containerfile
+          example: ".coin/Containerfile"
+        targets:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            validate: validate
+            test: test
+            image: runtime
+            artifact: artifact
+        cacheRef:
+          type: string
+          example: "localhost:8082/coin-cache/demo-go-app:buildkit"
+        containerfile:
+          $ref: "#/components/schemas/ContentRef"
+
+    ManifestStage:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          example: validate
+        name:
+          type: string
+          example: Validate
+        when:
+          type: string
+          example: tag
+
+    GPContentContentRef:
+      type: object
+      required: [pipeline, build, validateSchema]
+      properties:
+        pipeline:
+          type: object
+          required: [stages]
+          properties:
+            stages:
+              type: array
+              items:
+                $ref: "#/components/schemas/ManifestStage"
+        build:
+          type: object
+          required: [engine]
+          properties:
+            engine:
+              type: string
+              enum: [buildkit, buildpack, dockerfile]
+            buildkit:
+              type: object
+              properties:
+                dockerfile:
+                  type: string
+                  example: dockerfiles/Containerfile
+                targets:
+                  type: object
+                  additionalProperties:
+                    type: string
+                cacheRefTemplate:
+                  type: string
+                  example: "{{registryHost}}/coin-cache/{{project}}:buildkit"
+            buildpack:
+              type: object
+              required: [builder]
+              properties:
+                builder:
+                  type: string
+                  example: paketobuildpacks/builder-jammy-base
+                runImage:
+                  type: string
+                cacheRefTemplate:
+                  type: string
+                  example: "{{registryHost}}/coin-cache/{{project}}:buildpack"
+            dockerfile:
+              type: object
+              properties:
+                file:
+                  type: string
+                  example: dockerfiles/Containerfile
+                imageTarget:
+                  type: string
+                  example: runtime
+                testTarget:
+                  type: string
+                  example: test
+                cacheRefTemplate:
+                  type: string
+                  example: "{{registryHost}}/coin-cache/{{project}}:dockerfile"
+        validateSchema:
+          type: object
+          required: [artifactKey, sha256]
+          properties:
+            artifactKey:
+              type: string
+            sha256:
+              type: string
+        containerfile:
+          type: object
+          required: [artifactKey, sha256]
+          properties:
+            artifactKey:
+              type: string
+            sha256:
+              type: string
 
     ContentRef:
       type: object
@@ -874,8 +1040,10 @@ components:
           type: object
           additionalProperties: true
         contentRef:
-          type: object
-          additionalProperties: true
+          oneOf:
+            - $ref: "#/components/schemas/GPContentContentRef"
+            - type: object
+              additionalProperties: true
         actor:
           type: string
           example: platform-bot
@@ -892,11 +1060,10 @@ components:
           additionalProperties:
             type: string
           example:
+            agent: "1.0.0"
             executor: "0.1.0"
-            agent: "1.22.5"
-            pipeline: "2.1.0"
-            validate: "1.0.0"
-            dockerfile: "1.0.0"
+            lib: "1.0.0"
+            gp-content: "1.0.0"
         gitExportTag:
           type: string
           example: go-app/v1.0.1
@@ -1108,8 +1275,10 @@ components:
           type: object
           additionalProperties: true
         contentRef:
-          type: object
-          additionalProperties: true
+          oneOf:
+            - $ref: "#/components/schemas/GPContentContentRef"
+            - type: object
+              additionalProperties: true
         createdAt:
           type: string
           format: date-time
@@ -1247,10 +1416,16 @@ components:
       properties:
         name:
           type: string
+          example: go-app
         slots:
           type: array
           items:
             $ref: "#/components/schemas/GPProfileSlot"
+          example:
+            - { key: agent, type: agent, name: coin-agent }
+            - { key: executor, type: executor, name: coin-executor }
+            - { key: lib, type: lib, name: coin-lib }
+            - { key: gp-content, type: gp-content, name: go-app }
 
     AdminPrincipal:
       type: object

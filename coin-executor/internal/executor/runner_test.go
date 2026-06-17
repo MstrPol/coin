@@ -1,6 +1,8 @@
 package executor
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,25 +28,16 @@ func TestShouldRunStage(t *testing.T) {
 	}
 }
 
-func TestRunSingleStage(t *testing.T) {
-	root := t.TempDir()
-	contentRoot := filepath.Join(root, "platform")
-	gpDir := filepath.Join(contentRoot, "content", "golden-paths", "go-app", "1.0.0", "scripts")
-	if err := os.MkdirAll(gpDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	script := filepath.Join(gpDir, "validate.sh")
-	if err := os.WriteFile(script, []byte("#!/bin/bash\necho ok-validate\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	dockerfile := filepath.Join(contentRoot, "content", "golden-paths", "go-app", "1.0.0", "Dockerfile")
-	if err := os.MkdirAll(filepath.Dir(dockerfile), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(dockerfile, []byte("FROM scratch\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+func TestRunValidateStage(t *testing.T) {
+	policySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"warning":""}`))
+	}))
+	t.Cleanup(policySrv.Close)
 
+	root := t.TempDir()
+	t.Setenv("COIN_API_URL", policySrv.URL)
+	t.Setenv("COIN_API_TOKEN", "test-token")
 	cfgPath := filepath.Join(root, ".coin", "config.yaml")
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		t.Fatal(err)
@@ -59,9 +52,17 @@ project:
   name: demo
   artifactId: demo
   groupId: com.example
-  repository: Nexus_PROD
+  repository: maven-releases
+deliverables:
+  app:
+    type: image
 `
 	if err := os.WriteFile(cfgPath, []byte(cfgYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	containerfile := filepath.Join(root, ".coin", "Containerfile")
+	if err := os.WriteFile(containerfile, []byte("FROM scratch\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -70,21 +71,28 @@ project:
   "manifestVersion": 1,
   "goldenPath": {"name": "go-app", "version": "1.0.0"},
   "executor": {"version": "0.1.0", "url": "http://example/executor"},
-  "runtime": {"image": "ci-go:1.22"},
+  "runtime": {"image": "coin-agent:1.0.0"},
+  "build": {
+    "engine": "buildkit",
+    "buildkit": {
+      "dockerfile": ".coin/Containerfile",
+      "targets": {"validate": "validate", "test": "test", "image": "runtime"},
+      "containerfile": {"url": "http://example/containerfile", "sha256": ""}
+    }
+  },
   "pipeline": {
     "stages": [
-      {"name": "validate", "script": {"gitRef": "seed-local", "path": "content/golden-paths/go-app/1.0.0/scripts/validate.sh"}},
-      {"name": "test", "script": {"gitRef": "seed-local", "path": "content/golden-paths/go-app/1.0.0/scripts/test.sh"}}
+      {"id": "validate", "name": "Validate"},
+      {"id": "test", "name": "Test"}
     ]
   },
-  "validateSchema": {"gitRef": "seed-local", "path": "content/schema/config.v2.schema.json"},
-  "dockerfileTemplate": {"gitRef": "seed-local", "path": "content/golden-paths/go-app/1.0.0/Dockerfile"}
+  "validateSchema": {"url": "http://example/schema", "sha256": ""},
+  "capabilities": {"deliverables": ["image"]}
 }`
 	if err := os.WriteFile(manifestPath, []byte(m), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	t.Setenv("COIN_CONTENT_DIR", contentRoot)
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		t.Fatal(err)

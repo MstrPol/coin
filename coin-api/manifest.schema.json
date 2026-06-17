@@ -10,9 +10,8 @@
     "goldenPath",
     "executor",
     "runtime",
-    "jnlp",
-    "pipeline",
-    "orchestration"
+    "build",
+    "pipeline"
   ],
   "properties": {
     "manifestVersion": {
@@ -51,13 +50,15 @@
         "digest": { "type": "string" }
       }
     },
-    "jnlp": {
+    "build": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["image"],
+      "required": ["engine"],
       "properties": {
-        "image": { "type": "string" },
-        "digest": { "type": "string" }
+        "engine": { "type": "string", "enum": ["buildkit", "buildpack", "dockerfile"] },
+        "buildkit": { "$ref": "#/$defs/buildkit" },
+        "buildpack": { "$ref": "#/$defs/buildpack" },
+        "dockerfile": { "$ref": "#/$defs/dockerfileEngine" }
       }
     },
     "pipeline": {
@@ -71,37 +72,16 @@
         }
       }
     },
-    "orchestration": {
-      "oneOf": [
-        { "$ref": "#/$defs/contentRef" },
-        { "$ref": "#/$defs/bundleRef" }
-      ]
-    },
     "validateSchema": { "$ref": "#/$defs/contentRef" },
-    "dockerfileTemplate": { "$ref": "#/$defs/contentRef" },
     "credentials": {
       "type": "object",
       "additionalProperties": { "type": "string" }
+    },
+    "capabilities": {
+      "type": "object"
     }
   },
   "$defs": {
-    "bundleRef": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["bundle"],
-      "properties": {
-        "bundle": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["url", "sha256", "entrypoint"],
-          "properties": {
-            "url": { "type": "string", "format": "uri" },
-            "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
-            "entrypoint": { "type": "string", "minLength": 1 }
-          }
-        }
-      }
-    },
     "contentRef": {
       "type": "object",
       "additionalProperties": false,
@@ -111,14 +91,50 @@
         "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
       }
     },
+    "buildkit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dockerfile", "targets", "containerfile"],
+      "properties": {
+        "dockerfile": { "type": "string", "minLength": 1 },
+        "targets": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "cacheRef": { "type": "string" },
+        "containerfile": { "$ref": "#/$defs/contentRef" }
+      }
+    },
+    "buildpack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["builder"],
+      "properties": {
+        "builder": { "type": "string", "minLength": 1 },
+        "runImage": { "type": "string" },
+        "cacheRef": { "type": "string" }
+      }
+    },
+    "dockerfileEngine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dockerfile", "containerfile"],
+      "properties": {
+        "dockerfile": { "type": "string", "minLength": 1 },
+        "imageTarget": { "type": "string" },
+        "testTarget": { "type": "string" },
+        "cacheRef": { "type": "string" },
+        "containerfile": { "$ref": "#/$defs/contentRef" }
+      }
+    },
     "stage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "script"],
+      "required": ["id", "name"],
       "properties": {
+        "id": { "type": "string" },
         "name": { "type": "string" },
-        "when": { "type": "string" },
-        "script": { "$ref": "#/$defs/contentRef" }
+        "when": { "type": "string" }
       }
     }
   }

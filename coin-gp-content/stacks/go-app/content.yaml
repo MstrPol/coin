@@ -3,7 +3,6 @@ kind: gp-content
 capabilities:
   deliverables:
     - image
-    - liquibase-image
     - artifact
 controls:
   skipTests:
@@ -20,18 +19,28 @@ controls:
     type: choice
     values: [none, patch, minor, major]
     default: none
-stages:
-  - name: validate
-    artifactKey: scripts/validate.sh
-  - name: test
-    artifactKey: scripts/test.sh
-    when: always
-  - name: build
-    artifactKey: scripts/build.sh
-  - name: publish
-    artifactKey: scripts/publish.sh
-    when: tag
+build:
+  engine: buildkit
+  buildkit:
+    dockerfile: dockerfiles/Containerfile
+    targets:
+      validate: validate
+      test: test
+      image: runtime
+      artifact: artifact
+    cacheRefTemplate: "{{registryHost}}/coin-cache/{{project}}:buildkit"
+pipeline:
+  stages:
+    - id: validate
+      name: Validate
+    - id: test
+      name: Test
+    - id: build
+      name: Build
+    - id: publish
+      name: Publish
+      when: tag
 validateSchema:
   artifactKey: schemas/config.v2.schema.json
-dockerfileTemplate:
-  artifactKey: dockerfiles/go-runtime.Dockerfile
+containerfile:
+  artifactKey: dockerfiles/Containerfile

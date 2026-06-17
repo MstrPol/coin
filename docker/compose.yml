@@ -29,6 +29,9 @@ services:
       - --tls-san=localhost
       - --disable=traefik
       - --disable=servicelb
+      # local pilot: buildpack builder pull (~2–3 GiB в podman) не должен evict'ить agent pod
+      - --kubelet-arg=eviction-hard=nodefs.available<1%,imagefs.available<1%
+      - --kubelet-arg=eviction-minimum-reclaim=nodefs.available=1%,imagefs.available=1%
     environment:
       K3S_KUBECONFIG_OUTPUT: /output/kubeconfig.yaml
       K3S_KUBECONFIG_MODE: "666"

@@ -59,16 +59,16 @@ def deepMerge(Map base, Map override) {
 
 /**
  * Извлекает из resolved manifest поля, нужные только для Jenkins glue (образы, executor, stages, creds).
- * Не копирует весь manifest — только runtime/jnlp/executor/pipeline/credentials.
+ * Не копирует весь manifest — только runtime/executor/pipeline/credentials.
  */
 @NonCPS
 def manifestToConfig(Map manifest) {
     def layer = [:]
+    if (manifest.build?.engine) {
+        layer.build = [engine: manifest.build.engine.toString()]
+    }
     if (manifest.runtime?.image) {
         layer.runtime = [image: manifest.runtime.image.toString()]
-    }
-    if (manifest.jnlp?.image) {
-        layer.jnlp = [image: manifest.jnlp.image.toString()]
     }
     if (manifest.executor?.url) {
         layer.executor = [url: manifest.executor.url.toString()]
@@ -84,7 +84,7 @@ def manifestToConfig(Map manifest) {
 
 /**
  * Загружает defaults из resources/coin-lib-defaults.yaml и применяет env-override
- * (COIN_API_URL, COIN_MANIFEST_CACHE_BASE, COIN_JNLP_IMAGE).
+ * (COIN_API_URL, COIN_MANIFEST_CACHE_BASE, COIN_RUNTIME_IMAGE).
  */
 def loadLibDefaults() {
     def lib = readYaml text: libraryResource('coin-lib-defaults.yaml')
@@ -95,9 +95,8 @@ def loadLibDefaults() {
     if (env.COIN_MANIFEST_CACHE_BASE?.trim()) {
         lib.coin = (lib.coin ?: [:]) + [manifestCacheBase: env.COIN_MANIFEST_CACHE_BASE.trim()]
     }
-    if (env.COIN_JNLP_IMAGE?.trim()) {
-        lib.jenkins = lib.jenkins ?: [:]
-        lib.jenkins.jnlp = (lib.jenkins.jnlp ?: [:]) + [image: env.COIN_JNLP_IMAGE.trim()]
+    if (env.COIN_RUNTIME_IMAGE?.trim()) {
+        lib.runtime = (lib.runtime ?: [:]) + [image: env.COIN_RUNTIME_IMAGE.trim()]
     }
     return lib
 }

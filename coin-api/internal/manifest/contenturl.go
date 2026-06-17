@@ -2,7 +2,6 @@ package manifest
 
 import (
 	"os"
-	"strings"
 
 	"coin.local/coin-api/internal/nexus"
 )
@@ -13,11 +12,7 @@ func ContentArtifactURL(gpName, gpVersion, artifactKey string) string {
 	if base == "" {
 		base = "http://nexus:8081"
 	}
-	ext := ""
-	if i := strings.LastIndex(artifactKey, "."); i >= 0 {
-		ext = artifactKey[i+1:]
-	}
-	classifier := nexus.ClassifierFromArtifactKey(artifactKey)
+	classifier, ext := nexus.ArtifactMavenCoords(artifactKey)
 	repo := nexus.MavenRepoForVersion(gpVersion)
 	return nexus.MavenArtifactURL(base, repo, "coin.gp.content", gpName, gpVersion, classifier, ext)
 }

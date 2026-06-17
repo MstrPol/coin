@@ -9,7 +9,7 @@ import (
 	"fmt"
 )
 
-//go:embed seed/**
+//go:embed seed/schema/config.v2.schema.json seed/go-app/1.0.0/dockerfiles/Containerfile
 var seedFS embed.FS
 
 type seedArtifact struct {
@@ -17,14 +17,10 @@ type seedArtifact struct {
 	relPath string
 }
 
+// Embedded fallback artifacts for go-app@1.0.0 draft seeding (gp-content publish is SoT).
 var goAppV100 = []seedArtifact{
-	{key: "scripts/validate.sh", relPath: "seed/go-app/1.0.0/scripts/validate.sh"},
-	{key: "scripts/test.sh", relPath: "seed/go-app/1.0.0/scripts/test.sh"},
-	{key: "scripts/build.sh", relPath: "seed/go-app/1.0.0/scripts/build.sh"},
-	{key: "scripts/publish.sh", relPath: "seed/go-app/1.0.0/scripts/publish.sh"},
-	{key: "Dockerfile", relPath: "seed/go-app/1.0.0/Dockerfile"},
-	{key: "schema/config.v2.schema.json", relPath: "seed/schema/config.v2.schema.json"},
-	{key: "orchestration/coinPipeline.groovy", relPath: "seed/orchestration/coinPipeline.groovy"},
+	{key: "schemas/config.v2.schema.json", relPath: "seed/schema/config.v2.schema.json"},
+	{key: "dockerfiles/Containerfile", relPath: "seed/go-app/1.0.0/dockerfiles/Containerfile"},
 }
 
 // SeedGoAppV100 inserts embedded artifact bytes for go-app@1.0.0 (idempotent).

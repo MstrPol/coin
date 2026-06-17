@@ -118,6 +118,7 @@ func (s *Server) Router() http.Handler {
 				r.Use(auth.RequireRole(auth.RolePublisher))
 				r.With(shortTimeout).Post("/components", s.createComponent)
 				r.With(shortTimeout).Post("/components/{type}/{name}/versions", s.publishComponentVersion)
+				r.With(shortTimeout).Patch("/components/{type}/{name}/versions/{version}", s.patchComponentVersion)
 				r.With(shortTimeout).Put("/components/{type}/{name}/versions/{version}/artifacts/*", s.putComponentArtifact)
 				r.With(shortTimeout).Post("/golden-paths/{name}/versions", s.publishGPRelease)
 				r.With(shortTimeout).Post("/golden-paths/{name}/drafts", s.createDraftGPRelease)
@@ -399,6 +400,33 @@ func (s *Server) publishComponentVersion(w http.ResponseWriter, r *http.Request)
 		"version":     row.Version,
 		"status":      row.Status,
 	})
+}
+
+func (s *Server) patchComponentVersion(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "read body failed"})
+		return
+	}
+	var req publishComponentBody
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
+		return
+	}
+	typ := chi.URLParam(r, "type")
+	name := chi.URLParam(r, "name")
+	version := chi.URLParam(r, "version")
+	if err := s.admin.UpdateComponentVersion(r.Context(), typ, name, version, admin.PublishComponentRequest{
+		Metadata:   req.Metadata,
+		ContentRef: req.ContentRef,
+		Actor:      req.Actor,
+	}); err != nil {
+		s.logger.Error("patch component version", "err", err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "type": typ, "name": name, "version": version})
 }
 
 type publishGPReleaseBody struct {
@@ -1139,11 +1167,11 @@ func (s *Server) createGPProfile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		createErr = s.admin.CreateGPProfile(r.Context(), req.Name, req.Slots, req.Actor)
-	case req.AgentStack != "":
+	case req.AgentStack != "" || req.Name != "":
 		createErr = s.admin.CreateGPProfileByAgentStack(r.Context(), req.Name, req.AgentStack, req.Actor)
 	default:
 		writeJSON(w, http.StatusBadRequest, map[string]string{
-			"error": "slots are required (jnlp, agent, executor, lib, gp-content)",
+			"error": "slots are required (agent, executor, lib, gp-content)",
 		})
 		return
 	}

@@ -12,6 +12,7 @@ Architecture Decision Records — постоянные архитектурны�
 | GP composition — четыре компонента | superseded | [`gp-composition-four-components.md`](gp-composition-four-components.md) |
 | Pipeline bundle layer | superseded | [`gp-pipeline-bundle-layer.md`](gp-pipeline-bundle-layer.md) |
 | Jenkins Shared Library + gp-content | accepted | [`jenkins-lib-http-nexus.md`](jenkins-lib-http-nexus.md) |
+| Build engine contract | accepted | [`build-engine-contract.md`](build-engine-contract.md) |
 
 ## Формат нового ADR
 
@@ -24,5 +25,5 @@ Architecture Decision Records — постоянные архитектурны�
 
 ## Связанные документы
 
-- Активный plan: [`../coin-lib.plan.md`](../coin-lib.plan.md)
+- Активный plan: [`../build-engine-model.plan.md`](../build-engine-model.plan.md)
 - Docs: [`docs/control-plane.md`](../../../docs/control-plane.md)

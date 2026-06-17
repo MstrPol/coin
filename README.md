@@ -18,12 +18,11 @@
 | Каталог | Назначение |
 |---------|------------|
 | [`coin-api/`](coin-api/README.md) | Resolve manifest, registry, admin API |
-| [`coin-executor/`](coin-executor/README.md) | Runtime pipeline: validate, stages, build report |
+| [`coin-executor/`](coin-executor/README.md) | Runtime pipeline + universal `coin-agent` image |
 | [`coin-ui/`](coin-ui/README.md) | Admin SPA: dashboard, publish wizard, audit log |
-| [`coin-jenkins-agents/`](coin-jenkins-agents/README.md) | CI agent images (`agents-build`) |
 | [`coin-starters/`](coin-starters/README.md) | Скелетоны product repos + thin Jenkinsfile |
 | [`docker/`](docker/README.md) | Local prod-like стенд (Gitea, Nexus, k3s, Jenkins) |
-| [`samples/`](samples/demo-go-app/README.md) | E2E эталон (`demo-go-app`) |
+| [`samples/`](samples/demo-go-app/README.md) | E2E эталоны (buildkit / buildpack / dockerfile) |
 
 ## Onboarding за 15 минут
 
@@ -35,12 +34,17 @@
 cd docker
 cp .env.example .env
 make bootstrap && make endpoints
-make coin-jenkins-agents && make coin-starters && make samples
-make coin-ui-up          # http://localhost:8091
+make publish-agent GOARCH=arm64   # Apple Silicon; иначе omit GOARCH
+make coin-lib
+make seed-jenkins-lib
+make coin-starters && make samples
+make coin-ui-up
 curl -sf http://localhost:8090/ready
 ```
 
-Jenkins: http://localhost:8080 → **demo-go-app** → Build Now → SUCCESS.
+Jenkins: http://localhost:8080 → **demo-go-app** (buildkit), **demo-go-app-bp**, **demo-go-app-df** → Build Now → SUCCESS.
+
+E2E всех engines: `make e2e-build-engines`.
 
 ## Продуктовый контракт
 
@@ -69,11 +73,12 @@ Jenkinsfile — [`coin-starters/Jenkinsfile.coin`](coin-starters/Jenkinsfile.coi
 ```
 coin/
 ├── coin-api/           # HTTP API (control plane)
-├── coin-executor/      # CLI runtime
+├── coin-executor/      # CLI runtime + coin-agent image
 ├── coin-ui/            # Admin SPA
-├── coin-jenkins-agents/  # CI agent stacks + catalog
-├── coin-starters/        # Product repo scaffolding
+├── coin-gp-content/    # GP stacks (build engines, Containerfile)
+├── coin-lib/           # Jenkins Shared Library (glue)
+├── coin-starters/      # Product repo scaffolding
 ├── docker/             # Compose стенд
 ├── docs/
-├── samples/            # demo-go-app, …
+├── samples/            # demo-go-app, demo-go-app-bp, demo-go-app-df, …
 ```

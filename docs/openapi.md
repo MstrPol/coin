@@ -45,7 +45,7 @@ cd coin-ui && make openapi-ui
 | GET | `/v1/admin/components` | X-API-Key | Component registry list |
 | GET | `/v1/admin/components/{type}/{name}` | X-API-Key | Component detail |
 | GET | `/v1/admin/components/{type}/{name}/versions/{ver}` | X-API-Key | Version metadata |
-| GET | `/v1/admin/components/agent/{stack}/next-version?runtime=` | X-API-Key | Следующий `{runtime}-r{N}` для agents-build |
+| GET | `/v1/admin/components/agent/{name}/next-version?runtime=` | X-API-Key | Legacy stack agents `{runtime}-r{N}`; `coin-agent` — semver через publish-agent |
 | POST | `/v1/admin/components/{type}/{name}/versions` | X-API-Key | Publish component |
 | GET/PUT | `/v1/admin/platform/settings` | X-API-Key | Nexus global settings |
 | GET | `/v1/admin/golden-paths/{name}/resolve-preview` | X-API-Key | Resolve debug |

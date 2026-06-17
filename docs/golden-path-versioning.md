@@ -71,7 +71,7 @@ Per GP в `catalog_policy`:
 
 При publish GP проверяется graph constraints (DB `component_compatibility`).
 
-Пример: `pipeline/go-build@2.1.x` требует `executor >=0.1.0 <0.2.0`, `agent >=1.22.0`.
+Пример: `gp-content/go-app@1.0.x` требует `agent >=1.0.0`, `executor >=0.1.0`.
 
 ## Blast radius
 
@@ -89,9 +89,13 @@ GP semver **≠** component semver — независимые cadence.
 
 ## Local pilot
 
-- Только `go-app` в catalog
-- E2E: `samples/demo-go-app@1.0.0`
-- Corp fleet rollout — после corp gate
+| GP | Engine | Sample |
+|----|--------|--------|
+| `go-app` | buildkit | `demo-go-app@*` |
+| `go-app-bp` | buildpack | `demo-go-app-bp@1.0.0` |
+| `go-app-df` | dockerfile | `demo-go-app-df@*` |
+
+E2E: `make e2e-build-engines` (3/3). Corp fleet rollout — после corp gate.
 
 ## Связанные документы
 

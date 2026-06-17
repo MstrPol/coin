@@ -45,7 +45,7 @@ coin:
 |-----------|------|
 | **coin-api** | Resolve manifest, admin, registry |
 | **coin-executor** | validate, run stages, report |
-| **coin-jenkins-agents** | agent stacks, catalog |
+| **coin-executor** | validate, stages, build engine, `coin-agent` image |
 | **coin-starters** | product scaffolding |
 | **coin-lib** | Jenkins Shared Library — glue only (resolve, pod, creds, executor stages) |
 | **coin-gp-content** | scripts, Dockerfile, schema per GP stack |

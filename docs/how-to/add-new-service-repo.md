@@ -2,7 +2,7 @@
 
 **Цель:** создать polyrepo с Control Plane v2 с нуля.
 
-**Gate:** P0 go/no-go. Pilot GP: **go-app@1.0.0** only.
+**Gate:** P0 go/no-go. Pilot GP: **go-app** (buildkit); также **go-app-bp**, **go-app-df** для E2E engines.
 
 ## Prerequisites
 
@@ -67,7 +67,7 @@ git push -u origin main
 ## Verify
 
 - [ ] Resolve manifest без ошибок
-- [ ] Stages: Validate, Test, Build — SUCCESS
+- [ ] Stages: Validate, Test, Build — SUCCESS (engine из GP manifest, не из проекта)
 - [ ] Docker image в registry (local: `localhost:8082/coin-docker/app:<build>`)
 
 ```bash

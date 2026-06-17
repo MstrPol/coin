@@ -44,6 +44,10 @@ jenkins_casc_reload \
   "${ROOT}/platform/jenkins/casc-coin-lib-build.yaml" \
   /var/jenkins_home/casc-config/48-coin-lib-build.yaml
 
+# Force-push tag: Jenkins library cache may keep stale tag→commit mapping.
+docker compose -f "${ROOT}/compose.yml" exec -T jenkins \
+  rm -rf /var/jenkins_home/caches/git-* 2>/dev/null || true
+
 echo "coin-lib ready: http://localhost:${GITEA_HTTP_PORT}/coin/coin-lib"
 echo "  Jenkins Global Library: coin-lib@${LIB_TAG}"
 echo "  Jenkins job: coin-lib (publish lib ZIP to Nexus)"

@@ -1,33 +1,4 @@
-// Platform CI: bump semver → build → Nexus maven2 → register in coin-api.
-
-def coinPodYaml(String jnlpImage, String stackImage) {
-    return """\
-apiVersion: v1
-kind: Pod
-spec:
-  containers:
-    - name: jnlp
-      image: ${jnlpImage}
-    - name: stack
-      image: ${stackImage}
-      command: ["sleep"]
-      args: ["infinity"]
-      tty: true
-      securityContext:
-        runAsUser: 0
-      env:
-        - name: COIN_REGISTRY_PREFIX
-          value: "localhost:8082/coin-docker"
-      volumeMounts:
-        - name: docker-sock
-          mountPath: /var/run/docker.sock
-  volumes:
-    - name: docker-sock
-      hostPath:
-        path: /var/run/docker.sock
-        type: Socket
-""".stripIndent()
-}
+// Platform CI: bump semver → test/build binary → Nexus maven2 → register in coin-api.
 
 def coinApiUrl() {
     return env.COIN_API_URL ?: 'http://coin-api:8090'
@@ -70,9 +41,9 @@ def componentImage(typ, name, String runtimePrefix = '') {
             returnStdout: true,
         ).trim()
         if (listStatus == '404') {
-            def hint = (typ == 'agent' && name == 'jnlp')
-                ? ' (выполните: cd docker && make register-jnlp)'
-                : ' (соберите через agents-build)'
+            def hint = (typ == 'agent' && name == 'coin-agent')
+                ? ' (выполните: cd docker && make publish-agent)'
+                : ''
             error("coin-api: компонент ${typ}/${name} не зарегистрирован${hint}")
         }
         if (listStatus != '200') {
@@ -80,8 +51,8 @@ def componentImage(typ, name, String runtimePrefix = '') {
         }
         def latest = parseLatestComponentVersion(readFile('versions.json'), runtimePrefix)
         if (!latest) {
-            def hint = runtimePrefix
-                ? " (соберите agents/${name}/${runtimePrefix}.Dockerfile через agents-build)"
+            def hint = (typ == 'agent' && name == 'coin-agent')
+                ? ' (соберите: cd docker && make publish-agent)'
                 : ''
             error("coin-api: нет опубликованных версий ${typ}/${name}${hint}")
         }
@@ -171,41 +142,26 @@ pipeline {
         }
 
         stage('Test & Build') {
+            agent { label 'built-in' }
             steps {
-                script {
-                    def stackImage
-                    def jnlpImage
-                    node('built-in') {
-                        stackImage = componentImage('agent', 'go', '1.24')
-                        jnlpImage = componentImage('agent', 'jnlp')
-                    }
-
-                    def podLabel = "coin-executor-${env.BUILD_NUMBER}"
-                    def podYaml = coinPodYaml(jnlpImage, stackImage)
-                    podTemplate(yaml: podYaml, cloud: 'kubernetes', label: podLabel) {
-                        node(podLabel) {
-                            checkout scm
-                            container('stack') {
-                                echo "coin-executor version: ${env.COIN_EXECUTOR_VERSION}"
-                                sh 'go test ./...'
-                                sh '''
-                                    set -eu
-                                    case "$(uname -m)" in
-                                        arm64|aarch64) GOARCH=arm64 ;;
-                                        x86_64|amd64) GOARCH=amd64 ;;
-                                        *) echo "unsupported: $(uname -m)" >&2; exit 1 ;;
-                                    esac
-                                    GOOS=linux CGO_ENABLED=0 GOARCH="${GOARCH}" go build \
-                                      -buildvcs=false \
-                                      -ldflags "-X main.Version=${COIN_EXECUTOR_VERSION}" \
-                                      -o coin-executor ./cmd/coin-executor
-                                    echo "${GOARCH}" > .goarch
-                                '''
-                                stash includes: 'coin-executor,.goarch', name: 'executor-binary'
-                            }
-                        }
-                    }
-                }
+                checkout scm
+                sh '''
+                    set -eu
+                    docker run --rm -v "$PWD:/src" -w /src golang:1.22-bookworm go test ./...
+                    case "$(uname -m)" in
+                        arm64|aarch64) GOARCH=arm64 ;;
+                        x86_64|amd64) GOARCH=amd64 ;;
+                        *) echo "unsupported: $(uname -m)" >&2; exit 1 ;;
+                    esac
+                    docker run --rm -v "$PWD:/src" -w /src \
+                      -e COIN_EXECUTOR_VERSION="${COIN_EXECUTOR_VERSION}" \
+                      -e GOARCH="${GOARCH}" golang:1.22-bookworm \
+                      sh -c 'GOOS=linux CGO_ENABLED=0 GOARCH="${GOARCH}" go build -buildvcs=false \
+                        -ldflags "-X main.Version=${COIN_EXECUTOR_VERSION}" \
+                        -o coin-executor ./cmd/coin-executor'
+                    echo "${GOARCH}" > .goarch
+                '''
+                stash includes: 'coin-executor,.goarch', name: 'executor-binary'
             }
         }
 

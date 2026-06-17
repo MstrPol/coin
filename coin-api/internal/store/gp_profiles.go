@@ -19,11 +19,11 @@ type GPProfileSlot struct {
 }
 
 type GPProfile struct {
-	Name                  string          `json:"name"`
-	AgentStack            string          `json:"agentStack,omitempty"`
-	DefaultLib       string `json:"defaultLib,omitempty"`
-	DefaultGPContent string `json:"defaultGpContent,omitempty"`
-	Slots                 []GPProfileSlot `json:"slots"`
+	Name             string          `json:"name"`
+	AgentStack       string          `json:"agentStack,omitempty"`
+	DefaultLib       string          `json:"defaultLib,omitempty"`
+	DefaultGPContent string          `json:"defaultGpContent,omitempty"`
+	Slots            []GPProfileSlot `json:"slots"`
 }
 
 func (s *Store) profileSlots(ctx context.Context, name string) ([]compatibility.CompositionSlot, error) {
@@ -64,15 +64,6 @@ func (s *Store) ListGPNames(ctx context.Context) ([]string, error) {
 		names = append(names, name)
 	}
 	return names, rows.Err()
-}
-
-func agentStackFromSlots(slots []GPProfileSlot) string {
-	for _, slot := range slots {
-		if slot.Key == "agent" {
-			return slot.Name
-		}
-	}
-	return ""
 }
 
 func agentStackFromCompositionSlots(slots []compatibility.CompositionSlot) string {
@@ -121,16 +112,17 @@ func (s *Store) CreateGPProfile(ctx context.Context, name string, slots []GPProf
 	return err
 }
 
-func (s *Store) CreateGPProfileByAgentStack(ctx context.Context, name, agentStack string) error {
-	if name == "" || agentStack == "" {
-		return fmt.Errorf("name and agentStack are required")
+// CreateGPProfileByAgentStack creates a canonical four-slot profile (agentStack is ignored).
+func (s *Store) CreateGPProfileByAgentStack(ctx context.Context, name, _ string) error {
+	if name == "" {
+		return fmt.Errorf("name is required")
 	}
-	return s.CreateGPProfile(ctx, name, CanonicalGPSlots(name, agentStack))
+	return s.CreateGPProfile(ctx, name, CanonicalGPSlots(name))
 }
 
-var canonicalSlotKeys = []string{"jnlp", "agent", "executor", "lib", "gp-content"}
+var canonicalSlotKeys = []string{"agent", "executor", "lib", "gp-content"}
 
-// ValidateCanonicalGPSlots ensures profile uses the five-component GP model.
+// ValidateCanonicalGPSlots ensures profile uses the four-component GP model.
 func ValidateCanonicalGPSlots(slots []GPProfileSlot) error {
 	if len(slots) != len(canonicalSlotKeys) {
 		return fmt.Errorf("gp profile must have exactly %d slots", len(canonicalSlotKeys))
@@ -149,13 +141,9 @@ func ValidateCanonicalGPSlots(slots []GPProfileSlot) error {
 	}
 	for _, slot := range slots {
 		switch slot.Key {
-		case "jnlp":
-			if slot.Type != "agent" || slot.Name != "jnlp" {
-				return fmt.Errorf("jnlp slot must be agent/jnlp")
-			}
 		case "agent":
-			if slot.Type != "agent" || slot.Name == "" || slot.Name == "jnlp" {
-				return fmt.Errorf("agent slot must be agent/{stack}")
+			if slot.Type != "agent" || slot.Name != "coin-agent" {
+				return fmt.Errorf("agent slot must be agent/coin-agent")
 			}
 		case "executor":
 			if slot.Type != "executor" || slot.Name != "coin-executor" {

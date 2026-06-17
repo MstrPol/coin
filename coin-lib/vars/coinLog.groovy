@@ -49,7 +49,7 @@ def warn(String message) {
     line('⚠️', message)
 }
 
-/** Пропуск шага (например, publish на non-tag build). */
+/** Пропуск шага (например, publish при publish=false). */
 def skip(String message) {
     line('⏭️', message)
 }

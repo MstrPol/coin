@@ -76,6 +76,10 @@ func (s *Service) PublishComponentVersion(ctx context.Context, typ, name string,
 	})
 }
 
+func (s *Service) UpdateComponentVersion(ctx context.Context, typ, name, version string, req PublishComponentRequest) error {
+	return s.store.UpdateComponentVersionRefs(ctx, typ, name, version, req.Metadata, req.ContentRef)
+}
+
 func (s *Service) CreateDraftGPRelease(ctx context.Context, name string, req CreateDraftRequest) (store.GPReleaseRow, error) {
 	return s.store.CreateDraftGPRelease(ctx, store.PublishGPReleaseInput{
 		Name:        name,

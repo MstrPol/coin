@@ -1,25 +1,38 @@
 # Настройка Jenkins (Control Plane v2)
 
-## Service pipeline — thin bootstrap
+## Service pipeline
 
-Продуктовый `Jenkinsfile` — ~50 строк: **resolve manifest** → **load orchestration** из Nexus.
+Продуктовый `Jenkinsfile` — thin bootstrap + Shared Library:
 
-Эталон: [`samples/demo-go-app/Jenkinsfile`](../samples/demo-go-app/Jenkinsfile) (копия в [`coin-starters/Jenkinsfile.coin`](../coin-starters/Jenkinsfile.coin)).
+```groovy
+@Library('coin-lib@1.0.0') _
+coinPipeline()
+```
 
-**Не используется:** v1 Shared Library pipeline (`coinPipeline()`), git clone `coin-platform` для content.
+Эталон: [`samples/demo-go-app/Jenkinsfile`](../samples/demo-go-app/Jenkinsfile).
 
-### Flow
+### Flow (`coinPipeline`)
 
-1. **Resolve** — `coin-api` → `.coin/manifest.json` (fallback: Nexus pointer → blob + hash verify)
-2. **Orchestration** — `curl manifest.orchestration.url` → `load coinPipeline.groovy`
-3. **Pod** — образ из `manifest.runtime.image`
-4. **Bootstrap** — download `coin-executor` (content scripts — по URL из manifest, без git)
-5. **Stages** — `coin-executor run --stage validate|test|build|publish`
-6. **Report** — `coin-executor report` → `POST /v1/builds/report`
+1. **Resolve** (controller node) — `coin-api` `GET /v1/golden-paths/{gp}/resolve?pin=…` → stash manifest
+2. **Pod** — `podTemplate` с `manifest.runtime.image` (`coin-agent`)
+3. **Checkout** — product repo
+4. **Materialize** — `.coin/manifest.json`, `.coin/effective-config.yaml`
+5. **Bootstrap** — podman system service; buildpack: `podman load` Paketo builder
+6. **Stages** — динамически из `manifest.pipeline.stages` → `coin-executor run --stage …`
+7. **Report** — `coin-executor report` → `POST /v1/builds/report`
+
+**Не используется:** v1 fat pipeline, `curl orchestration` из Nexus, download executor в bootstrap, `container('stack')`.
+
+### Параметр `publish`
+
+| `publish` | Stage `publish` |
+|-----------|-----------------|
+| `false` (default) | skip (кроме `when: tag` в manifest) |
+| `true` | выполняется |
 
 ## Kubernetes cloud
 
-Локальный стенд: bootstrap создаёт cloud `kubernetes` (см. `docker/jenkins/casc.yaml`).
+Локальный стенд: cloud `kubernetes` из JCasC (`docker/jenkins/casc.yaml`).
 
 **После restart Docker:**
 
@@ -27,55 +40,56 @@
 cd docker && make endpoints
 ```
 
-Обновляет Endpoints `jenkins`, `nexus`, `gitea`, `coin-api` в k3s — без этого JNLP agent offline.
+Обновляет Endpoints `jenkins`, `nexus`, `gitea`, `coin-api` в k3s.
 
 ## Credentials
 
 | ID | Назначение |
 |----|------------|
-| `nexus-docker` | Docker push/pull |
-| `nexus-admin` | Platform jobs (publish executor) |
+| `nexus-docker` | Docker registry (push/pull) |
+| `nexus-admin` | Platform jobs |
 | `k3s-token` | Jenkins → k8s API |
-| `coin-api-token` | Bearer token для Resolve + Report (`COIN_API_TOKEN`) |
-
-`gitea-git` нужен только для SCM checkout product repo (не для coin-platform content).
+| `coin-api-token` | Bearer для Resolve + Report |
+| `gitea-git` | SCM product + coin-lib repos |
 
 ### Auth policy
 
 | Окружение | `AUTH_DISABLED` | Jenkins |
 |-----------|-----------------|---------|
-| Local dev | `true` (default в `.env`) | credential всё равно используется |
-| Prod-like / corp | `false` | `coin-api-token` **обязателен** |
+| Local dev | `true` | credential всё равно используется |
+| Prod-like | `false` | `coin-api-token` обязателен |
 
-CASC: [`docker/jenkins/casc.yaml`](../docker/jenkins/casc.yaml) — secret из env `COIN_API_TOKEN`.
+## Platform CI jobs / make targets
 
-Resolve и Report используют:
+| Команда | Назначение |
+|---------|------------|
+| `make coin-executor` | Gitea repo + job `coin-executor` |
+| `make coin-gp-content` | Gitea + job `coin-gp-content` |
+| `make coin-lib` | Gitea tag `1.0.0` + Global Shared Library |
+| `make publish-agent` | `coin-agent` image → Nexus + coin-api |
+| `make seed-jenkins-lib` | lib + gp-content + GP go-app / go-app-bp / go-app-df |
+| `make samples` | demo repos → Gitea + multibranch |
+| `make e2e-build-engines` | E2E: demo-go-app, demo-go-app-bp, demo-go-app-df |
+| `make e2e-mvp1` | Smoke resolve + Nexus без Jenkins |
 
-```bash
-curl -H "Authorization: Bearer ${COIN_API_TOKEN}" …
-```
+**Superseded:** `make coin-jenkins-agents`, job `agents-build`.
 
-При недоступном API — Nexus fallback только на Resolve (см. [runbooks/api-down-nexus-fallback.md](runbooks/api-down-nexus-fallback.md)).
-
-## Platform CI jobs
-
-| Команда | Jenkins job |
-|---------|-------------|
-| `make coin-executor` | `coin-executor` |
-| `make agents-build` | `agents-build` |
-| `make samples` | multibranch `demo-*` |
-| `make e2e-mvp1` | smoke: resolve + Nexus pointer/blob/content |
-
-## Prod-like стенд
+## Prod-like стенд (quick path)
 
 ```bash
 cd docker
-make bootstrap
-make endpoints
-make coin-jenkins-agents && make coin-starters
-make coin-executor    # собрать binary → Nexus (PUBLISH=true в job)
-make samples          # demo-go-app → Gitea
-make e2e-mvp1         # PF-11 smoke без Jenkins
+make bootstrap && make endpoints
+make publish-agent GOARCH=arm64    # Apple Silicon
+make coin-lib
+make seed-jenkins-lib
+make samples
+make e2e-build-engines
 ```
 
-Verify: Jenkins job `demo-go-app` / `main` → SUCCESS (validate → test → build → report).
+Verify: Jenkins → `demo-go-app`, `demo-go-app-bp`, `demo-go-app-df` → main → SUCCESS.
+
+## См. также
+
+- [agent-build-model.md](agent-build-model.md) — pod, bootstrap, engines
+- [how-to/troubleshoot-ci.md](how-to/troubleshoot-ci.md)
+- [runbooks/api-down-nexus-fallback.md](runbooks/api-down-nexus-fallback.md)

@@ -11,6 +11,7 @@ cd "${ROOT}"
 NEXUS_HTTP_PORT="${NEXUS_HTTP_PORT:-8081}"
 NEXUS_DOCKER_PORT="${NEXUS_DOCKER_PORT:-8082}"
 NEXUS_DOCKER_REPO="${NEXUS_DOCKER_REPO:-coin-docker}"
+NEXUS_DOCKER_CACHE_REPO="${NEXUS_DOCKER_CACHE_REPO:-coin-cache}"
 NEXUS_MAVEN_RELEASES="${NEXUS_MAVEN_RELEASES:-maven-releases}"
 NEXUS_MAVEN_SNAPSHOTS="${NEXUS_MAVEN_SNAPSHOTS:-maven-snapshots}"
 NEXUS_ADMIN_PASSWORD="${NEXUS_ADMIN_PASSWORD:-coin12345}"
@@ -125,6 +126,26 @@ if ! nexus_api "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories
     -H "Content-Type: application/json" \
     -d "{
       \"name\": \"${NEXUS_DOCKER_REPO}\",
+      \"online\": true,
+      \"storage\": {
+        \"blobStoreName\": \"default\",
+        \"strictContentTypeValidation\": true,
+        \"writePolicy\": \"ALLOW\"
+      },
+      \"docker\": {
+        \"v1Enabled\": false,
+        \"forceBasicAuth\": false,
+        \"httpPort\": ${NEXUS_DOCKER_PORT}
+      }
+    }"
+fi
+
+if ! nexus_api "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories/${NEXUS_DOCKER_CACHE_REPO}" >/dev/null 2>&1; then
+  echo "==> creating Nexus Docker hosted repo ${NEXUS_DOCKER_CACHE_REPO} (connector :${NEXUS_DOCKER_PORT})"
+  nexus_api -X POST "http://localhost:${NEXUS_HTTP_PORT}/service/rest/v1/repositories/docker/hosted" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"name\": \"${NEXUS_DOCKER_CACHE_REPO}\",
       \"online\": true,
       \"storage\": {
         \"blobStoreName\": \"default\",

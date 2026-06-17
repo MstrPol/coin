@@ -3,48 +3,49 @@
 ## Принцип
 
 - **Проект** — код, `.coin/config.yaml` (identity + credential IDs).
-- **Platform** — manifest, content, agent images, coin-api/executor.
+- **Platform** — manifest, GP content, `coin-agent`, coin-api/executor/lib.
 
 ## Что управляет разработчик
 
 - Код и зависимости (`go.mod`, …).
 - `.coin/config.yaml`: `goldenPath`, `version`, `project.*`, `jenkins.credentials`.
-- `Jenkinsfile` — копия `Jenkinsfile.coin` (или symlink policy команды).
+- `Jenkinsfile` — копия `Jenkinsfile.coin` + `@Library('coin-lib@…')`.
 
 ## Что управляет Platform
 
-- **coin-api** — composition, catalog policy, resolve.
-- **GP content** — coin-api + PostgreSQL + Nexus (не git).
-- **Agent images** — `coin-jenkins-agents/`.
-- **coin-executor** — bounded runtime (см. [CHARTER](../coin-executor/CHARTER.md)).
-- **Agent images** — `coin-jenkins-agents/`.
-- **Universal Jenkinsfile** — `starters/Jenkinsfile.coin`.
-- Platform CI: `coin-executor`, `coin-gp-content`, `coin-lib`, `agents-build`.
-- **coin-lib** — Jenkins Shared Library (glue only: resolve, pod, credentials, stage dispatch).
-- **coin-gp-content** — scripts, Dockerfile, schema per golden path (Nexus + coin-api).
+- **coin-api** — composition, catalog policy, resolve, build reports.
+- **coin-gp-content** — `build.engine`, Containerfile, schema → Nexus + PG.
+- **coin-agent** — universal inbound-agent image (`coin-executor/Dockerfile.agent`).
+- **coin-executor** — validate, build engines, publish, report ([CHARTER](../coin-executor/CHARTER.md)).
+- **coin-lib** — Jenkins glue only: resolve, pod, credentials, stage dispatch.
+- **coin-starters** — product scaffolding + thin Jenkinsfile.
+- Platform CI: `coin-executor`, `coin-gp-content`, `coin-lib`, `publish-agent`, `seed-jenkins-lib`.
+
+**Superseded:** `coin-jenkins-agents/`, job `agents-build`, GP `scripts/*.sh` в runtime.
 
 ## Граница coin-executor
 
-**В executor:** validate config vs manifest, materialize scripts, run stages, report.
+**В executor:** validate config vs manifest, materialize Containerfile, dispatch `buildkit`/`buildpack`/`dockerfile`, run stages, report.
 
-**Не в executor:** GP publish, version bump, Dockerfile engine, release notes.
+**Не в executor:** GP publish, semver bump GP release, release notes authoring.
 
 ## Что запрещено в проекте
 
 | Запрет | Причина |
 |--------|---------|
-| `Dockerfile` в репо | Managed template из manifest |
+| `Dockerfile` в репо (go GP) | Managed Containerfile из manifest |
 | `template`/`templateVersion` (v1) | Strict v2 only |
-| Pin executor/agent в config | Только в manifest |
-| v1 Shared Library pipeline | Hard cut v2 |
+| Pin executor/agent/build engine в config | Только в manifest / GP |
+| Бизнес-логика сборки в Jenkinsfile/Groovy | coin-executor + GP content |
 
 ## Артефакты
 
 | Артефакт | Владелец |
 |----------|----------|
 | `coin-api`, `coin-executor` | Platform |
-| GP content (scripts, Dockerfile, schema) | `coin-gp-content` CI → Nexus + `gp_artifact_bodies` |
-| Jenkins glue (`coinPipeline`) | `coin-lib` (Gitea tag 1.0.0 phase 1, Nexus HTTP ZIP target) |
+| GP content (Containerfile, schema, build policy) | `coin-gp-content` → Nexus |
+| `coin-agent` image | Platform (`publish-agent`) |
+| Jenkins glue (`coinPipeline`) | `coin-lib` (Gitea tag) |
 | `.coin/config.yaml` | Команда |
 | App OCI image | Команда (registry) |
 

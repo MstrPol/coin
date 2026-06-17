@@ -93,13 +93,8 @@ func (s *Store) loadComposition(ctx context.Context, name, version string) (mani
 			parts.ExecutorURL = str("url")
 			parts.ExecutorSHA256 = str("sha256")
 		case "agent":
-			if compName == "jnlp" {
-				parts.JnlpImage = str("image")
-				parts.JnlpDigest = str("digest")
-			} else {
-				parts.AgentImage = str("image")
-				parts.AgentDigest = str("digest")
-			}
+			parts.AgentImage = str("image")
+			parts.AgentDigest = str("digest")
 		case "lib":
 			parts.LibVersion = compVersion
 			parts.LibName = compName

@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jackc/pgx/v5"
-
 	"coin.local/coin-api/internal/compatibility"
 	"coin.local/coin-api/internal/gpcontent"
 	"coin.local/coin-api/internal/manifest"
@@ -180,110 +178,14 @@ func (s *Store) loadCompatibilityRules(ctx context.Context) ([]compatibility.Rul
 	return rules, rows.Err()
 }
 
-func (s *Store) getCompositionContentRef(ctx context.Context, gpName, gpVersion, typ, compName string) (json.RawMessage, error) {
-	var ref []byte
-	err := s.pool.QueryRow(ctx, `
-		SELECT cv.content_ref
-		FROM gp_composition gc
-		JOIN gp_releases gr ON gr.id = gc.gp_release_id
-		JOIN components c ON c.type = gc.component_type AND c.name = gc.component_name
-		JOIN component_versions cv ON cv.component_id = c.id AND cv.version = gc.component_version
-		WHERE gr.name = $1 AND gr.version = $2
-		  AND gc.component_type = $3 AND gc.component_name = $4
-	`, gpName, gpVersion, typ, compName).Scan(&ref)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("content ref not found for %s/%s in %s@%s", typ, compName, gpName, gpVersion)
-	}
-	if err != nil {
-		return nil, err
-	}
-	if len(ref) == 0 {
-		return nil, fmt.Errorf("empty content_ref for %s/%s", typ, compName)
-	}
-	return ref, nil
-}
-
-type refDoc struct {
-	ArtifactKey string `json:"artifactKey"`
-	SHA256      string `json:"sha256"`
-}
-
-type stageRefDoc struct {
-	Name        string `json:"name"`
-	When        string `json:"when"`
-	ArtifactKey string `json:"artifactKey"`
-	SHA256      string `json:"sha256"`
-}
-
-type pipelineRefDoc struct {
-	Stages []stageRefDoc `json:"stages"`
-}
-
 func (s *Store) loadContentBundle(ctx context.Context, gpName, gpVersion string) (manifest.ContentBundle, error) {
 	contentName, contentVer, err := s.gpContentVersionFromComposition(ctx, gpName, gpVersion)
-	if err == nil {
-		meta, cref, err := s.getGPContentRefs(ctx, contentName, contentVer)
-		if err != nil {
-			return manifest.ContentBundle{}, err
-		}
-		return contentBundleFromGPContent(meta, cref), nil
-	}
-
-	// Legacy 6-slot composition fallback
-	pipelineRaw, err := s.getCompositionContentRef(ctx, gpName, gpVersion, "pipeline", "go-build")
 	if err != nil {
 		return manifest.ContentBundle{}, err
 	}
-	validateRaw, err := s.getCompositionContentRef(ctx, gpName, gpVersion, "validate", "config")
+	meta, cref, err := s.getGPContentRefs(ctx, contentName, contentVer)
 	if err != nil {
 		return manifest.ContentBundle{}, err
 	}
-	dockerfileRaw, err := s.getCompositionContentRef(ctx, gpName, gpVersion, "dockerfile", "go-runtime")
-	if err != nil {
-		return manifest.ContentBundle{}, err
-	}
-	orchRaw, err := s.getCompositionContentRef(ctx, gpName, gpVersion, "orchestration", "coin-pipeline")
-	if err != nil {
-		return manifest.ContentBundle{}, err
-	}
-
-	var pipeline pipelineRefDoc
-	if err := json.Unmarshal(pipelineRaw, &pipeline); err != nil {
-		return manifest.ContentBundle{}, fmt.Errorf("pipeline content_ref: %w", err)
-	}
-	var validate refDoc
-	if err := json.Unmarshal(validateRaw, &validate); err != nil {
-		return manifest.ContentBundle{}, fmt.Errorf("validate content_ref: %w", err)
-	}
-	var dockerfile refDoc
-	if err := json.Unmarshal(dockerfileRaw, &dockerfile); err != nil {
-		return manifest.ContentBundle{}, fmt.Errorf("dockerfile content_ref: %w", err)
-	}
-	var orch refDoc
-	if err := json.Unmarshal(orchRaw, &orch); err != nil {
-		return manifest.ContentBundle{}, fmt.Errorf("orchestration content_ref: %w", err)
-	}
-
-	stages := make([]manifest.StageScript, 0, len(pipeline.Stages))
-	for _, st := range pipeline.Stages {
-		stages = append(stages, manifest.StageScript{
-			Name:        st.Name,
-			When:        st.When,
-			ArtifactKey: st.ArtifactKey,
-			SHA256:      st.SHA256,
-		})
-	}
-	if len(stages) == 0 {
-		return manifest.ContentBundle{}, fmt.Errorf("pipeline content_ref missing stages for %s@%s", gpName, gpVersion)
-	}
-
-	return manifest.ContentBundle{
-		SchemaArtifactKey:        validate.ArtifactKey,
-		SchemaSHA256:             validate.SHA256,
-		DockerfileArtifactKey:    dockerfile.ArtifactKey,
-		DockerfileSHA256:         dockerfile.SHA256,
-		OrchestrationArtifactKey: orch.ArtifactKey,
-		OrchestrationSHA256:      orch.SHA256,
-		Stages:                   stages,
-	}, nil
+	return contentBundleFromGPContent(meta, cref), nil
 }

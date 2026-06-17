@@ -54,11 +54,7 @@ func (c *Client) UploadManifestBlob(ctx context.Context, gpName, version string,
 
 // UploadContentArtifact stores GP stage/schema/dockerfile bytes in Nexus.
 func (c *Client) UploadContentArtifact(ctx context.Context, gpName, version, artifactKey string, body []byte) (string, error) {
-	ext := ""
-	if i := strings.LastIndex(artifactKey, "."); i >= 0 {
-		ext = artifactKey[i+1:]
-	}
-	classifier := ClassifierFromArtifactKey(artifactKey)
+	classifier, ext := ArtifactMavenCoords(artifactKey)
 	repo := MavenRepoForVersion(version)
 	path := MavenRepoPath("coin.gp.content", gpName, version, classifier, ext)
 	contentType := "application/octet-stream"

@@ -123,6 +123,30 @@ func (s *Store) PublishComponentVersion(ctx context.Context, in ComponentVersion
 	}, nil
 }
 
+func (s *Store) UpdateComponentVersionRefs(ctx context.Context, typ, name, version string, metadata, contentRef json.RawMessage) error {
+	if typ == "" || name == "" || version == "" {
+		return fmt.Errorf("type, name and version are required")
+	}
+	meta := metadata
+	if len(meta) == 0 {
+		meta = json.RawMessage(`{}`)
+	}
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE component_versions cv
+		SET metadata = $4, content_ref = $5
+		FROM components c
+		WHERE cv.component_id = c.id
+		  AND c.type = $1 AND c.name = $2 AND cv.version = $3
+	`, typ, name, version, meta, nullableJSON(contentRef))
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("component version not found: %s/%s@%s", typ, name, version)
+	}
+	return nil
+}
+
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"

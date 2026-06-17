@@ -1,19 +1,18 @@
 # Onboarding за 15 минут (Control Plane v2)
 
-**Ticket:** P4-04  
 **Audience:** новый platform dev или инженер команды  
-**Scope:** local docker стенд + один green build `demo-go-app`
+**Scope:** local docker стенд + green builds трёх build engines
 
 ## Что получите
 
 - Рабочий стенд: Gitea, Nexus, Jenkins, k3s, coin-api, coin-ui
-- Resolve manifest `go-app@1.0.0`
-- Jenkins build **demo-go-app** SUCCESS
+- Resolve manifest `go-app@*`
+- Jenkins jobs **demo-go-app**, **demo-go-app-bp**, **demo-go-app-df** → SUCCESS
 - coin-ui dashboard с projects registry
 
 ## Prerequisites (2 min)
 
-- Docker Desktop запущен (8 GB+ RAM)
+- Docker Desktop запущен (8 GB+ RAM, 20+ GB disk для k3s)
 - `make`, `curl` в PATH
 - Клон monorepo `coin/`
 
@@ -40,11 +39,15 @@ curl -sf http://localhost:8090/ready | jq .
 | http://localhost:8091 | coin-ui |
 | http://localhost:3000 | Gitea |
 
-## Шаг 2 — Platform + samples (3 min)
+## Шаг 2 — Platform + samples (5 min)
+
+На Apple Silicon:
 
 ```bash
-make coin-jenkins-agents   # agents + catalog → Gitea
-make samples            # demo-go-app → Gitea + Jenkins job
+make publish-agent GOARCH=arm64   # coin-agent → Nexus
+make coin-lib
+make seed-jenkins-lib             # lib + gp-content + GP profiles
+make samples                      # demo-go-app, demo-go-app-bp, demo-go-app-df
 make coin-ui-up
 ```
 
@@ -53,47 +56,48 @@ coin-ui: http://localhost:8091 → Login → «Пропустить» (local) и
 ## Шаг 3 — Manifest resolve (1 min)
 
 ```bash
-curl -sf http://localhost:8090/v1/golden-paths/go-app/versions/1.0.0/manifest \
-  | jq '{gp: .goldenPath, runtime: .runtime.image, executor: .executor.version}'
-```
-
-Nexus cache (fallback path — pointer → blob):
-
-```bash
-SNAPSHOTS=http://localhost:8081/repository/maven-snapshots
-curl -sf "${SNAPSHOTS}/coin/manifest/go-app/metadata/go-app-metadata-pin-%3D1.0.0.json" | jq '{manifestHash, blobUrl}'
+curl -sf "http://localhost:8090/v1/golden-paths/go-app/resolve?pin=*" \
+  | jq '{gp: .goldenPath, engine: .build.engine, runtime: .runtime.image}'
 ```
 
 ## Шаг 4 — Jenkins E2E (4 min)
 
-1. Открыть http://localhost:8080
-2. Job **demo-go-app** → branch **main** → **Build Now**
-3. Дождаться **SUCCESS** (Resolve → Validate → Test → Build → Report)
+**Вариант A — один job:**
 
-Проверка report в coin-ui: **Projects** → `demo-go-app` на `go-app@1.0.0`.
+1. http://localhost:8080 → **demo-go-app** → main → **Build Now**
+2. SUCCESS: Resolve → Bootstrap (podman) → Validate → Test → Build → Report
+
+**Вариант B — все три build engines:**
+
+```bash
+make e2e-build-engines    # ~30 min, с prune k3s disk
+```
+
+| Job | GP | Engine |
+|-----|-----|--------|
+| demo-go-app | go-app | buildkit |
+| demo-go-app-bp | go-app-bp | buildpack |
+| demo-go-app-df | go-app-df | dockerfile |
 
 ## Шаг 5 — Optional (1 min)
 
-```bash
-# Projects registry — автоматически при первом build report (fleet scanner удалён)
-curl -sf http://localhost:8090/metrics | grep coin_scan
-```
-
-coin-ui: **GP Releases** → Detail → blast radius chart.
+coin-ui: **Projects** → `demo-go-app`.  
+**GP Releases** → Detail → blast radius.
 
 ## Acceptance checklist
 
 - [ ] `/ready` green
-- [ ] manifest resolve OK
+- [ ] manifest resolve OK (`build.engine` присутствует)
 - [ ] demo-go-app build SUCCESS
+- [ ] (optional) `make e2e-build-engines` 3/3
 - [ ] coin-ui Dashboard показывает ≥1 project
-- [ ] Понятно где docs: [docs/README.md](../README.md)
+- [ ] Документация: [docs/README.md](../README.md), [agent-build-model.md](../agent-build-model.md)
 
 ## Дальше по роли
 
 | Роль | Документ |
 |------|----------|
-| Platform | [publish-gp-release.md](publish-gp-release.md), [coin-ui-user-guide.md](../coin-ui-user-guide.md) |
+| Platform | [publish-gp-release.md](publish-gp-release.md), [agent-build-model.md](../agent-build-model.md) |
 | Команда сервиса | [add-new-service-repo.md](add-new-service-repo.md) |
 | PM | [fleet-analytics-pm.md](fleet-analytics-pm.md) |
 | Миграция v1 | [migrate-config-v1-to-v2.md](migrate-config-v1-to-v2.md) |
@@ -103,6 +107,7 @@ coin-ui: **GP Releases** → Detail → blast radius chart.
 | Проблема | Решение |
 |----------|---------|
 | Agent offline | `make endpoints` |
-| manifest 404 | `make coin-jenkins-agents`, проверить GP seed в postgres |
-| executor 404 | Опубликовать binary в Nexus — см. [local-dev-control-plane.md](local-dev-control-plane.md) |
+| manifest 404 | `make seed-jenkins-lib` |
+| Pod ephemeral-storage | `bash scripts/prune-k3s-disk.sh --all` |
+| Старый bootstrap в логе | `make coin-lib` (очистка lib cache) |
 | UI 401 | `AUTH_DISABLED=true` или admin key из `.env` |

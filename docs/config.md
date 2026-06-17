@@ -88,11 +88,12 @@ Credentials → env при publish: `COIN_REGISTRY_USER`, `COIN_REGISTRY_PASSWOR
 
 | Поле | Где живёт |
 |------|-----------|
-| Agent image | `manifest.runtime` |
-| Pipeline stages | `manifest.pipeline` |
-| coin-executor URL | `manifest.executor` |
-| Dockerfile | `manifest.dockerfileTemplate` (Nexus url + sha256) |
-| `build.type`, `container.*` | GP scripts / Dockerfile template |
+| Agent image | `manifest.runtime.image` |
+| Build engine | `manifest.build.engine` (`buildkit` \| `buildpack` \| `dockerfile`) |
+| Containerfile / targets | `manifest.build.buildkit` / `build.dockerfile` / `build.buildpack` |
+| Pipeline stages | `manifest.pipeline.stages` (typed `id`, без script URLs) |
+| coin-executor | `manifest.executor` (baked в `coin-agent` на pilot) |
+| Config schema | `manifest.validateSchema` |
 
 ---
 

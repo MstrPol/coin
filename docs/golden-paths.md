@@ -1,104 +1,103 @@
-# Golden paths (Control Plane v2)
+# Golden Paths (Control Plane v2)
 
-Golden path — **semver release** платформы (`go-app@1.0.0`), собранный из registry components + Nexus artifacts.
+## Модель
 
----
+| Сущность | Описание |
+|----------|----------|
+| **Golden Path (GP)** | Именованный профиль: `go-app`, `go-app-bp`, `go-app-df`, … |
+| **GP release** | Semver pin в продукте: `go-app@1.0.0` |
+| **GP content** | `coin-gp-content/stacks/<gp>/` — build policy, Containerfile, schema |
+| **Manifest** | JSON от Resolve: `build`, `runtime`, `pipeline`, `validateSchema` |
 
-## GP composition — 5 компонентов
+Продукт указывает только:
 
-| Slot key | Component | Роль |
-|----------|-----------|------|
-| `jnlp` | `agent/jnlp` | Jenkins inbound agent image |
-| `agent` | `agent/{stack}` | CI stack container image |
-| `executor` | `executor/coin-executor` | coin-executor binary |
-| `lib` | `lib/coin-lib` | Jenkins Shared Library (glue only) |
-| `gp-content` | `gp-content/{golden-path}` | scripts, Dockerfile, validate schema |
-
-Профиль создаётся через `POST /v1/admin/golden-paths/profiles` с `{ name, agentStack }` — slots генерирует сервер.
-
-Product Jenkinsfile:
-
-```groovy
-@Library('coin-lib@1.0.0') _
-coinPipeline()
+```yaml
+coin:
+  goldenPath: go-app
+  version: "1.0.0"
 ```
 
-`coin-lib@1.0.0` — стабильный Jenkins adapter для local pilot. Версионируемые части GP приходят из manifest.
+## Composition (4 slots)
 
----
+При publish GP release в manifest попадают:
 
-## GP content
+| Slot | Component type | Пример | Manifest |
+|------|----------------|--------|----------|
+| `agent` | `agent` | `coin-agent@1.0.0` | `runtime.image` |
+| `executor` | `executor` | `coin-executor@0.1.0` | `executor` (binary baked в agent на pilot) |
+| `lib` | `lib` | `coin-lib@1.0.0` | Jenkins `@Library` |
+| `gp-content` | `gp-content` | `gp-content/go-app@1.0.2` | `build`, `pipeline`, `validateSchema` |
 
-Исходники: [`coin-gp-content/`](../coin-gp-content/).
+**Superseded:** 5-slot с `jnlp` + `agent/{stack}`, slots `pipeline` / `validate` / `dockerfile` как отдельные component types.
 
-Publish:
+## Build engines (go family, local pilot)
+
+| GP | `build.engine` | Sample repo | Jenkins job |
+|----|----------------|-------------|-------------|
+| `go-app` | `buildkit` | `samples/demo-go-app` | `demo-go-app` |
+| `go-app-bp` | `buildpack` | `samples/demo-go-app-bp` | `demo-go-app-bp` |
+| `go-app-df` | `dockerfile` | `samples/demo-go-app-df` | `demo-go-app-df` |
+
+Content SoT:
+
+```
+coin-gp-content/stacks/
+├── go-app/content.yaml       # buildkit
+├── go-app-bp/content.yaml    # buildpack
+└── go-app-df/content.yaml    # dockerfile
+```
+
+## Runtime pod
+
+Один container — `manifest.runtime.image` (`coin-agent`), не отдельный stack agent.
+
+См. [agent-build-model.md](agent-build-model.md).
+
+## Pipeline stages
+
+Typed stages в `content.yaml` — **без** script URLs:
+
+```yaml
+pipeline:
+  stages:
+    - id: validate
+      name: Validate
+    - id: test
+      name: Test
+    - id: build
+      name: Build
+    - id: publish
+      name: Publish
+      when: tag
+```
+
+Orchestration — `coin-lib` + `coin-executor`, не Groovy/shell из Nexus.
+
+## Seed и publish (local)
 
 ```bash
-cd coin-gp-content && ./scripts/publish-content.sh go-app 1.0.0
+cd docker
+make coin-gp-content              # Gitea repo + job
+make publish-agent                # coin-agent → Nexus
+make seed-jenkins-lib             # components + GP profiles
+make samples                      # product repos
+make e2e-build-engines            # acceptance 3/3
 ```
 
-Zip → Nexus `maven-releases` (`coin/gp-content/{name}/{ver}/`) → register `gp-content/go-app@1.0.0` в coin-api.
+How-to: [publish-gp-release.md](how-to/publish-gp-release.md).
 
-Manifest resolve включает `jnlp`, `pipeline.stages`, `validateSchema`, `dockerfileTemplate` (без `orchestration.bundle`).
+## Catalog (local pilot)
 
----
+| GP | Typical pin | Notes |
+|----|-------------|-------|
+| `go-app` | `1.0.2` | buildkit + Containerfile fixes |
+| `go-app-bp` | `1.0.0` | buildpack |
+| `go-app-df` | `1.0.2` | dockerfile targets |
 
-## coin-lib
-
-Jenkins glue: [`coin-lib/`](../coin-lib/). Phase 1 — Gitea `coin/coin-lib` tag `1.0.0`; target — Nexus HTTP ZIP (см. ADR `jenkins-lib-http-nexus`).
-`coin-lib` рендерит Jenkins stages из `manifest.pipeline.stages`, поэтому разные GP могут иметь разные stage sets.
-
----
-
-## jnlp registration
-
-`agent/jnlp` публикуется вручную через coin-ui / admin API (`POST /v1/admin/components/agent/jnlp/versions`), не через `agents-build`.
-
----
-
-## Именование
-
-```
-go-app              →  goldenPath name (coin.goldenPath)
-1.0.0               →  semver GP release (coin.version)
-go                  →  agent stack
-go-app              →  gp-content name (совпадает с golden path)
-```
-
----
-
-## Deliverables (product config V1)
-
-Секция `deliverables` в `.coin/config.yaml` описывает **WHAT** — outputs repo. Если секция отсутствует, применяется default `app:image`.
-
-P0 types (должны быть в `gp-content` capabilities): `image`, `liquibase-image`, `artifact(format=zip)`.
-
-Build report содержит `outputs[]` с ref/digest/sha256 per deliverable.
-
-### Roadmap (вне local pilot)
-
-| Приоритет | Тип | Назначение |
-|-----------|-----|------------|
-| P1 | `helm-chart` | OCI/chart registry publish из GP scripts |
-| P1 | `static-assets` | S3/Nexus static site или bundle |
-| P1 | `job-image` | CronJob/K8s Job image (отдельно от app image) |
-| P2 | `library` | Maven/npm и др. binary artifacts |
-| P2 | `terraform-module` | Versioned IaC module zip |
-| P2 | `config-bundle` | K8s manifests / config-only zip |
-
-Новый тип добавляется только через `gp-content` capabilities + executor support; product repo объявляет WHAT, platform — HOW.
-
-## Extension policy
-
-- **P0:** declarative `artifact.sources` — только explicit paths, без globs
-- **Запрещено:** custom Jenkins stages/actions, override стандартных stage scripts
-- **P1 hooks:** executor-owned extension points — design only, не реализованы в local pilot
-
-Повторяющиеся hooks → promote в `gp-content` capabilities, не в product repo.
-
----
+Продукты могут pin `1.0.0` если GP release опубликован; после content bump — новый GP semver.
 
 ## Связанные документы
 
-- [responsibilities.md](responsibilities.md)
-- [ADR jenkins-lib-http-nexus](../.cursor/plans/adr/jenkins-lib-http-nexus.md)
+- [golden-path-versioning.md](golden-path-versioning.md)
+- [config.md](config.md)
+- [control-plane.md](control-plane.md)

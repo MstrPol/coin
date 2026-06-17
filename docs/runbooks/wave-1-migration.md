@@ -57,8 +57,9 @@ Mapping: [migrate-config-v1-to-v2.md](../how-to/migrate-config-v1-to-v2.md)
 
 ### 3. Jenkinsfile
 
-Заменить v1 Shared Library pipeline (`coinPipeline()`) на  
-[`coin-starters/Jenkinsfile.coin`](../../coin-starters/Jenkinsfile.coin).
+Заменить v1 fat pipeline на thin bootstrap + **coin-lib** (glue only):
+
+[`coin-starters/Jenkinsfile.coin`](../../coin-starters/Jenkinsfile.coin) — `@Library('coin-lib@1.0.0') _` + `coinPipeline()`.
 
 Env overrides (optional):
 

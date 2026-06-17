@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local pilot: publish lib + gp-content + GP profile/release for go-app (5-slot model).
+# Local pilot: publish lib + gp-content + GP profile/release for go-app (4-slot model).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -33,7 +33,12 @@ api_post() {
 component_version() {
   local typ="$1" name="$2"
   curl -fsS "${API}/v1/admin/components/${typ}/${name}/versions" "${AUTH[@]}" 2>/dev/null \
-    | jq -r '[.items[] | select(.status=="published") | .version] | last // empty'
+    | jq -r '
+        [.items[] | select(.status=="published") | .version]
+        | map(select(test("^[0-9]+\\.[0-9]+\\.[0-9]+$")))
+        | sort_by(split(".") | map(tonumber))
+        | last // empty
+      '
 }
 
 echo "==> cleanup legacy pipeline-bundle components"
@@ -71,58 +76,69 @@ COIN_API_URL="${API}" \
 COIN_API_KEY="${KEY}" \
   "${REPO_ROOT}/coin-lib/scripts/publish-lib.sh" 1.0.0
 
-echo "==> publish gp-content/go-app@1.0.0"
+echo "==> publish gp-content stacks"
 chmod +x "${REPO_ROOT}/coin-gp-content/scripts/"*.sh "${REPO_ROOT}/coin-gp-content/scripts/lib/"*.sh
-NEXUS_URL="${NEXUS_URL:-http://localhost:8081}" \
-NEXUS_USER="${NEXUS_USER:-admin}" \
-NEXUS_PASSWORD="${NEXUS_ADMIN_PASSWORD:-coin12345}" \
-COIN_API_URL="${API}" \
-COIN_API_KEY="${KEY}" \
-  "${REPO_ROOT}/coin-gp-content/scripts/publish-content.sh" go-app 1.0.0
+GP_CONTENT_STACKS=(go-app go-app-bp go-app-df)
+for stack in "${GP_CONTENT_STACKS[@]}"; do
+  echo "    gp-content/${stack}@1.0.0"
+  NEXUS_URL="${NEXUS_URL:-http://localhost:8081}" \
+  NEXUS_USER="${NEXUS_USER:-admin}" \
+  NEXUS_PASSWORD="${NEXUS_ADMIN_PASSWORD:-coin12345}" \
+  COIN_API_URL="${API}" \
+  COIN_API_KEY="${KEY}" \
+    "${REPO_ROOT}/coin-gp-content/scripts/publish-content.sh" "${stack}" 1.0.0
+done
 
-JNLP_VER="$(component_version agent jnlp)"
-GO_VER="$(component_version agent go)"
+AGENT_VER="$(component_version agent coin-agent)"
 EXEC_VER="$(component_version executor coin-executor)"
 LIB_VER="$(component_version lib coin-lib)"
-CONTENT_VER="$(component_version gp-content go-app)"
 
-for pair in "jnlp:${JNLP_VER}" "go:${GO_VER}" "executor:${EXEC_VER}" "lib:${LIB_VER}" "content:${CONTENT_VER}"; do
+for stack in "${GP_CONTENT_STACKS[@]}"; do
+  if [[ -z "$(component_version gp-content "${stack}")" ]]; then
+    echo "missing gp-content/${stack} version" >&2
+    exit 1
+  fi
+done
+
+for pair in "agent:${AGENT_VER}" "executor:${EXEC_VER}" "lib:${LIB_VER}"; do
   if [[ -z "${pair#*:}" ]]; then
     echo "missing component version for ${pair%%:*}" >&2
     exit 1
   fi
 done
 
-echo "==> create GP profile go-app (if missing)"
-api_post "/v1/admin/golden-paths/profiles" '{"name":"go-app","agentStack":"go","actor":"seed"}' || true
+GP_VER="${COIN_E2E_VERSION:-1.0.0}"
 
-GP_VER="${COIN_E2E_VERSION:-1.0.1}"
+for stack in "${GP_CONTENT_STACKS[@]}"; do
+  echo "==> create GP profile ${stack} (if missing)"
+  api_post "/v1/admin/golden-paths/profiles" "$(jq -n --arg n "${stack}" '{name: $n, actor: "seed"}')" || true
 
-echo "==> publish GP go-app@${GP_VER}"
-composition="$(jq -n \
-  --arg jnlp "${JNLP_VER}" \
-  --arg agent "${GO_VER}" \
-  --arg exec "${EXEC_VER}" \
-  --arg lib "${LIB_VER}" \
-  --arg content "${CONTENT_VER}" \
-  '{jnlp: $jnlp, agent: $agent, executor: $exec, lib: $lib, "gp-content": $content}')"
-gp_body="$(jq -n \
-  --arg ver "${GP_VER}" \
-  --argjson comp "${composition}" \
-  '{version: $ver, composition: $comp, actor: "seed"}')"
-gp_tmp="$(mktemp)"
-gp_code="$(curl -sS -o "${gp_tmp}" -w '%{http_code}' -X POST "${API}/v1/admin/golden-paths/go-app/versions" "${AUTH[@]}" -d "${gp_body}")"
-if [[ "${gp_code}" != "201" && "${gp_code}" != "409" ]]; then
-  echo "publish GP failed HTTP ${gp_code}: $(cat "${gp_tmp}")" >&2
+  content_ver="$(component_version gp-content "${stack}")"
+  echo "==> publish GP ${stack}@${GP_VER} (gp-content@${content_ver})"
+  composition="$(jq -n \
+    --arg agent "${AGENT_VER}" \
+    --arg exec "${EXEC_VER}" \
+    --arg lib "${LIB_VER}" \
+    --arg content "${content_ver}" \
+    '{agent: $agent, executor: $exec, lib: $lib, "gp-content": $content}')"
+  gp_body="$(jq -n \
+    --arg ver "${GP_VER}" \
+    --argjson comp "${composition}" \
+    '{version: $ver, composition: $comp, actor: "seed"}')"
+  gp_tmp="$(mktemp)"
+  gp_code="$(curl -sS -o "${gp_tmp}" -w '%{http_code}' -X POST "${API}/v1/admin/golden-paths/${stack}/versions" "${AUTH[@]}" -d "${gp_body}")"
+  if [[ "${gp_code}" != "201" && "${gp_code}" != "409" ]]; then
+    echo "publish GP ${stack} failed HTTP ${gp_code}: $(cat "${gp_tmp}")" >&2
+    rm -f "${gp_tmp}"
+    exit 1
+  fi
   rm -f "${gp_tmp}"
-  exit 1
-fi
-rm -f "${gp_tmp}"
 
-pin_enc="$(python3 -c "import urllib.parse; print(urllib.parse.quote('=${GP_VER}', safe=''))")"
-echo "==> verify /golden-paths/go-app/version"
-curl -fsS "${API}/v1/golden-paths/go-app/version?pin=${pin_enc}" \
-  -H "Authorization: Bearer ${COIN_API_TOKEN:-dev-local-token}" \
-  | jq -e '.library.version == "1.0.0"'
+  pin_enc="$(python3 -c "import urllib.parse; print(urllib.parse.quote('=${GP_VER}', safe=''))")"
+  echo "==> verify /golden-paths/${stack}/version"
+  curl -fsS "${API}/v1/golden-paths/${stack}/version?pin=${pin_enc}" \
+    -H "Authorization: Bearer ${COIN_API_TOKEN:-dev-local-token}" \
+    | jq -e --arg lib "${LIB_VER}" '.library.version == $lib' >/dev/null
+done
 
-echo "OK: jenkins-lib stack seeded (go-app@${GP_VER})"
+echo "OK: jenkins-lib stack seeded (${GP_CONTENT_STACKS[*]}@${GP_VER}, coin-agent@${AGENT_VER})"

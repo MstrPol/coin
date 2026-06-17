@@ -28,8 +28,8 @@
 |----------|------------|
 | [architecture.md](architecture.md) | Обзор компонентов v2 |
 | [control-plane.md](control-plane.md) | API, executor, manifest, три слоя SoT |
-| [agent-build-model.md](agent-build-model.md) | Native build + runtime-only Dockerfile |
-| [golden-paths.md](golden-paths.md) | GP, content/, composition |
+| [agent-build-model.md](agent-build-model.md) | **Build engines** (buildkit / buildpack / dockerfile), coin-agent |
+| [golden-paths.md](golden-paths.md) | GP profiles, 4-slot composition, samples |
 | [responsibilities.md](responsibilities.md) | Platform vs команда |
 
 ## Контракты
@@ -37,17 +37,19 @@
 | Документ | Содержание |
 |----------|------------|
 | [config.md](config.md) | `.coin/config.yaml` v2 (`goldenPath` + `version`) |
-| [jenkins-setup.md](jenkins-setup.md) | Universal Jenkinsfile, K8s agents |
+| [jenkins-setup.md](jenkins-setup.md) | coin-lib, K8s pod, platform jobs |
 | [branching.md](branching.md) | Ветки, теги, версионирование |
 
 ## Компоненты monorepo
 
 | Документ | Содержание |
 |----------|------------|
-| [coin-api/README.md](../coin-api/README.md) | Resolve API, scanner, migrations |
-| [`coin-ui/README.md`](../coin-ui/README.md) | Admin SPA (local :8091) |
-| [coin-executor/README.md](../coin-executor/README.md) | CLI runtime, CHARTER |
-| [`coin-api/internal/gpcontent/seed/`](../coin-api/internal/gpcontent/seed/) | GP seed bytes (scripts, schema, orchestration) |
+| [coin-api/README.md](../coin-api/README.md) | Resolve API, admin, migrations |
+| [coin-ui/README.md](../coin-ui/README.md) | Admin SPA (local :8091) |
+| [coin-executor/README.md](../coin-executor/README.md) | CLI runtime, coin-agent, build engines |
+| [coin-lib/README.md](../coin-lib/README.md) | Jenkins Shared Library (glue) |
+| [coin-gp-content/README.md](../coin-gp-content/README.md) | GP stacks, content.yaml |
+| [coin-starters/README.md](../coin-starters/README.md) | Product scaffolding |
 
 ## Прочее
 
@@ -58,17 +60,25 @@
 
 ## Ключевые принципы
 
-1. **Продукт** задаёт только `coin.goldenPath` + `coin.version` — всё остальное в manifest.
-2. **coin-api** собирает manifest из PostgreSQL + git content refs.
-3. **Nexus `maven-releases` / `maven-snapshots`** — runtime cache; CI работает при недоступном API.
-4. **coin-executor** — stateless runtime: validate, run stages, report.
-5. **Jenkinsfile.coin** — resolve → pod → executor (без Shared Library).
+1. **Продукт** задаёт только `coin.goldenPath` + `coin.version` — build engine и stages в manifest.
+2. **coin-api** собирает manifest из PostgreSQL + Nexus content refs.
+3. **Nexus** — immutable blobs + mutable pointers; CI resolve с fallback при недоступном API.
+4. **coin-executor** — validate, build engines (`buildkit` / `buildpack` / `dockerfile`), report.
+5. **coin-lib** + **Jenkinsfile.coin** — resolve → pod (`coin-agent`) → executor stages.
+6. **E2E local pilot:** `make e2e-build-engines` — три demo jobs (buildkit, buildpack, dockerfile).
 
-## Doc review (P4-04)
+## ADR (архитектурные решения)
+
+| ADR | Тема |
+|-----|------|
+| [build-engine-contract](../.cursor/plans/adr/build-engine-contract.md) | `build.engine`, typed stages, coin-agent |
+| [jenkins-lib-http-nexus](../.cursor/plans/adr/jenkins-lib-http-nexus.md) | coin-lib scope |
+| [control-plane-v2](../.cursor/plans/adr/control-plane-v2.md) | manifest v2 |
+
+## Doc review
 
 | Check | Status |
 |-------|--------|
-| Root [README.md](../README.md) — Control Plane v2 | ✅ |
-| [onboarding-15min.md](how-to/onboarding-15min.md) | ✅ |
-| Dead links в runbooks (wave-3 stale SQL, comms) | ✅ |
+| Build engine model (3 samples, E2E) | ✅ |
+| Superseded: coin-jenkins-agents, script URLs | ✅ |
 | P4-03 prod Gitea split | ⏸ corp gate |

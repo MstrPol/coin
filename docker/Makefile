@@ -1,4 +1,4 @@
-.PHONY: up bootstrap down reset build-jenkins dashboard coin-platform coin-jenkins-agents coin-starters coin-executor coin-gp-content coin-lib agents-build register-jnlp wipe-gp samples e2e-mvp1 postgres-up coin-api-up coin-ui-up endpoints
+.PHONY: up bootstrap down reset build-jenkins dashboard coin-platform coin-starters coin-executor coin-gp-content coin-lib publish-agent wipe-gp wipe-e2e-fresh samples e2e-mvp1 e2e-bootstrap e2e-demo-go-app e2e-build-engines postgres-up coin-api-up coin-ui-up endpoints seed-jenkins-lib e2e-jenkins-lib
 
 up:
 	docker compose up -d
@@ -46,12 +46,8 @@ reset:
 	./scripts/reset.sh
 
 coin-platform:
-	chmod +x scripts/coin-platform.sh scripts/coin-jenkins-agents.sh scripts/coin-starters.sh scripts/lib/common.sh
+	chmod +x scripts/coin-platform.sh scripts/coin-starters.sh scripts/lib/common.sh
 	./scripts/coin-platform.sh
-
-coin-jenkins-agents:
-	chmod +x scripts/coin-jenkins-agents.sh scripts/lib/common.sh
-	./scripts/coin-jenkins-agents.sh
 
 coin-starters:
 	chmod +x scripts/coin-starters.sh scripts/lib/common.sh
@@ -73,17 +69,17 @@ coin-lib-http:
 	chmod +x scripts/coin-lib-http.sh scripts/lib/common.sh
 	./scripts/coin-lib-http.sh
 
-agents-build:
-	chmod +x scripts/agents-build.sh scripts/lib/common.sh
-	./scripts/agents-build.sh
-
-register-jnlp:
-	chmod +x scripts/register-jnlp-agent.sh scripts/lib/common.sh
-	./scripts/register-jnlp-agent.sh
+publish-agent:
+	chmod +x ../coin-executor/scripts/publish-agent.sh
+	VERSION=$${VERSION:-1.0.0} GOARCH=$${GOARCH:-amd64} ../coin-executor/scripts/publish-agent.sh "$${VERSION}" "$${GOARCH}"
 
 wipe-gp:
 	chmod +x scripts/wipe-gp.sh
 	./scripts/wipe-gp.sh
+
+wipe-e2e-fresh:
+	chmod +x scripts/wipe-e2e-fresh.sh scripts/lib/common.sh
+	./scripts/wipe-e2e-fresh.sh
 
 samples:
 	chmod +x scripts/samples.sh scripts/lib/common.sh
@@ -97,6 +93,18 @@ seed-jenkins-lib:
 	chmod +x scripts/seed-jenkins-lib-stack.sh scripts/lib/common.sh
 	./scripts/seed-jenkins-lib-stack.sh
 
+e2e-bootstrap:
+	chmod +x scripts/e2e-bootstrap.sh scripts/lib/common.sh
+	./scripts/e2e-bootstrap.sh
+
 e2e-jenkins-lib:
 	chmod +x scripts/e2e-jenkins-lib.sh scripts/lib/common.sh
 	./scripts/e2e-jenkins-lib.sh
+
+e2e-demo-go-app:
+	chmod +x scripts/e2e-demo-go-app.sh scripts/lib/common.sh
+	./scripts/e2e-demo-go-app.sh
+
+e2e-build-engines:
+	chmod +x scripts/e2e-build-engines.sh scripts/e2e-demo-go-app.sh scripts/prune-k3s-disk.sh scripts/lib/common.sh
+	./scripts/e2e-build-engines.sh

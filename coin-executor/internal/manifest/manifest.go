@@ -10,16 +10,16 @@ import (
 )
 
 type Manifest struct {
-	ManifestVersion    int               `json:"manifestVersion"`
-	ManifestHash       string            `json:"manifestHash"`
-	GoldenPath         GoldenPath        `json:"goldenPath"`
-	Executor           Executor          `json:"executor"`
-	Runtime            Runtime           `json:"runtime"`
-	Pipeline           Pipeline          `json:"pipeline"`
-	ValidateSchema     ContentRef        `json:"validateSchema"`
-	DockerfileTemplate ContentRef        `json:"dockerfileTemplate"`
-	Credentials        Credentials       `json:"credentials"`
-	Capabilities       Capabilities      `json:"capabilities"`
+	ManifestVersion int          `json:"manifestVersion"`
+	ManifestHash    string       `json:"manifestHash"`
+	GoldenPath      GoldenPath   `json:"goldenPath"`
+	Executor        Executor     `json:"executor"`
+	Runtime         Runtime      `json:"runtime"`
+	Build           Build        `json:"build"`
+	Pipeline        Pipeline     `json:"pipeline"`
+	ValidateSchema  ContentRef   `json:"validateSchema"`
+	Credentials     Credentials  `json:"credentials"`
+	Capabilities    Capabilities `json:"capabilities"`
 }
 
 type Capabilities struct {
@@ -49,14 +49,50 @@ type Runtime struct {
 	Digest string `json:"digest"`
 }
 
+type Build struct {
+	Engine     string                `json:"engine"`
+	Buildkit   *BuildkitConfig       `json:"buildkit,omitempty"`
+	Buildpack  *BuildpackConfig      `json:"buildpack,omitempty"`
+	Dockerfile *DockerfileEngineConfig `json:"dockerfile,omitempty"`
+}
+
+type BuildpackConfig struct {
+	Builder  string `json:"builder"`
+	RunImage string `json:"runImage,omitempty"`
+	CacheRef string `json:"cacheRef,omitempty"`
+}
+
+type BuildkitConfig struct {
+	Dockerfile    string            `json:"dockerfile"`
+	Targets       map[string]string `json:"targets"`
+	CacheRef      string            `json:"cacheRef,omitempty"`
+	Containerfile ContentRef        `json:"containerfile"`
+}
+
+// DockerfileEngineConfig is a simplified BuildKit dockerfile.v0 policy (no targets map).
+type DockerfileEngineConfig struct {
+	Dockerfile    string     `json:"dockerfile"`
+	ImageTarget   string     `json:"imageTarget,omitempty"`
+	TestTarget    string     `json:"testTarget,omitempty"`
+	CacheRef      string     `json:"cacheRef,omitempty"`
+	Containerfile ContentRef `json:"containerfile"`
+}
+
 type Pipeline struct {
 	Stages []Stage `json:"stages"`
 }
 
 type Stage struct {
-	Name   string     `json:"name"`
-	When   string     `json:"when,omitempty"`
-	Script ContentRef `json:"script"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	When string `json:"when,omitempty"`
+}
+
+func (s Stage) Key() string {
+	if strings.TrimSpace(s.ID) != "" {
+		return strings.TrimSpace(s.ID)
+	}
+	return strings.ToLower(strings.TrimSpace(s.Name))
 }
 
 type ContentRef struct {
@@ -101,9 +137,12 @@ func (m *Manifest) MatchesConfig(goldenPath, configPin string) error {
 }
 
 func (m *Manifest) URLRefsOnly() bool {
-	refs := []ContentRef{m.ValidateSchema, m.DockerfileTemplate}
-	for _, stage := range m.Pipeline.Stages {
-		refs = append(refs, stage.Script)
+	refs := []ContentRef{m.ValidateSchema}
+	if m.Build.Buildkit != nil {
+		refs = append(refs, m.Build.Buildkit.Containerfile)
+	}
+	if m.Build.Dockerfile != nil {
+		refs = append(refs, m.Build.Dockerfile.Containerfile)
 	}
 	for _, ref := range refs {
 		if strings.TrimSpace(ref.URL) == "" {
@@ -121,13 +160,25 @@ func (m *Manifest) ContentGitRefs() []string {
 		}
 	}
 	add(m.ValidateSchema.GitRef)
-	add(m.DockerfileTemplate.GitRef)
-	for _, stage := range m.Pipeline.Stages {
-		add(stage.Script.GitRef)
+	if m.Build.Buildkit != nil {
+		add(m.Build.Buildkit.Containerfile.GitRef)
+	}
+	if m.Build.Dockerfile != nil {
+		add(m.Build.Dockerfile.Containerfile.GitRef)
 	}
 	out := make([]string, 0, len(seen))
 	for ref := range seen {
 		out = append(out, ref)
 	}
 	return out
+}
+
+func (m *Manifest) BuildkitTarget(key string) string {
+	if m.Build.Buildkit == nil {
+		return ""
+	}
+	if target := m.Build.Buildkit.Targets[key]; target != "" {
+		return target
+	}
+	return key
 }

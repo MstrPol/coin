@@ -27,8 +27,10 @@ curl -X POST http://localhost:8090/v1/admin/golden-paths/go-app/versions \
   -d '{
     "version": "1.0.1",
     "composition": {
-      "executor": "0.1.0", "agent": "1.22.5", "pipeline": "2.1.0",
-      "validate": "1.0.0", "dockerfile": "1.0.0"
+      "agent": "1.0.0",
+      "executor": "0.1.0",
+      "lib": "1.0.0",
+      "gp-content": "1.0.0"
     }
   }'
 ```
@@ -80,7 +82,8 @@ Fleet scanner удалён (UI-02).
 ## Component registry SoT
 
 Версии компонентов (agent, executor, …) публикуются через `POST /v1/admin/components/{type}/{name}/versions`.
-CI repos (`coin-jenkins-agents`, `coin-executor`) отчитывают версии в API после publish артефакта.
+CI repos (`coin-executor`, `coin-gp-content`, `coin-lib`) отчитывают версии в API после publish артефакта.
+Runtime agent image: `agent/coin-agent` через `coin-executor/scripts/publish-agent.sh`.
 
 Глобальные настройки Nexus: `GET/PUT /v1/admin/platform/settings`.
 
