@@ -3,6 +3,7 @@ import Layout from "./components/Layout";
 import RequireAuth from "./components/RequireAuth";
 import RequireRole from "./components/RequireRole";
 import ComponentDetail from "./pages/ComponentDetail";
+import ComponentStudio from "./pages/ComponentStudio";
 import Components from "./pages/Components";
 import PlatformSettings from "./pages/PlatformSettings";
 import AuditLog from "./pages/AuditLog";
@@ -17,6 +18,7 @@ import LoginCallback from "./pages/LoginCallback";
 import Projects from "./pages/Projects";
 import CreateGPProfile from "./pages/CreateGPProfile";
 import PublishWizard from "./pages/PublishWizard";
+import PromoteCanaryPage from "./pages/PromoteCanaryPage";
 import ResolvePreview from "./pages/ResolvePreview";
 
 export default function App() {
@@ -40,8 +42,11 @@ export default function App() {
           <Route path="platform-settings" element={<PlatformSettings />} />
           <Route path="audit" element={<AuditLog />} />
           <Route element={<RequireRole min="publisher" />}>
+            <Route path="studio" element={<ComponentStudio />} />
+            <Route path="studio/:type/:name/:version" element={<ComponentStudio />} />
             <Route path="releases/new-gp" element={<CreateGPProfile />} />
             <Route path="releases/publish" element={<PublishWizard />} />
+            <Route path="promote" element={<PromoteCanaryPage />} />
           </Route>
         </Route>
       </Route>

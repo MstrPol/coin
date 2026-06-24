@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# DEPRECATED: primary publish path — Component Studio + coin-api Admin API.
+# Kept for local bootstrap / CI until GCP-4 fleet migration completes.
 # Build gp-content zip, upload to Nexus, register in coin-api.
 set -euo pipefail
 

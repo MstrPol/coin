@@ -57,7 +57,7 @@ stage('Build') {
 - shell-команды сборки/тестов/публикации напрямую
 - бизнес-логика deliverables
 
-См. ADR [jenkins-lib-http-nexus.md](../plans/adr/jenkins-lib-http-nexus.md).
+См. ADR [jenkins-lib-http-nexus.md](../../docs/adr/jenkins-lib-http-nexus.md).
 
 ## Если что-то планируется добавить в Jenkinsfile
 

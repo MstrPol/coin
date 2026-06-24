@@ -53,15 +53,14 @@ def call() {
     ])
 
     coinLog.banner()
-    def publishRequested = params.publish == true
-    coinLog.kv('📋', 'Параметры', "publish=${publishRequested}")
+    coinLog.kv('📋', 'Параметры', "publish=${params.publish}")
 
-    def manifestJson
-    def cfgJson
-    def dockerCredId
-    def apiTokenCredId
-    def runtimeImage
-    def podYaml
+    // CPS: Map/объекты из node('built-in') не передаются в pod node — только примитивы/строки через внешний scope.
+    def manifestJson   // resolved manifest → JSON для coinParseJson / coinMaterializeDotCoin в pod
+    def cfgJson        // merged config → JSON для coinParseJson / coinPodYaml уже отработал на controller
+    def dockerCredId   // Jenkins credential ID для withCredentials (build/publish)
+    def apiTokenCredId // Jenkins credential ID для coin-executor report → coin-api
+    def podYaml        // rendered K8s pod template → podTemplate(yaml: …)
 
     node('built-in') {
         stage('Resolve manifest') {
@@ -77,14 +76,13 @@ def call() {
 
             dockerCredId = cfg.jenkins?.credentials?.docker ?: 'nexus-docker'
             apiTokenCredId = cfg.jenkins?.credentials?.apiToken ?: 'coin-api-token'
-            runtimeImage = cfg.runtime?.image?.toString()
 
             manifestJson = groovy.json.JsonOutput.toJson(manifest)
             cfgJson = groovy.json.JsonOutput.toJson(cfg)
             podYaml = coinPodYaml(cfgJson)
 
             coinLog.kv('🎯', 'Resolved GP', "${env.COIN_GP}@${env.COIN_GP_VERSION}")
-            coinLog.kv('🤖', 'Runtime image', runtimeImage)
+            coinLog.kv('🤖', 'Runtime image', cfg.runtime?.image)
             coinLog.ok('Manifest resolved, pod template ready')
             coinLog.sectionEnd()
         }
@@ -157,7 +155,7 @@ def call() {
                     error "Coin: manifest stage is missing id/name: ${stageDef}"
                 }
                 stage(stageName) {
-                    if (stageID == 'publish' && !publishRequested) {
+                    if (stageID == 'publish' && !params.publish) {
                         coinLog.section('⏭️', "Stage: ${stageName}")
                         coinLog.skip('Параметр publish=false — stage пропущен')
                         coinLog.sectionEnd()

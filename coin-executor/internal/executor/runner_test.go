@@ -19,12 +19,44 @@ func TestShouldRunStage(t *testing.T) {
 		t.Fatal("expected always stage to run")
 	}
 	if shouldRunStage(manifest.Stage{Name: "publish", When: "tag"}) {
-		t.Fatal("expected tag stage to skip without TAG_NAME")
+		t.Fatal("expected legacy tag stage to skip without TAG_NAME")
 	}
 
 	t.Setenv("TAG_NAME", "v1.0.0")
 	if !shouldRunStage(manifest.Stage{Name: "publish", When: "tag"}) {
 		t.Fatal("expected tag stage to run with TAG_NAME")
+	}
+}
+
+func TestShouldSkipPublish_branching(t *testing.T) {
+	m := &manifest.Manifest{
+		Branching: &manifest.Branching{
+			Name:    "trunk-based",
+			Version: "1.0.0",
+			Trunk:   manifest.BranchingTrunk{Branch: "main"},
+			BranchTypes: []string{"feature", "bugfix", "release"},
+			Versioning: manifest.BranchingVersion{
+				TagPrefix: "v",
+				Qualifiers: manifest.BranchingQualifiers{
+					Snapshot: manifest.BranchingQualifierToggle{Enabled: true},
+					RC: manifest.BranchingRCQualifier{
+						Enabled: true, ReleaseBranchesOnly: true,
+					},
+				},
+			},
+			Publish: manifest.BranchingPublish{When: "tag"},
+		},
+		Pipeline: manifest.Pipeline{
+			Stages: []manifest.Stage{{ID: "publish", Name: "Publish", When: "tag"}},
+		},
+	}
+	t.Setenv("TAG_NAME", "")
+	t.Setenv("GIT_TAG_NAME", "")
+	t.Setenv("GIT_BRANCH", "feature/PROJ-101")
+
+	skip, reason := shouldSkipPublish(t.TempDir(), m)
+	if !skip || reason == "" {
+		t.Fatalf("expected publish skip, got skip=%v reason=%q", skip, reason)
 	}
 }
 

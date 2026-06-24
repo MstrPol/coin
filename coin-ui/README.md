@@ -30,10 +30,13 @@ make coin-ui-up   # http://localhost:8091
 | `/releases/:name/:version` | Detail, artifacts, blast radius | — | reader+ |
 | `/releases/publish` | Publish wizard | — (кнопка на GP Releases) | publisher+ |
 | `/catalog` | GP Policy (version policy) | GP Policy | reader+ |
+| `/promote` | Promote canary → stable wizard | — | publisher+ |
 | `/resolve` | Resolve preview + canary debug | Resolve | reader+ |
 | `/canary` | Canary policy + health | Canary | reader+ |
 | `/components` | Component list | Components | reader+ |
 | `/components/:type/:name` | Component detail + publish | — | reader+ |
+| `/studio` | Component Studio — новый draft | Studio | publisher+ |
+| `/studio/:type/:name/:version` | Editor + validate → canary + pilot promote gate | — | publisher+ |
 | `/platform-settings` | Nexus platform settings | Platform | reader+ / edit publisher+ |
 | `/audit` | Audit log | Audit | reader+ |
 

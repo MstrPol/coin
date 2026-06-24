@@ -12,13 +12,24 @@ import (
 	"coin.local/coin-api/internal/manifest"
 )
 
-// CanonicalGPSlots returns the four platform composition slots for a golden path.
+// CanonicalGPSlots returns the five platform composition slots for a golden path.
 func CanonicalGPSlots(gpName string) []GPProfileSlot {
 	return []GPProfileSlot{
 		{Key: "agent", Type: "agent", Name: "coin-agent"},
 		{Key: "executor", Type: "executor", Name: "coin-executor"},
 		{Key: "lib", Type: "lib", Name: "coin-lib"},
 		{Key: "gp-content", Type: "gp-content", Name: gpName},
+		{Key: "branching-model", Type: "branching-model", Name: DefaultBranchingModelForGP(gpName)},
+	}
+}
+
+// DefaultBranchingModelForGP picks the reference branching model name for a GP profile.
+func DefaultBranchingModelForGP(gpName string) string {
+	switch gpName {
+	case "go-lib", "java-maven-app":
+		return "semver-tag"
+	default:
+		return "trunk-based"
 	}
 }
 
@@ -66,29 +77,27 @@ type gpContentMetadata struct {
 	Capabilities  map[string]any `json:"capabilities"`
 }
 
-func (s *Store) getGPContentRefs(ctx context.Context, name, version string) (gpContentMetadata, gpContentContentRef, error) {
+func (s *Store) getGPContentRefs(ctx context.Context, name, version string, mode ComponentResolveMode) (gpContentMetadata, json.RawMessage, error) {
+	allowed := allowedComponentStatuses(mode)
 	var metaRaw, crefRaw []byte
 	err := s.pool.QueryRow(ctx, `
 		SELECT cv.metadata, COALESCE(cv.content_ref, 'null'::jsonb)
 		FROM component_versions cv
 		JOIN components c ON c.id = cv.component_id
-		WHERE c.type = 'gp-content' AND c.name = $1 AND cv.version = $2 AND cv.status = 'published'
-	`, name, version).Scan(&metaRaw, &crefRaw)
+		WHERE c.type = 'gp-content' AND c.name = $1 AND cv.version = $2
+		  AND cv.status::text = ANY($3)
+	`, name, version, allowed).Scan(&metaRaw, &crefRaw)
 	if err == pgx.ErrNoRows {
-		return gpContentMetadata{}, gpContentContentRef{}, fmt.Errorf("gp-content/%s@%s not found", name, version)
+		return gpContentMetadata{}, nil, fmt.Errorf("gp-content/%s@%s not found or not visible for resolve mode %q", name, version, mode)
 	}
 	if err != nil {
-		return gpContentMetadata{}, gpContentContentRef{}, err
+		return gpContentMetadata{}, nil, err
 	}
 	var meta gpContentMetadata
 	if err := json.Unmarshal(metaRaw, &meta); err != nil {
-		return gpContentMetadata{}, gpContentContentRef{}, fmt.Errorf("gp-content metadata: %w", err)
+		return gpContentMetadata{}, nil, fmt.Errorf("gp-content metadata: %w", err)
 	}
-	var cref gpContentContentRef
-	if err := json.Unmarshal(crefRaw, &cref); err != nil {
-		return gpContentMetadata{}, gpContentContentRef{}, fmt.Errorf("gp-content content_ref: %w", err)
-	}
-	return meta, cref, nil
+	return meta, json.RawMessage(crefRaw), nil
 }
 
 func contentBundleFromGPContent(meta gpContentMetadata, cref gpContentContentRef) manifest.ContentBundle {
@@ -132,9 +141,22 @@ func cacheRefTemplateFromContent(cref gpContentContentRef) string {
 }
 
 func (s *Store) seedGPArtifactsFromGPContent(ctx context.Context, releaseID int64, name, version string) error {
-	_, cref, err := s.getGPContentRefs(ctx, name, version)
+	_, crefRaw, err := s.getGPContentRefs(ctx, name, version, ComponentResolveAdmin)
 	if err != nil {
 		return err
+	}
+	var cref gpContentContentRef
+	if isContentRefV2(crefRaw) {
+		bundle, err := contentBundleFromV2Manifest(gpContentMetadata{}, crefRaw)
+		if err != nil {
+			return err
+		}
+		cref.ValidateSchema.ArtifactKey = bundle.SchemaArtifactKey
+		cref.ValidateSchema.SHA256 = bundle.SchemaSHA256
+		cref.Containerfile.ArtifactKey = bundle.ContainerfileKey
+		cref.Containerfile.SHA256 = bundle.ContainerfileSHA256
+	} else if err := json.Unmarshal(crefRaw, &cref); err != nil {
+		return fmt.Errorf("gp-content content_ref: %w", err)
 	}
 	keys := []string{cref.ValidateSchema.ArtifactKey}
 	if cf := strings.TrimSpace(cref.Containerfile.ArtifactKey); cf != "" {
@@ -232,6 +254,9 @@ func (s *Store) LibVersionFromComposition(ctx context.Context, gpName, gpVersion
 }
 
 func (s *Store) SaveComponentArtifactBody(ctx context.Context, typ, name, version, artifactKey string, body []byte, sha256sum string) error {
+	if err := s.requireComponentVersionDraft(ctx, typ, name, version); err != nil {
+		return err
+	}
 	var versionID int64
 	err := s.pool.QueryRow(ctx, `
 		SELECT cv.id FROM component_versions cv

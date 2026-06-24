@@ -8,11 +8,16 @@ func TestValidateCanonicalGPSlots(t *testing.T) {
 		{Key: "executor", Type: "executor", Name: "coin-executor"},
 		{Key: "lib", Type: "lib", Name: "coin-lib"},
 		{Key: "gp-content", Type: "gp-content", Name: "go-app"},
+		{Key: "branching-model", Type: "branching-model", Name: "trunk-based"},
 	}
 	if err := ValidateCanonicalGPSlots(valid); err != nil {
 		t.Fatalf("valid slots: %v", err)
 	}
 	if err := ValidateCanonicalGPSlots(valid[:3]); err == nil {
 		t.Fatal("expected error for 3 slots")
+	}
+	legacy := valid[:4]
+	if err := ValidateCanonicalGPSlots(legacy); err != nil {
+		t.Fatalf("legacy 4-slot: %v", err)
 	}
 }

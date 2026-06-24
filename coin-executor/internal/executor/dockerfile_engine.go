@@ -67,7 +67,7 @@ func (r Runner) runDockerfileEngineImage(cfg *config.Config, m *manifest.Manifes
 	if err := r.materializeDockerfileEngine(m); err != nil {
 		return err
 	}
-	imageRef := imageRefForProject(cfg, m)
+	imageRef := imageRefForProject(cfg, m, r.Workspace)
 	pushFlag := "false"
 	if push {
 		pushFlag = "true"

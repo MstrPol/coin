@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+
 	"coin.local/coin-api/internal/compatibility"
 	"coin.local/coin-api/internal/gpcontent"
 	"coin.local/coin-api/internal/manifest"
@@ -56,7 +58,7 @@ func (s *Store) PublishGPRelease(ctx context.Context, in PublishGPReleaseInput) 
 
 	for _, slot := range slots {
 		ver := in.Composition[slot.Key]
-		ok, err := s.componentVersionPublished(ctx, slot.Type, slot.Name, ver)
+		ok, err := s.componentVersionResolvable(ctx, slot.Type, slot.Name, ver, ComponentResolveStable)
 		if err != nil {
 			return GPReleaseRow{}, err
 		}
@@ -139,16 +141,26 @@ func (s *Store) PublishGPRelease(ctx context.Context, in PublishGPReleaseInput) 
 	}, nil
 }
 
-func (s *Store) componentVersionPublished(ctx context.Context, typ, name, version string) (bool, error) {
-	var exists bool
+func (s *Store) componentVersionResolvable(ctx context.Context, typ, name, version string, mode ComponentResolveMode) (bool, error) {
+	var status string
 	err := s.pool.QueryRow(ctx, `
-		SELECT EXISTS (
-			SELECT 1 FROM component_versions cv
-			JOIN components c ON c.id = cv.component_id
-			WHERE c.type = $1 AND c.name = $2 AND cv.version = $3 AND cv.status = 'published'
-		)
-	`, typ, name, version).Scan(&exists)
-	return exists, err
+		SELECT cv.status::text
+		FROM component_versions cv
+		JOIN components c ON c.id = cv.component_id
+		WHERE c.type = $1 AND c.name = $2 AND cv.version = $3
+	`, typ, name, version).Scan(&status)
+	if err == pgx.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return componentStatusAllowed(status, mode), nil
+}
+
+// componentVersionPublished is stable-channel resolve (published only).
+func (s *Store) componentVersionPublished(ctx context.Context, typ, name, version string) (bool, error) {
+	return s.componentVersionResolvable(ctx, typ, name, version, ComponentResolveStable)
 }
 
 func (s *Store) loadCompatibilityRules(ctx context.Context) ([]compatibility.Rule, error) {
@@ -178,14 +190,18 @@ func (s *Store) loadCompatibilityRules(ctx context.Context) ([]compatibility.Rul
 	return rules, rows.Err()
 }
 
-func (s *Store) loadContentBundle(ctx context.Context, gpName, gpVersion string) (manifest.ContentBundle, error) {
+func (s *Store) loadContentBundle(ctx context.Context, gpName, gpVersion string, mode ComponentResolveMode) (manifest.ContentBundle, error) {
 	contentName, contentVer, err := s.gpContentVersionFromComposition(ctx, gpName, gpVersion)
 	if err != nil {
 		return manifest.ContentBundle{}, err
 	}
-	meta, cref, err := s.getGPContentRefs(ctx, contentName, contentVer)
+	return s.materializeGPContentBundle(ctx, contentName, contentVer, mode)
+}
+
+func (s *Store) materializeGPContentBundle(ctx context.Context, name, version string, mode ComponentResolveMode) (manifest.ContentBundle, error) {
+	meta, crefRaw, err := s.getGPContentRefs(ctx, name, version, mode)
 	if err != nil {
 		return manifest.ContentBundle{}, err
 	}
-	return contentBundleFromGPContent(meta, cref), nil
+	return contentBundleFromRawRef(meta, crefRaw)
 }

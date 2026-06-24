@@ -61,5 +61,5 @@ cd docker && make e2e-mvp1
 ## Ссылки
 
 - [local-dev-control-plane.md](local-dev-control-plane.md)
-- [ADR control-plane-v2](../../.cursor/plans/adr/control-plane-v2.md)
-- [platform-native-jenkins.plan.md](../../.cursor/plans/platform-native-jenkins.plan.md)
+- [ADR control-plane-v2](../adr/control-plane-v2.md)
+- [docs/planning.md](../planning.md) — OpenSpec changes (supersedes legacy plans)

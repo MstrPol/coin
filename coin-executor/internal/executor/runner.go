@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"coin.local/coin-executor/internal/branching"
 	"coin.local/coin-executor/internal/build"
 	"coin.local/coin-executor/internal/config"
 	"coin.local/coin-executor/internal/deliverables"
@@ -36,8 +37,12 @@ func (r Runner) Run(cfg *config.Config, m *manifest.Manifest, opts RunOptions) e
 		if opts.Stage != "" && key != opts.Stage {
 			continue
 		}
-		// Jenkins/coin-executor --stage publish must not be gated by manifest when=tag.
-		if opts.Stage == "" && !shouldRunStage(stage) {
+		if key == "publish" {
+			if skip, reason := shouldSkipPublish(r.Workspace, m); skip {
+				fmt.Printf("==> skip stage publish (%s)\n", reason)
+				continue
+			}
+		} else if opts.Stage == "" && !shouldRunStage(stage) {
 			fmt.Printf("==> skip stage %s (when=%s)\n", key, stage.When)
 			continue
 		}
@@ -52,7 +57,7 @@ func (r Runner) Run(cfg *config.Config, m *manifest.Manifest, opts RunOptions) e
 func (r Runner) runStage(cfg *config.Config, m *manifest.Manifest, stageID string) error {
 	switch stageID {
 	case "validate":
-		return validate.Project(cfg, m)
+		return validate.Project(cfg, m, r.Workspace)
 	case "test":
 		return r.runTest(m)
 	case "build":
@@ -128,7 +133,7 @@ func (r Runner) runBuild(cfg *config.Config, m *manifest.Manifest) error {
 		if err := r.materializeContainerfile(m); err != nil {
 			return err
 		}
-		imageRef := imageRefForProject(cfg, m)
+		imageRef := imageRefForProject(cfg, m, r.Workspace)
 		output := fmt.Sprintf("type=image,name=%s,push=false", imageRef)
 		if err := build.RunTarget(build.Options{
 			Workspace:  r.Workspace,
@@ -148,7 +153,7 @@ func (r Runner) runBuild(cfg *config.Config, m *manifest.Manifest) error {
 		if m.Build.Buildpack == nil {
 			return fmt.Errorf("manifest build.buildpack is required")
 		}
-		imageRef := imageRefForProject(cfg, m)
+		imageRef := imageRefForProject(cfg, m, r.Workspace)
 		output := fmt.Sprintf("type=image,name=%s,push=false", imageRef)
 		if err := build.RunBuildpack(build.BuildpackOptions{
 			Workspace: r.Workspace,
@@ -244,16 +249,50 @@ func (r Runner) pushImageOutput(cfg *config.Config, m *manifest.Manifest, item o
 	}
 }
 
-func imageRefForProject(cfg *config.Config, m *manifest.Manifest) string {
+func imageRefForProject(cfg *config.Config, m *manifest.Manifest, workDir string) string {
 	registry := strings.TrimSpace(os.Getenv("COIN_REGISTRY_PREFIX"))
 	if registry == "" {
 		registry = "localhost:8082/coin-docker"
 	}
-	tag := m.GoldenPath.Version
-	if override := strings.TrimSpace(os.Getenv("COIN_IMAGE_TAG")); override != "" {
-		tag = override
+	tag := strings.TrimSpace(os.Getenv("COIN_IMAGE_TAG"))
+	if tag == "" {
+		tag = strings.TrimSpace(os.Getenv("COIN_VERSION"))
+	}
+	if tag == "" {
+		if model := branching.FromManifest(m); model != nil {
+			if g, err := branching.GitFromEnv(workDir); err == nil {
+				if v, err := branching.ResolveVersion(model, g); err == nil {
+					tag = v
+				}
+			}
+		}
+	}
+	if tag == "" {
+		tag = m.GoldenPath.Version
 	}
 	return fmt.Sprintf("%s/%s:%s", strings.TrimRight(registry, "/"), cfg.Project.Name, tag)
+}
+
+func shouldSkipPublish(workDir string, m *manifest.Manifest) (bool, string) {
+	model := branching.FromManifest(m)
+	if model != nil {
+		g, err := branching.GitFromEnv(workDir)
+		if err != nil {
+			return true, fmt.Sprintf("branching git: %v", err)
+		}
+		ok, reason := branching.ShouldPublish(model, g)
+		if !ok {
+			return true, reason
+		}
+		return false, ""
+	}
+	// Legacy manifests without branching: pipeline stage when=tag.
+	for _, stage := range m.Pipeline.Stages {
+		if stage.Key() == "publish" && !shouldRunStage(stage) {
+			return true, fmt.Sprintf("pipeline when=%s", stage.When)
+		}
+	}
+	return false, ""
 }
 
 func shouldRunStage(stage manifest.Stage) bool {

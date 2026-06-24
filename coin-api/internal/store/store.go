@@ -25,10 +25,11 @@ func New(pool *pgxpool.Pool) *Store {
 }
 
 type ReleaseRow struct {
-	Name    string
-	Version string
-	Parts   manifest.Composition
-	Content manifest.ContentBundle
+	Name      string
+	Version   string
+	Parts     manifest.Composition
+	Content   manifest.ContentBundle
+	Branching manifest.BranchingBundle
 }
 
 func (s *Store) GetGPRelease(ctx context.Context, name, version string) (ReleaseRow, error) {
@@ -44,30 +45,38 @@ func (s *Store) GetGPRelease(ctx context.Context, name, version string) (Release
 		return ReleaseRow{}, fmt.Errorf("gp release: %w", err)
 	}
 
-	parts, err := s.loadComposition(ctx, name, version)
+	parts, err := s.loadComposition(ctx, name, version, ComponentResolveStable)
 	if err != nil {
 		return ReleaseRow{}, err
 	}
 	row.Parts = parts
 
-	content, err := s.loadContentBundle(ctx, name, version)
+	content, err := s.loadContentBundle(ctx, name, version, ComponentResolveStable)
 	if err != nil {
 		return ReleaseRow{}, err
 	}
 	row.Content = content
+
+	branching, err := s.loadBranchingBundleOptional(ctx, name, version, ComponentResolveStable)
+	if err != nil {
+		return ReleaseRow{}, err
+	}
+	row.Branching = branching
 	return row, nil
 }
 
-func (s *Store) loadComposition(ctx context.Context, name, version string) (manifest.Composition, error) {
+func (s *Store) loadComposition(ctx context.Context, name, version string, mode ComponentResolveMode) (manifest.Composition, error) {
+	allowed := allowedComponentStatuses(mode)
 	rows, err := s.pool.Query(ctx, `
-		SELECT gc.component_type, gc.component_name, gc.component_version, cv.metadata
+		SELECT gc.component_type, gc.component_name, gc.component_version, cv.metadata, cv.status::text
 		FROM gp_composition gc
 		JOIN gp_releases gr ON gr.id = gc.gp_release_id
 		JOIN component_versions cv ON cv.version = gc.component_version
 		JOIN components c ON c.id = cv.component_id
 			AND c.type = gc.component_type AND c.name = gc.component_name
 		WHERE gr.name=$1 AND gr.version=$2
-	`, name, version)
+		  AND cv.status::text = ANY($3)
+	`, name, version, allowed)
 	if err != nil {
 		return manifest.Composition{}, fmt.Errorf("composition: %w", err)
 	}
@@ -75,35 +84,17 @@ func (s *Store) loadComposition(ctx context.Context, name, version string) (mani
 
 	var parts manifest.Composition
 	for rows.Next() {
-		var typ, compName, compVersion string
+		var typ, compName, compVersion, status string
 		var metadata []byte
-		if err := rows.Scan(&typ, &compName, &compVersion, &metadata); err != nil {
+		if err := rows.Scan(&typ, &compName, &compVersion, &metadata, &status); err != nil {
 			return manifest.Composition{}, err
+		}
+		if !componentStatusAllowed(status, mode) {
+			return manifest.Composition{}, fmt.Errorf("component %s/%s@%s status %q not allowed for resolve mode %q", typ, compName, compVersion, status, mode)
 		}
 		var meta map[string]any
 		_ = json.Unmarshal(metadata, &meta)
-		str := func(key string) string {
-			v, _ := meta[key].(string)
-			return v
-		}
-
-		switch typ {
-		case "executor":
-			parts.ExecutorVersion = compVersion
-			parts.ExecutorURL = str("url")
-			parts.ExecutorSHA256 = str("sha256")
-		case "agent":
-			parts.AgentImage = str("image")
-			parts.AgentDigest = str("digest")
-		case "lib":
-			parts.LibVersion = compVersion
-			parts.LibName = compName
-		case "gp-content":
-			parts.GPContentVersion = compVersion
-			parts.GPContentName = compName
-		case "pipeline":
-			parts.PipelineVersion = compVersion
-		}
+		applyCompositionSlot(&parts, typ, compName, compVersion, meta)
 	}
 	return parts, rows.Err()
 }

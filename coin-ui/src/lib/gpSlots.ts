@@ -1,19 +1,19 @@
 import type { GPProfileSlot } from "../api/types";
 
 export const CANONICAL_SLOT_ORDER = [
-  "jnlp",
   "agent",
   "executor",
   "lib",
   "gp-content",
+  "branching-model",
 ] as const;
 
 export const SLOT_LABELS: Record<string, string> = {
-  jnlp: "JNLP inbound agent",
-  agent: "CI agent stack",
+  agent: "CI agent stack (coin-agent)",
   executor: "coin-executor",
   lib: "coin-lib (Jenkins Shared Library)",
-  "gp-content": "GP content (scripts, Dockerfile, schema)",
+  "gp-content": "GP content (build policy, Containerfile, schema)",
+  "branching-model": "Branching model (versioning + publish policy)",
 };
 
 export type SlotPickerSpec = {
@@ -25,11 +25,16 @@ export type SlotPickerSpec = {
 };
 
 export const SLOT_PICKER_SPECS: SlotPickerSpec[] = [
-  { key: "jnlp", type: "agent", fixedName: "jnlp" },
-  { key: "agent", type: "agent", pickComponent: true, excludeNames: ["jnlp"] },
+  { key: "agent", type: "agent", fixedName: "coin-agent" },
   { key: "executor", type: "executor", fixedName: "coin-executor" },
   { key: "lib", type: "lib", fixedName: "coin-lib" },
   { key: "gp-content", type: "gp-content", pickComponent: true },
+  {
+    key: "branching-model",
+    type: "branching-model",
+    pickComponent: true,
+    excludeNames: [],
+  },
 ];
 
 export function sortProfileSlots<T extends { key: string }>(slots: T[]): T[] {

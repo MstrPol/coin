@@ -77,6 +77,10 @@ func TestBuilderBuildEngineContract(t *testing.T) {
 	if _, hasJnlp := doc["jnlp"]; hasJnlp {
 		t.Fatal("manifest must not contain jnlp")
 	}
+	lib, ok := doc["lib"].(map[string]string)
+	if !ok || lib["version"] != "1.0.0" || lib["url"] == "" || lib["sha256"] == "" {
+		t.Fatalf("lib section missing or incomplete: %#v", doc["lib"])
+	}
 	runtime, ok := doc["runtime"].(map[string]string)
 	if !ok || runtime["image"] == "" {
 		t.Fatalf("runtime missing: %#v", doc["runtime"])
@@ -173,6 +177,8 @@ func sampleRelease() GPRelease {
 			ExecutorSHA256:   "sha256:abc",
 			LibName:          "coin-lib",
 			LibVersion:       "1.0.0",
+			LibURL:           "http://localhost:8081/repository/maven-releases/coin/lib/coin-lib/1.0.0/coin-lib-1.0.0.zip",
+			LibSHA256:        "sha256:libzip",
 			GPContentName:    "go-app",
 			GPContentVersion: "1.0.0",
 		},

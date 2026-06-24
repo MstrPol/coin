@@ -4,15 +4,31 @@ import (
 	"fmt"
 	"os"
 
+	"coin.local/coin-executor/internal/branching"
 	"coin.local/coin-executor/internal/config"
 	"coin.local/coin-executor/internal/deliverables"
 	"coin.local/coin-executor/internal/manifest"
 	"coin.local/coin-executor/internal/policy"
 )
 
-func Project(cfg *config.Config, m *manifest.Manifest) error {
+func Project(cfg *config.Config, m *manifest.Manifest, workDir string) error {
 	if err := m.MatchesConfig(cfg.Coin.GoldenPath, cfg.Coin.Version); err != nil {
 		return err
+	}
+	if model := branching.FromManifest(m); model != nil {
+		g, err := branching.GitFromEnv(workDir)
+		if err != nil {
+			return fmt.Errorf("git context: %w", err)
+		}
+		if err := branching.ValidateBranch(model, g.Branch); err != nil {
+			return fmt.Errorf("branching: %w", err)
+		}
+		version, err := branching.ResolveVersion(model, g)
+		if err != nil {
+			return fmt.Errorf("branching version: %w", err)
+		}
+		fmt.Printf("✓ branching: branch=%s coin_version=%s model=%s@%s\n",
+			g.Branch, version, model.Name, model.Version)
 	}
 	resolved := m.GoldenPath.Version
 	if resolved == "" {

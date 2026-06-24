@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import type { ComponentDetail, ComponentVersion, ComponentVersionDetail } from "../api/types";
 import { useAuth } from "../context/AuthContext";
 import { api, getActor } from "../lib/api";
+import { isStudioType } from "../lib/componentStudio";
 
 export default function ComponentDetailPage() {
   const { type = "", name = "", version: versionParam } = useParams();
@@ -102,15 +103,25 @@ export default function ComponentDetailPage() {
       {error && <p className="text-red-400">{error}</p>}
       {message && <p className="text-emerald-400">{message}</p>}
 
-      {can("publisher") && (
-        <button
+        {can("publisher") && (
+          <div className="flex flex-wrap gap-2">
+            {isStudioType(type) && (
+              <Link
+                to="/studio"
+                className="rounded border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-800"
+              >
+                Component Studio
+              </Link>
+            )}
+            <button
           type="button"
           onClick={() => setShowPublish((v) => !v)}
           className="rounded bg-sky-600 px-4 py-2 text-sm hover:bg-sky-500"
         >
-          Publish new version
-        </button>
-      )}
+            Publish new version
+          </button>
+          </div>
+        )}
 
       {showPublish && (
         <form onSubmit={onPublish} className="space-y-3 rounded-lg border border-zinc-800 bg-zinc-900 p-4">
@@ -183,7 +194,31 @@ export default function ComponentDetailPage() {
                       }}
                     >
                       <td className="px-3 py-2 font-mono">{v.version}</td>
-                      <td className="px-3 py-2">{v.status}</td>
+                      <td className="px-3 py-2">
+                        <span
+                          className={
+                            v.status === "draft"
+                              ? "text-amber-400"
+                              : v.status === "canary"
+                                ? "text-sky-400"
+                                : ""
+                          }
+                        >
+                          {v.status}
+                        </span>
+                        {v.status === "draft" && can("publisher") && isStudioType(type) && (
+                          <>
+                            {" "}
+                            <Link
+                              to={`/studio/${type}/${name}/${encodeURIComponent(v.version)}`}
+                              className="text-sky-400 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Studio
+                            </Link>
+                          </>
+                        )}
+                      </td>
                       <td className="px-3 py-2 text-zinc-400">
                         {new Date(v.createdAt).toLocaleString()}
                       </td>

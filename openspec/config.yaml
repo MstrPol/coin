@@ -1,0 +1,25 @@
+schema: spec-driven
+
+context: |
+  Coin Control Plane v2 — local pilot до corp gate.
+  SoT: coin-api + PostgreSQL (metadata) + Nexus (immutable packages).
+  Product config v2 strict: coin.goldenPath + coin.version (no template/templateVersion).
+  coin-lib — Jenkins glue only; build logic в coin-executor.
+  Enabling team — UI-first: Component Studio, draft → canary → stable.
+  ADR: docs/adr/. Active changes: openspec/changes/.
+  E2E acceptance: samples/demo-go-app green.
+
+rules:
+  proposal:
+    - "Писать на русском или английском согласно существующим ADR"
+    - "Всегда включать Non-goals"
+    - "Ссылаться на docs/adr/ для постоянных решений"
+  design:
+    - "Открытые BLOCKING вопросы — таблица с вариантами A/B"
+    - "Corp gate: не планировать fleet rollout до corp"
+  tasks:
+    - "Чанки ≤ 1 PR где возможно"
+    - "BLOCKING ADR — отдельная задача в начале"
+  specs:
+    - "Scenario format: WHEN/THEN"
+    - "Не дублировать Jenkins glue scope (coin-lib-scope)"

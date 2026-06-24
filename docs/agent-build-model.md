@@ -1,6 +1,6 @@
 # Build engines и runtime agent
 
-Модель сборки Coin после hard cut **build-engine contract** (ADR [build-engine-contract](../.cursor/plans/adr/build-engine-contract.md)).
+Модель сборки Coin после hard cut **build-engine contract** (ADR [build-engine-contract](adr/build-engine-contract.md)).
 
 Продукт **не** выбирает engine — он зафиксирован в GP content (`coin-gp-content/stacks/<gp>/content.yaml`) и приходит в manifest как `build.engine`.
 

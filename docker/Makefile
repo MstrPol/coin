@@ -1,4 +1,4 @@
-.PHONY: up bootstrap down reset build-jenkins dashboard coin-platform coin-starters coin-executor coin-gp-content coin-lib publish-agent wipe-gp wipe-e2e-fresh samples e2e-mvp1 e2e-bootstrap e2e-demo-go-app e2e-build-engines postgres-up coin-api-up coin-ui-up endpoints seed-jenkins-lib e2e-jenkins-lib
+.PHONY: up bootstrap down reset build-jenkins dashboard coin-platform coin-starters coin-executor coin-gp-content coin-lib publish-agent wipe-gp wipe-e2e-fresh samples e2e-mvp1 e2e-bootstrap e2e-demo-go-app e2e-build-engines e2e-branching-policy postgres-up coin-api-up coin-ui-up endpoints seed-jenkins-lib e2e-jenkins-lib
 
 up:
 	docker compose up -d
@@ -100,6 +100,10 @@ e2e-bootstrap:
 e2e-jenkins-lib:
 	chmod +x scripts/e2e-jenkins-lib.sh scripts/lib/common.sh
 	./scripts/e2e-jenkins-lib.sh
+
+e2e-branching-policy:
+	chmod +x scripts/e2e-branching-policy.sh
+	./scripts/e2e-branching-policy.sh
 
 e2e-demo-go-app:
 	chmod +x scripts/e2e-demo-go-app.sh scripts/lib/common.sh

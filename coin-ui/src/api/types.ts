@@ -93,7 +93,13 @@ export type ComponentVersion = {
 };
 
 export type ComponentDetail = Component & {
-  gpUsage: { gpName: string; version: string; status: string }[];
+  gpUsage: ComponentGPUsage[];
+};
+
+export type ComponentGPUsage = {
+  gpName: string;
+  version: string;
+  status: string;
 };
 
 export type ComponentVersionDetail = ComponentVersion & {
@@ -101,6 +107,35 @@ export type ComponentVersionDetail = ComponentVersion & {
   name: string;
   metadata: Record<string, unknown>;
   contentRef?: Record<string, unknown>;
+};
+
+export type ValidationIssue = {
+  field: string;
+  message: string;
+};
+
+export type ValidateComponentPackageResult = {
+  valid: boolean;
+  issues: ValidationIssue[];
+};
+
+export type RegisterComponentPackageResult = {
+  type: string;
+  name: string;
+  version: string;
+  packageUrl: string;
+  packageSha256: string;
+  filesUploaded: number;
+  contentRef: Record<string, unknown>;
+};
+
+export type DraftComponentResult = {
+  id: number;
+  componentId: number;
+  type: string;
+  name: string;
+  version: string;
+  status: string;
 };
 
 export type CanaryContext = {

@@ -585,6 +585,91 @@ paths:
         "401":
           description: Unauthorized
 
+  /v1/admin/components/{type}/{name}/versions/{version}/validate-package:
+    post:
+      summary: Validate draft package before Nexus register (Component Studio)
+      security:
+        - adminKey: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Validation passed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidateComponentPackageResult"
+        "422":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidateComponentPackageResult"
+        "404":
+          description: Draft version not found
+        "409":
+          description: Version is not draft
+        "401":
+          description: Unauthorized
+
+  /v1/admin/components/{type}/{name}/versions/{version}/register-package:
+    post:
+      summary: Upload draft artifact bodies to Nexus and register content_ref v2
+      description: Component Studio backend — builds package.manifest.json from PG draft bodies, uploads to Nexus, updates content_ref.
+      security:
+        - adminKey: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterComponentPackage"
+      responses:
+        "200":
+          description: Package registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterComponentPackageResult"
+        "400":
+          description: Validation or upload error
+        "404":
+          description: Draft version not found
+        "409":
+          description: Version is not draft
+        "401":
+          description: Unauthorized
+
   /v1/admin/golden-paths/{name}/versions/{version}:
     get:
       summary: GP release detail with composition
@@ -771,6 +856,44 @@ components:
               description: Universal coin-agent image ref
             digest:
               type: string
+        lib:
+          type: object
+          description: Jenkins Shared Library ZIP ref (composition lib slot)
+          required: [name, version]
+          properties:
+            name:
+              type: string
+              example: coin-lib
+            version:
+              type: string
+              example: "1.0.0"
+            url:
+              type: string
+              format: uri
+              description: Nexus maven-releases ZIP download URL
+            sha256:
+              type: string
+              pattern: "^sha256:[a-f0-9]{64}$"
+        branching:
+          type: object
+          description: Branching model rules from composition branching-model slot
+          required: [name, version]
+          properties:
+            name:
+              type: string
+            version:
+              type: string
+            trunk:
+              type: object
+            branchTypes:
+              type: array
+              items:
+                type: string
+            versioning:
+              type: object
+            publish:
+              type: object
+          additionalProperties: true
         build:
           $ref: "#/components/schemas/ManifestBuild"
         pipeline:
@@ -963,6 +1086,66 @@ components:
           type: string
           pattern: "^sha256:[a-f0-9]{64}$"
 
+    ContentRefV2:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, package]
+      description: Component package envelope (GCP component platform)
+      properties:
+        schemaVersion:
+          type: integer
+          enum: [2]
+        package:
+          type: object
+          additionalProperties: false
+          required: [url, sha256]
+          properties:
+            url:
+              type: string
+              format: uri
+              description: Nexus URL of package.manifest.json
+            sha256:
+              type: string
+              pattern: "^sha256:[a-f0-9]{64}$"
+        manifest:
+          type: object
+          description: Type-specific resolve subset (build, pipeline, branching, …)
+          additionalProperties: true
+
+    PackageManifest:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, componentType, componentName, version, files]
+      description: Immutable component package manifest stored in Nexus
+      properties:
+        schemaVersion:
+          type: integer
+          enum: [1]
+        componentType:
+          type: string
+        componentName:
+          type: string
+        version:
+          type: string
+        files:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [path, sha256]
+            properties:
+              path:
+                type: string
+              sha256:
+                type: string
+                pattern: "^sha256:[a-f0-9]{64}$"
+              role:
+                type: string
+                enum: [primary, schema, containerfile, docs, archive, other]
+              mediaType:
+                type: string
+
     BuildReport:
       type: object
       required: [project, goldenPath, version, result]
@@ -1041,12 +1224,62 @@ components:
           additionalProperties: true
         contentRef:
           oneOf:
+            - $ref: "#/components/schemas/ContentRefV2"
             - $ref: "#/components/schemas/GPContentContentRef"
             - type: object
               additionalProperties: true
+              description: Legacy artifactKey refs (migration only)
         actor:
           type: string
           example: platform-bot
+
+    RegisterComponentPackage:
+      type: object
+      properties:
+        manifest:
+          type: object
+          description: Type-specific resolve subset stored in content_ref v2
+          additionalProperties: true
+        actor:
+          type: string
+
+    ValidateComponentPackageResult:
+      type: object
+      required: [valid, issues]
+      properties:
+        valid:
+          type: boolean
+        issues:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+
+    RegisterComponentPackageResult:
+      type: object
+      required: [type, name, version, packageUrl, packageSha256, filesUploaded, contentRef]
+      properties:
+        type:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        packageUrl:
+          type: string
+          format: uri
+        packageSha256:
+          type: string
+          pattern: "^sha256:[a-f0-9]{64}$"
+        filesUploaded:
+          type: integer
+        contentRef:
+          $ref: "#/components/schemas/ContentRefV2"
 
     PublishGPRelease:
       type: object
@@ -1064,6 +1297,7 @@ components:
             executor: "0.1.0"
             lib: "1.0.0"
             gp-content: "1.0.0"
+            branching-model: "1.0.0"
         gitExportTag:
           type: string
           example: go-app/v1.0.1
@@ -1276,9 +1510,11 @@ components:
           additionalProperties: true
         contentRef:
           oneOf:
+            - $ref: "#/components/schemas/ContentRefV2"
             - $ref: "#/components/schemas/GPContentContentRef"
             - type: object
               additionalProperties: true
+              description: Legacy artifactKey refs (migration only)
         createdAt:
           type: string
           format: date-time
@@ -1426,6 +1662,7 @@ components:
             - { key: executor, type: executor, name: coin-executor }
             - { key: lib, type: lib, name: coin-lib }
             - { key: gp-content, type: gp-content, name: go-app }
+            - { key: branching-model, type: branching-model, name: trunk-based }
 
     AdminPrincipal:
       type: object

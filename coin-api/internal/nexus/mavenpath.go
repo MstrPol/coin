@@ -76,7 +76,27 @@ func ClassifierFromArtifactKey(key string) string {
 	return classifier
 }
 
-// ImmutableConflict reports Nexus maven-hosted 400 when the asset already exists.
+// ComponentPackageGroupID is the Maven groupId for platform component packages.
+func ComponentPackageGroupID(componentType string) string {
+	return "coin." + strings.ReplaceAll(componentType, "-", ".")
+}
+
+// ComponentPackageManifestPath is the repo-relative path for package.manifest.json.
+func ComponentPackageManifestPath(componentType, name, version string) string {
+	return MavenRepoPath(ComponentPackageGroupID(componentType), name, version, "package", "manifest.json")
+}
+
+// ComponentPackageFilePath is the repo-relative path for a file inside a component package.
+func ComponentPackageFilePath(componentType, name, version, filePath string) string {
+	classifier, ext := ArtifactMavenCoords(filePath)
+	return MavenRepoPath(ComponentPackageGroupID(componentType), name, version, classifier, ext)
+}
+
+// ComponentPackageManifestURL is the download URL for package.manifest.json.
+func ComponentPackageManifestURL(baseURL, repo, componentType, name, version string) string {
+	return MavenArtifactURL(baseURL, repo, ComponentPackageGroupID(componentType), name, version, "package", "manifest.json")
+}
+
 func ImmutableConflict(statusCode int, body string) bool {
 	if statusCode != 400 {
 		return false

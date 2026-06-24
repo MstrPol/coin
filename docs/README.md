@@ -16,6 +16,7 @@
 | [runbooks/wave-3-migration.md](runbooks/wave-3-migration.md) | PM — Wave 3 (1500+) + comms templates |
 | [runbooks/scanner-ops.md](runbooks/scanner-ops.md) | ~~fleet scanner~~ (superseded — build reports) |
 | [how-to/publish-gp-release.md](how-to/publish-gp-release.md) | Platform — publish GP через Admin API |
+| [runbooks/gp-artifact-bodies-migration.md](runbooks/gp-artifact-bodies-migration.md) | Platform — dual-write cleanup plan (GCP-5) |
 | [coin-ui-user-guide.md](coin-ui-user-guide.md) | PM — dashboard coin-ui |
 | [openapi.md](openapi.md) | OpenAPI / Swagger контракт |
 | [runbooks/api-down-nexus-fallback.md](runbooks/api-down-nexus-fallback.md) | On-call — API down |
@@ -31,6 +32,7 @@
 | [agent-build-model.md](agent-build-model.md) | **Build engines** (buildkit / buildpack / dockerfile), coin-agent |
 | [golden-paths.md](golden-paths.md) | GP profiles, 4-slot composition, samples |
 | [responsibilities.md](responsibilities.md) | Platform vs команда |
+| [planning.md](planning.md) | **OpenSpec + Beads** — workflow, активные changes |
 
 ## Контракты
 
@@ -61,19 +63,24 @@
 ## Ключевые принципы
 
 1. **Продукт** задаёт только `coin.goldenPath` + `coin.version` — build engine и stages в manifest.
-2. **coin-api** собирает manifest из PostgreSQL + Nexus content refs.
-3. **Nexus** — immutable blobs + mutable pointers; CI resolve с fallback при недоступном API.
-4. **coin-executor** — validate, build engines (`buildkit` / `buildpack` / `dockerfile`), report.
-5. **coin-lib** + **Jenkinsfile.coin** — resolve → pod (`coin-agent`) → executor stages.
-6. **E2E local pilot:** `make e2e-build-engines` — три demo jobs (buildkit, buildpack, dockerfile).
+2. **coin-api** собирает manifest из composition slots + Nexus packages (materializers).
+3. **Component Studio** — primary path для platform components (`gp-content`, `branching-model`).
+4. **Nexus** — immutable blobs + mutable pointers; CI resolve с fallback при недоступном API.
+5. **coin-executor** — validate, build engines (`buildkit` / `buildpack` / `dockerfile`), report.
+6. **coin-lib** + **Jenkinsfile.coin** — resolve → pod (`coin-agent`) → executor stages.
+7. **E2E local pilot:** `make e2e-build-engines` — три demo jobs (buildkit, buildpack, dockerfile).
 
 ## ADR (архитектурные решения)
 
 | ADR | Тема |
 |-----|------|
-| [build-engine-contract](../.cursor/plans/adr/build-engine-contract.md) | `build.engine`, typed stages, coin-agent |
-| [jenkins-lib-http-nexus](../.cursor/plans/adr/jenkins-lib-http-nexus.md) | coin-lib scope |
-| [control-plane-v2](../.cursor/plans/adr/control-plane-v2.md) | manifest v2 |
+| [build-engine-contract](adr/build-engine-contract.md) | `build.engine`, typed stages, coin-agent |
+| [gp-component-package-model](adr/gp-component-package-model.md) | UI-first components, package model |
+| [gp-branching-model](adr/gp-branching-model.md) | 5-slot composition, manifest.branching |
+| [jenkins-lib-http-nexus](adr/jenkins-lib-http-nexus.md) | coin-lib scope |
+| [control-plane-v2](adr/control-plane-v2.md) | manifest v2 |
+
+Планирование и backlog: [planning.md](planning.md).
 
 ## Doc review
 

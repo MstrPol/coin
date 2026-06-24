@@ -65,9 +65,10 @@ Docker registry: `localhost:8082/coin-docker` (`coin` / `coin1234`).
 |---------|------------|
 | `make coin-executor` | Gitea `coin/coin-executor` + job |
 | `make coin-gp-content` | Gitea `coin/coin-gp-content` + job |
-| `make coin-lib` | Gitea tag `1.0.0` + Global Shared Library + job |
+| `make coin-lib` | **Deprecated** — Gitea tag `1.0.0` + SCM retriever (bootstrap only) |
+| `make coin-lib-http` | Jenkins Global Library → Nexus HTTP ZIP |
 | `make publish-agent` | `coin-agent` image → Nexus + coin-api (`GOARCH=arm64` на Apple Silicon) |
-| `make seed-jenkins-lib` | lib + gp-content + GP go-app / go-app-bp / go-app-df |
+| `make seed-jenkins-lib` | lib ZIP + gp-content + GP profiles + **coin-lib-http** |
 | `make coin-starters` | Gitea `coin/coin-starters` |
 | `make samples` | demo repos → Gitea + multibranch jobs |
 | `make e2e-mvp1` | Smoke resolve + Nexus без Jenkins |

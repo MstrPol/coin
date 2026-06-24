@@ -1,0 +1,18 @@
+schemaVersion: 1
+name: semver-tag
+trunk:
+  branch: main
+branchTypes:
+  - feature
+  - bugfix
+  - release
+versioning:
+  tagPrefix: v
+  qualifiers:
+    snapshot:
+      enabled: false
+    rc:
+      enabled: false
+      releaseBranchesOnly: false
+publish:
+  when: tag

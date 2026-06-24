@@ -10,6 +10,8 @@ import (
 )
 
 // SeedArtifactsToRelease copies embedded go-app artifact bodies onto a draft release.
+// DEPRECATED (GCP-5): bootstrap fallback when gp-content component is not registered.
+// Prefer seed-jenkins-lib or Component Studio register — see docs/runbooks/gp-artifact-bodies-migration.md.
 func SeedArtifactsToRelease(ctx context.Context, pool *pgxpool.Pool, gpName string, releaseID int64) error {
 	if gpName != "go-app" {
 		return nil

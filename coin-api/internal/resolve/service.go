@@ -67,8 +67,18 @@ func (s *Service) Resolve(ctx context.Context, name, pinRaw string, opts Resolve
 		return Result{}, err
 	}
 
-	allowDraft := p.Kind == pin.KindExact && pin.IsSnapshotVersion(p.Base)
-	release, err := s.store.GetGPReleaseForResolve(ctx, name, version, allowDraft)
+	allowDraftGP := p.Kind == pin.KindExact && pin.IsSnapshotVersion(p.Base)
+	componentMode := store.ComponentResolveStable
+	if channel == "canary" {
+		componentMode = store.ComponentResolveCanary
+	}
+	if allowDraftGP {
+		componentMode = store.ComponentResolveAdmin
+	}
+	release, err := s.store.GetGPReleaseForResolve(ctx, name, version, store.GPResolveOptions{
+		AllowDraftGP:  allowDraftGP,
+		ComponentMode: componentMode,
+	})
 	if errors.Is(err, store.ErrNotFound) {
 		return Result{}, err
 	}
@@ -77,10 +87,11 @@ func (s *Service) Resolve(ctx context.Context, name, pinRaw string, opts Resolve
 	}
 
 	doc, hash, err := s.builder.Build(manifest.GPRelease{
-		Name:    release.Name,
-		Version: release.Version,
-		Parts:   release.Parts,
-		Content: release.Content,
+		Name:      release.Name,
+		Version:   release.Version,
+		Parts:     release.Parts,
+		Content:   release.Content,
+		Branching: release.Branching,
 	}, manifest.BuildOptions{
 		Project:      opts.Project,
 		RegistryHost: registryHostForManifest(),
@@ -106,8 +117,15 @@ func (s *Service) Resolve(ctx context.Context, name, pinRaw string, opts Resolve
 
 func (s *Service) selectVersion(ctx context.Context, name string, p pin.Pin, opts ResolveOptions, channel *string) (string, error) {
 	if p.Kind == pin.KindExact {
-		allowDraft := pin.IsSnapshotVersion(p.Base)
-		_, err := s.store.GetGPReleaseForResolve(ctx, name, p.Base, allowDraft)
+		allowDraftGP := pin.IsSnapshotVersion(p.Base)
+		componentMode := store.ComponentResolveStable
+		if allowDraftGP {
+			componentMode = store.ComponentResolveAdmin
+		}
+		_, err := s.store.GetGPReleaseForResolve(ctx, name, p.Base, store.GPResolveOptions{
+			AllowDraftGP:  allowDraftGP,
+			ComponentMode: componentMode,
+		})
 		if err != nil {
 			return "", err
 		}

@@ -11,6 +11,7 @@ import (
 
 	"coin.local/coin-api/internal/canary"
 	"coin.local/coin-api/internal/catalog"
+	"coin.local/coin-api/internal/nexus"
 	"coin.local/coin-api/internal/pin"
 	"coin.local/coin-api/internal/resolve"
 	"coin.local/coin-api/internal/store"
@@ -19,11 +20,12 @@ import (
 type Service struct {
 	store   *store.Store
 	resolve *resolve.Service
+	nexus   *nexus.Client
 	logger  *slog.Logger
 }
 
-func New(st *store.Store, rs *resolve.Service, logger *slog.Logger) *Service {
-	return &Service{store: st, resolve: rs, logger: logger}
+func New(st *store.Store, rs *resolve.Service, nx *nexus.Client, logger *slog.Logger) *Service {
+	return &Service{store: st, resolve: rs, nexus: nx, logger: logger}
 }
 
 type PublishComponentRequest struct {
@@ -78,6 +80,25 @@ func (s *Service) PublishComponentVersion(ctx context.Context, typ, name string,
 
 func (s *Service) UpdateComponentVersion(ctx context.Context, typ, name, version string, req PublishComponentRequest) error {
 	return s.store.UpdateComponentVersionRefs(ctx, typ, name, version, req.Metadata, req.ContentRef)
+}
+
+func (s *Service) CreateDraftComponentVersion(ctx context.Context, typ, name string, req PublishComponentRequest) (store.ComponentVersionRow, error) {
+	return s.store.CreateDraftComponentVersion(ctx, store.ComponentVersionInput{
+		Type:       typ,
+		Name:       name,
+		Version:    req.Version,
+		Metadata:   req.Metadata,
+		ContentRef: req.ContentRef,
+		Actor:      req.Actor,
+	})
+}
+
+func (s *Service) PublishComponentToCanary(ctx context.Context, typ, name, version, actor string) (store.ComponentVersionRow, error) {
+	return s.store.PublishComponentToCanary(ctx, typ, name, version, actor)
+}
+
+func (s *Service) PromoteComponentToPublished(ctx context.Context, typ, name, version, actor string) (store.ComponentVersionRow, error) {
+	return s.store.PromoteComponentToPublished(ctx, typ, name, version, actor)
 }
 
 func (s *Service) CreateDraftGPRelease(ctx context.Context, name string, req CreateDraftRequest) (store.GPReleaseRow, error) {
@@ -307,6 +328,14 @@ func (s *Service) SaveComponentArtifact(ctx context.Context, typ, name, version,
 	sum := sha256.Sum256(body)
 	hash := "sha256:" + hex.EncodeToString(sum[:])
 	return s.store.SaveComponentArtifactBody(ctx, typ, name, version, key, body, hash)
+}
+
+func (s *Service) GetComponentArtifact(ctx context.Context, typ, name, version, key string) ([]byte, string, error) {
+	return s.store.GetComponentArtifactBody(ctx, typ, name, version, key)
+}
+
+func (s *Service) ListComponentArtifacts(ctx context.Context, typ, name, version string) ([]store.ComponentArtifactMeta, error) {
+	return s.store.ListComponentArtifactMeta(ctx, typ, name, version)
 }
 
 type CanaryOverview struct {

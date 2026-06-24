@@ -20,11 +20,20 @@ stacks/
 
 ## Publish
 
+**Primary path (UI-first):** Component Studio (`/studio`) → validate → register → publish canary.
+
+```text
+coin-ui /studio → gp-content draft → Nexus register → canary → promote stable
+```
+
+**Deprecated:** shell publish для ручного bootstrap / legacy CI:
+
 ```bash
 ./scripts/publish-content.sh go-app 1.0.2
 ```
 
 Zip → Nexus `maven-releases/coin/gp-content/{name}/{ver}/` → register в coin-api.
+Не использовать как SoT для новых версий — только Studio + Admin API.
 
 Local full stack:
 

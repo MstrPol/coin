@@ -29,11 +29,11 @@ Manifest собирается из composition: `build`, `pipeline.stages` (type
 ```bash
 cd docker
 make publish-agent GOARCH=arm64   # при необходимости
-make coin-lib
-make seed-jenkins-lib             # публикует components + GP go-app / go-app-bp / go-app-df
+make seed-jenkins-lib             # lib ZIP + gp-content + GP + coin-lib-http
 ```
 
-Скрипт: `docker/scripts/seed-jenkins-lib-stack.sh`.
+Скрипт: `docker/scripts/seed-jenkins-lib-stack.sh`.  
+**Deprecated:** `make coin-lib` (Gitea SCM only).
 
 ## Publish GP (Admin API)
 

@@ -103,6 +103,38 @@ func (c *Client) UploadManifest(ctx context.Context, gpName, version string, doc
 	return c.PublishManifest(ctx, gpName, version, "="+version, doc, hash)
 }
 
+// UploadComponentPackageManifest stores package.manifest.json for a component version.
+func (c *Client) UploadComponentPackageManifest(ctx context.Context, componentType, name, version string, body []byte) (string, error) {
+	repo := MavenRepoForVersion(version)
+	path := ComponentPackageManifestPath(componentType, name, version)
+	return c.putRepo(ctx, repo, path, body, "application/json")
+}
+
+// UploadComponentPackageFile stores one file from a component package in Nexus.
+func (c *Client) UploadComponentPackageFile(ctx context.Context, componentType, name, version, filePath string, body []byte) (string, error) {
+	_, ext := ArtifactMavenCoords(filePath)
+	repo := MavenRepoForVersion(version)
+	path := ComponentPackageFilePath(componentType, name, version, filePath)
+	contentType := "application/octet-stream"
+	switch ext {
+	case "json":
+		contentType = "application/json"
+	case "yaml", "yml":
+		contentType = "application/x-yaml"
+	case "sh":
+		contentType = "text/x-shellscript"
+	case "md":
+		contentType = "text/markdown"
+	}
+	return c.putRepo(ctx, repo, path, body, contentType)
+}
+
+// ComponentPackageManifestDownloadURL returns the public URL for package.manifest.json.
+func (c *Client) ComponentPackageManifestDownloadURL(componentType, name, version string) string {
+	repo := MavenRepoForVersion(version)
+	return ComponentPackageManifestURL(c.baseURL, repo, componentType, name, version)
+}
+
 func (c *Client) put(ctx context.Context, repoPath string, body []byte, contentType string) (string, error) {
 	return c.putRepo(ctx, c.repository, repoPath, body, contentType)
 }

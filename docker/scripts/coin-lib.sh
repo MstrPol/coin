@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# DEPRECATED: Gitea tag retriever for coin-lib — bootstrap only.
+# Primary path: publish-lib.sh → Nexus ZIP + make coin-lib-http (или make seed-jenkins-lib).
 # coin-lib → Gitea coin/coin-lib (tag 1.0.0) + Jenkins Global Shared Library.
 set -euo pipefail
 

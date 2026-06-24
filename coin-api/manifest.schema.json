@@ -79,6 +79,30 @@
     },
     "capabilities": {
       "type": "object"
+    },
+    "lib": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "url": { "type": "string", "format": "uri" },
+        "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      }
+    },
+    "branching": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "trunk": { "type": "object" },
+        "branchTypes": { "type": "array", "items": { "type": "string" } },
+        "versioning": { "type": "object" },
+        "publish": { "type": "object" }
+      },
+      "additionalProperties": true
     }
   },
   "$defs": {

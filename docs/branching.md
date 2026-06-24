@@ -2,6 +2,20 @@
 
 Версию артефактов ведёт **Coin** — она вычисляется из Git. Модель ветвления — **часть контракта**: имя ветки и наличие тега напрямую определяют `COIN_VERSION` и право на публикацию. Разработчик не задаёт версию в сборщике — он выбирает правильную ветку.
 
+## Каталог моделей (GP-pinned)
+
+Модели ветвления — platform components типа `branching-model`, pin'ятся в GP composition (5-й slot) и материализуются в `manifest.branching`.
+
+| Model | GP profiles | Каталог | Publish policy |
+|-------|-------------|---------|----------------|
+| `trunk-based` | `go-app`, `go-app-bp`, `go-app-df` | [`coin-branching-models/models/trunk-based/`](../coin-branching-models/models/trunk-based/) | RC-тег на `release/*` |
+| `semver-tag` | `go-lib`, `java-maven-app` (future) | [`coin-branching-models/models/semver-tag/`](../coin-branching-models/models/semver-tag/) | semver-тег `vMAJOR.MINOR.PATCH` |
+
+Authoring: Component Studio (`/studio`) или bootstrap [`publish-branching-model.sh`](../coin-branching-models/scripts/publish-branching-model.sh).  
+Runtime: `coin-executor/internal/branching` читает только manifest snapshot (без lookup в coin-api).
+
+ADR: [`docs/adr/gp-branching-model.md`](adr/gp-branching-model.md).
+
 ---
 
 ## Формат версий

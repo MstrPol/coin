@@ -143,6 +143,26 @@ export default function Catalog() {
         <p className="text-zinc-500">Загрузка…</p>
       ) : gpName ? (
         <>
+          {can("publisher") && overview?.catalog.latestCanary && (
+            <div className="rounded-lg border border-sky-900/40 bg-sky-950/20 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-zinc-300">
+                Canary line: <span className="font-mono text-sky-400">{overview.catalog.latestCanary}</span>
+                {overview.catalog.latest !== overview.catalog.latestCanary && (
+                  <>
+                    {" "}
+                    → stable <span className="font-mono">{overview.catalog.latest || "—"}</span>
+                  </>
+                )}
+              </p>
+              <Link
+                to={`/promote?gp=${encodeURIComponent(gpName)}`}
+                className="rounded bg-emerald-700 px-3 py-1.5 text-sm hover:bg-emerald-600"
+              >
+                Promote wizard →
+              </Link>
+            </div>
+          )}
+
           {can("publisher") && (
             <form onSubmit={onSave} className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
               <h2 className="font-medium">Политика версий</h2>

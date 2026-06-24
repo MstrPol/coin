@@ -1,3 +1,6 @@
+// Package gpcontent provides legacy embedded seed artifacts for local bootstrap.
+// DEPRECATED (GCP-5): see docs/runbooks/gp-artifact-bodies-migration.md Phase C.
+// SoT for gp-content is Nexus package + Component Studio; embedded bytes are bootstrap-only.
 package gpcontent
 
 import (

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"coin.local/coin-executor/internal/bootstrap"
+	"coin.local/coin-executor/internal/branching"
 	"coin.local/coin-executor/internal/config"
 	"coin.local/coin-executor/internal/executor"
 	"coin.local/coin-executor/internal/manifest"
@@ -50,7 +51,11 @@ func validateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return validate.Project(cfg, m)
+			wd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			return validate.Project(cfg, m, wd)
 		},
 	}
 	cmd.Flags().StringVar(&projectPath, "project", config.DefaultPath, "project config path")
@@ -114,13 +119,35 @@ func bootstrapCmd() *cobra.Command {
 }
 
 func versionCmd() *cobra.Command {
-	return &cobra.Command{
+	var manifestPath string
+	cmd := &cobra.Command{
 		Use:   "version",
-		Short: "Print executor version",
-		Run: func(cmd *cobra.Command, args []string) {
+		Short: "Print product version (COIN_VERSION) or executor binary version",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if m, err := manifest.Load(manifestPath); err == nil {
+				if model := branching.FromManifest(m); model != nil {
+					wd, err := os.Getwd()
+					if err != nil {
+						return err
+					}
+					g, err := branching.GitFromEnv(wd)
+					if err != nil {
+						return err
+					}
+					v, err := branching.ResolveVersion(model, g)
+					if err != nil {
+						return err
+					}
+					fmt.Println(v)
+					return nil
+				}
+			}
 			fmt.Println(Version)
+			return nil
 		},
 	}
+	cmd.Flags().StringVar(&manifestPath, "manifest", ".coin/manifest.json", "manifest path")
+	return cmd
 }
 
 func reportCmd() *cobra.Command {

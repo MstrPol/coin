@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -51,7 +52,7 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) *Server {
 		logger:  logger,
 		resolve: resolveSvc,
 		report:  report.New(pool),
-		admin:   admin.New(st, resolveSvc, logger),
+		admin:   admin.New(st, resolveSvc, nx, logger),
 		oidc:    auth.NewOIDCVerifier(cfg),
 	}
 }
@@ -118,8 +119,15 @@ func (s *Server) Router() http.Handler {
 				r.Use(auth.RequireRole(auth.RolePublisher))
 				r.With(shortTimeout).Post("/components", s.createComponent)
 				r.With(shortTimeout).Post("/components/{type}/{name}/versions", s.publishComponentVersion)
+				r.With(shortTimeout).Post("/components/{type}/{name}/versions/drafts", s.createDraftComponentVersion)
+				r.With(shortTimeout).Post("/components/{type}/{name}/versions/{version}/publish-canary", s.publishComponentToCanary)
+				r.With(shortTimeout).Post("/components/{type}/{name}/versions/{version}/promote", s.promoteComponentVersion)
 				r.With(shortTimeout).Patch("/components/{type}/{name}/versions/{version}", s.patchComponentVersion)
+				r.With(shortTimeout).Post("/components/{type}/{name}/versions/{version}/register-package", s.registerComponentPackage)
+				r.With(shortTimeout).Post("/components/{type}/{name}/versions/{version}/validate-package", s.validateComponentPackage)
 				r.With(shortTimeout).Put("/components/{type}/{name}/versions/{version}/artifacts/*", s.putComponentArtifact)
+				r.With(shortTimeout).Get("/components/{type}/{name}/versions/{version}/artifacts", s.listComponentArtifacts)
+				r.With(shortTimeout).Get("/components/{type}/{name}/versions/{version}/artifacts/*", s.getComponentArtifact)
 				r.With(shortTimeout).Post("/golden-paths/{name}/versions", s.publishGPRelease)
 				r.With(shortTimeout).Post("/golden-paths/{name}/drafts", s.createDraftGPRelease)
 				r.With(shortTimeout).Post("/golden-paths/{name}/versions/{version}/promote", s.promoteDraftGPRelease)
@@ -402,6 +410,123 @@ func (s *Server) publishComponentVersion(w http.ResponseWriter, r *http.Request)
 	})
 }
 
+func (s *Server) createDraftComponentVersion(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "read body failed"})
+		return
+	}
+	var req publishComponentBody
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
+		return
+	}
+	if req.Version == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "version is required"})
+		return
+	}
+
+	row, err := s.admin.CreateDraftComponentVersion(r.Context(), chi.URLParam(r, "type"), chi.URLParam(r, "name"), admin.PublishComponentRequest{
+		Version:    req.Version,
+		Metadata:   req.Metadata,
+		ContentRef: req.ContentRef,
+		Actor:      req.Actor,
+	})
+	if errors.Is(err, store.ErrDuplicateVersion) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "component version already exists"})
+		return
+	}
+	if err != nil {
+		s.logger.Error("create draft component version", "err", err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"id":          row.ID,
+		"componentId": row.ComponentID,
+		"type":        row.Type,
+		"name":        row.Name,
+		"version":     row.Version,
+		"status":      row.Status,
+	})
+}
+
+func (s *Server) publishComponentToCanary(w http.ResponseWriter, r *http.Request) {
+	typ := chi.URLParam(r, "type")
+	name := chi.URLParam(r, "name")
+	version := chi.URLParam(r, "version")
+	actor := actorFromBody(r)
+
+	row, err := s.admin.PublishComponentToCanary(r.Context(), typ, name, version, actor)
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "component version not found"})
+		return
+	}
+	if errors.Is(err, store.ErrComponentPackageNotRegistered) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		return
+	}
+	if errors.Is(err, store.ErrComponentVersionNotDraft) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		return
+	}
+	if err != nil {
+		s.logger.Error("publish component to canary", "err", err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"type":    row.Type,
+		"name":    row.Name,
+		"version": row.Version,
+		"status":  row.Status,
+	})
+}
+
+func (s *Server) promoteComponentVersion(w http.ResponseWriter, r *http.Request) {
+	typ := chi.URLParam(r, "type")
+	name := chi.URLParam(r, "name")
+	version := chi.URLParam(r, "version")
+	actor := actorFromBody(r)
+
+	row, err := s.admin.PromoteComponentToPublished(r.Context(), typ, name, version, actor)
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "component version not found"})
+		return
+	}
+	if errors.Is(err, store.ErrComponentVersionNotCanary) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+		return
+	}
+	if err != nil {
+		s.logger.Error("promote component version", "err", err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"type":    row.Type,
+		"name":    row.Name,
+		"version": row.Version,
+		"status":  row.Status,
+	})
+}
+
+func actorFromBody(r *http.Request) string {
+	defer r.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(r.Body, 4096))
+	if err != nil {
+		return ""
+	}
+	var req struct {
+		Actor string `json:"actor"`
+	}
+	if json.Unmarshal(body, &req) != nil {
+		return ""
+	}
+	return req.Actor
+}
+
 func (s *Server) patchComponentVersion(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
@@ -422,11 +547,82 @@ func (s *Server) patchComponentVersion(w http.ResponseWriter, r *http.Request) {
 		ContentRef: req.ContentRef,
 		Actor:      req.Actor,
 	}); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "component version not found"})
+			return
+		}
+		if errors.Is(err, store.ErrComponentVersionNotDraft) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+			return
+		}
 		s.logger.Error("patch component version", "err", err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated", "type": typ, "name": name, "version": version})
+}
+
+func (s *Server) registerComponentPackage(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "read body failed"})
+		return
+	}
+	var req admin.RegisterComponentPackageRequest
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
+			return
+		}
+	}
+	typ := chi.URLParam(r, "type")
+	name := chi.URLParam(r, "name")
+	version := chi.URLParam(r, "version")
+	result, err := s.admin.RegisterComponentPackage(r.Context(), typ, name, version, req)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "component version not found"})
+			return
+		}
+		if errors.Is(err, store.ErrComponentVersionNotDraft) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, store.ErrInvalidContentRef) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		s.logger.Error("register component package", "err", err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) validateComponentPackage(w http.ResponseWriter, r *http.Request) {
+	typ := chi.URLParam(r, "type")
+	name := chi.URLParam(r, "name")
+	version := chi.URLParam(r, "version")
+	result, err := s.admin.ValidateComponentPackage(r.Context(), typ, name, version)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "component version not found"})
+			return
+		}
+		if errors.Is(err, store.ErrComponentVersionNotDraft) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+			return
+		}
+		s.logger.Error("validate component package", "err", err)
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	status := http.StatusOK
+	if !result.Valid {
+		status = http.StatusUnprocessableEntity
+	}
+	writeJSON(w, status, result)
 }
 
 type publishGPReleaseBody struct {
@@ -1140,6 +1336,54 @@ func (s *Server) putComponentArtifact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
+}
+
+func (s *Server) listComponentArtifacts(w http.ResponseWriter, r *http.Request) {
+	typ := chi.URLParam(r, "type")
+	name := chi.URLParam(r, "name")
+	version := chi.URLParam(r, "version")
+	items, err := s.admin.ListComponentArtifacts(r.Context(), typ, name, version)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "component version not found"})
+			return
+		}
+		if errors.Is(err, store.ErrComponentVersionNotDraft) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeListJSON(w, items)
+}
+
+func (s *Server) getComponentArtifact(w http.ResponseWriter, r *http.Request) {
+	typ := chi.URLParam(r, "type")
+	name := chi.URLParam(r, "name")
+	version := chi.URLParam(r, "version")
+	key := strings.TrimPrefix(chi.URLParam(r, "*"), "/")
+	if decoded, err := url.PathUnescape(key); err == nil {
+		key = decoded
+	}
+	body, sha, err := s.admin.GetComponentArtifact(r.Context(), typ, name, version, key)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) || errors.Is(err, pgx.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "artifact not found"})
+			return
+		}
+		if errors.Is(err, store.ErrComponentVersionNotDraft) {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"key":    key,
+		"sha256": sha,
+		"body":   string(body),
+	})
 }
 
 func (s *Server) createGPProfile(w http.ResponseWriter, r *http.Request) {

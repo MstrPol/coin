@@ -80,11 +80,12 @@ cd docker && make endpoints
 cd docker
 make bootstrap && make endpoints
 make publish-agent GOARCH=arm64    # Apple Silicon
-make coin-lib
-make seed-jenkins-lib
+make seed-jenkins-lib              # lib ZIP + gp-content + GP + coin-lib-http
 make samples
 make e2e-build-engines
 ```
+
+**Deprecated:** `make coin-lib` (Gitea SCM retriever) — только для legacy bootstrap.
 
 Verify: Jenkins → `demo-go-app`, `demo-go-app-bp`, `demo-go-app-df` → main → SUCCESS.
 

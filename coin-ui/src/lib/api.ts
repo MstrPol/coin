@@ -11,6 +11,7 @@ import type {
   ComponentDetail,
   ComponentVersion,
   ComponentVersionDetail,
+  DraftComponentResult,
   DashboardStats,
   DraftGPResult,
   GPProfile,
@@ -23,7 +24,9 @@ import type {
   PlatformSettings,
   Project,
   PublishGPResult,
+  RegisterComponentPackageResult,
   ResolvePreviewResult,
+  ValidateComponentPackageResult,
 } from "../api/types";
 
 const base = import.meta.env.VITE_API_BASE ?? "/api";
@@ -300,6 +303,71 @@ export const api = {
     body: { version: string; metadata?: Record<string, unknown>; contentRef?: Record<string, unknown>; actor?: string },
   ) =>
     apiPost<{ status: string }>(`/v1/admin/components/${type}/${name}/versions`, body),
+  createDraftComponentVersion: (
+    type: string,
+    name: string,
+    body: { version: string; metadata?: Record<string, unknown>; contentRef?: Record<string, unknown>; actor?: string },
+  ) =>
+    apiPost<DraftComponentResult>(`/v1/admin/components/${type}/${name}/versions/drafts`, body),
+  patchComponentVersion: (
+    type: string,
+    name: string,
+    version: string,
+    body: { metadata?: Record<string, unknown>; contentRef?: Record<string, unknown>; actor?: string },
+  ) =>
+    apiPatch<{ status: string }>(
+      `/v1/admin/components/${type}/${name}/versions/${encodeURIComponent(version)}`,
+      body,
+    ),
+  listComponentArtifacts: (type: string, name: string, version: string) =>
+    apiList<ArtifactMeta>(
+      `/v1/admin/components/${type}/${name}/versions/${encodeURIComponent(version)}/artifacts`,
+    ),
+  getComponentArtifact: (type: string, name: string, version: string, key: string) =>
+    apiGet<ArtifactDetail>(
+      `/v1/admin/components/${type}/${name}/versions/${encodeURIComponent(version)}/artifacts/${encodeURIComponent(key)}`,
+    ),
+  saveComponentArtifact: (type: string, name: string, version: string, key: string, body: string) =>
+    apiPut<{ status: string }>(
+      `/v1/admin/components/${type}/${name}/versions/${encodeURIComponent(version)}/artifacts/${encodeURIComponent(key)}`,
+      { body },
+    ),
+  registerComponentPackage: (
+    type: string,
+    name: string,
+    version: string,
+    body?: { manifest?: Record<string, unknown>; actor?: string },
+  ) =>
+    apiPost<RegisterComponentPackageResult>(
+      `/v1/admin/components/${type}/${name}/versions/${encodeURIComponent(version)}/register-package`,
+      body ?? {},
+    ),
+  validateComponentPackage: async (type: string, name: string, version: string) => {
+    const path = `/v1/admin/components/${type}/${name}/versions/${encodeURIComponent(version)}/validate-package`;
+    const res = await fetch(`${base}${path}`, {
+      method: "POST",
+      headers: { ...headers(), "Content-Type": "application/json" },
+      body: "{}",
+    });
+    if (res.status === 404 || res.status === 409) {
+      throw new Error(await parseError(res, path));
+    }
+    const data = (await res.json()) as ValidateComponentPackageResult;
+    if (res.status !== 200 && res.status !== 422) {
+      throw new Error(await parseError(res, path));
+    }
+    return data;
+  },
+  publishComponentToCanary: (type: string, name: string, version: string, actor?: string) =>
+    apiPost<{ type: string; name: string; version: string; status: string }>(
+      `/v1/admin/components/${type}/${name}/versions/${encodeURIComponent(version)}/publish-canary`,
+      { actor },
+    ),
+  promoteComponentVersion: (type: string, name: string, version: string, actor?: string) =>
+    apiPost<{ type: string; name: string; version: string; status: string }>(
+      `/v1/admin/components/${type}/${name}/versions/${encodeURIComponent(version)}/promote`,
+      { actor },
+    ),
   auditLog: (params?: {
     entityType?: string;
     action?: string;

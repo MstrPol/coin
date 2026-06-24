@@ -20,6 +20,44 @@ type Manifest struct {
 	ValidateSchema  ContentRef   `json:"validateSchema"`
 	Credentials     Credentials  `json:"credentials"`
 	Capabilities    Capabilities `json:"capabilities"`
+	Branching       *Branching   `json:"branching,omitempty"`
+}
+
+type Branching struct {
+	Name        string           `json:"name"`
+	Version     string           `json:"version"`
+	Trunk       BranchingTrunk   `json:"trunk"`
+	BranchTypes []string         `json:"branchTypes"`
+	Versioning  BranchingVersion `json:"versioning"`
+	Publish     BranchingPublish `json:"publish"`
+}
+
+type BranchingTrunk struct {
+	Branch string `json:"branch"`
+}
+
+type BranchingVersion struct {
+	TagPrefix   string              `json:"tagPrefix"`
+	Qualifiers  BranchingQualifiers `json:"qualifiers"`
+}
+
+type BranchingQualifiers struct {
+	Snapshot BranchingQualifierToggle `json:"snapshot"`
+	RC       BranchingRCQualifier     `json:"rc"`
+}
+
+type BranchingQualifierToggle struct {
+	Enabled bool `json:"enabled"`
+}
+
+type BranchingRCQualifier struct {
+	Enabled               bool `json:"enabled"`
+	ReleaseBranchesOnly   bool `json:"releaseBranchesOnly"`
+}
+
+type BranchingPublish struct {
+	When   string `json:"when"`
+	Branch string `json:"branch,omitempty"`
 }
 
 type Capabilities struct {

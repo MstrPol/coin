@@ -51,13 +51,15 @@ coin:
 | **coin-gp-content** | scripts, Dockerfile, schema per GP stack |
 | **Jenkins** | thin bootstrap: `@Library('coin-lib@1.0.0') _` → `coinPipeline()` |
 
-Jenkins glue — в `coin-lib` Shared Library; GP content — в `coin-gp-content` (см. активный plan [jenkins-lib-nexus](../plans/jenkins-lib-nexus.plan.md), ADR [jenkins-lib-http-nexus](../plans/adr/jenkins-lib-http-nexus.md)).
+Jenkins glue — в `coin-lib` Shared Library; GP content — в `coin-gp-content` (ADR [jenkins-lib-http-nexus](../../docs/adr/jenkins-lib-http-nexus.md)).
 
 ## Архитектурные решения
 
-Постоянные решения — ADR в `.cursor/plans/adr/`, не в plan-backlog.
+Постоянные решения — ADR в `docs/adr/`, не в OpenSpec backlog.
 
-**Plans Coin** — только в репозитории `coin/.cursor/plans/`, не в `~/.cursor/plans/`.
+**Активные фичи** — OpenSpec changes в `openspec/changes/`; исполнение — Beads (`bd`).
+
+Индекс планирования: [docs/planning.md](../../docs/planning.md).
 
 ## Superseded (не реализовывать)
 

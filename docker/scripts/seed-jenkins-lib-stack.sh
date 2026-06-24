@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local pilot: publish lib + gp-content + GP profile/release for go-app (4-slot model).
+# Local pilot: publish lib + gp-content + branching-model + GP profile/release (5-slot model).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -76,6 +76,12 @@ COIN_API_URL="${API}" \
 COIN_API_KEY="${KEY}" \
   "${REPO_ROOT}/coin-lib/scripts/publish-lib.sh" 1.0.0
 
+echo "==> publish branching-model/trunk-based@1.0.0"
+chmod +x "${REPO_ROOT}/coin-branching-models/scripts/"*.sh "${REPO_ROOT}/coin-branching-models/scripts/lib/"*.sh
+COIN_API_URL="${API}" \
+COIN_API_KEY="${KEY}" \
+  "${REPO_ROOT}/coin-branching-models/scripts/publish-branching-model.sh" trunk-based 1.0.0
+
 echo "==> publish gp-content stacks"
 chmod +x "${REPO_ROOT}/coin-gp-content/scripts/"*.sh "${REPO_ROOT}/coin-gp-content/scripts/lib/"*.sh
 GP_CONTENT_STACKS=(go-app go-app-bp go-app-df)
@@ -92,6 +98,7 @@ done
 AGENT_VER="$(component_version agent coin-agent)"
 EXEC_VER="$(component_version executor coin-executor)"
 LIB_VER="$(component_version lib coin-lib)"
+BRANCHING_VER="$(component_version branching-model trunk-based)"
 
 for stack in "${GP_CONTENT_STACKS[@]}"; do
   if [[ -z "$(component_version gp-content "${stack}")" ]]; then
@@ -100,7 +107,7 @@ for stack in "${GP_CONTENT_STACKS[@]}"; do
   fi
 done
 
-for pair in "agent:${AGENT_VER}" "executor:${EXEC_VER}" "lib:${LIB_VER}"; do
+for pair in "agent:${AGENT_VER}" "executor:${EXEC_VER}" "lib:${LIB_VER}" "branching-model:${BRANCHING_VER}"; do
   if [[ -z "${pair#*:}" ]]; then
     echo "missing component version for ${pair%%:*}" >&2
     exit 1
@@ -120,7 +127,8 @@ for stack in "${GP_CONTENT_STACKS[@]}"; do
     --arg exec "${EXEC_VER}" \
     --arg lib "${LIB_VER}" \
     --arg content "${content_ver}" \
-    '{agent: $agent, executor: $exec, lib: $lib, "gp-content": $content}')"
+    --arg branching "${BRANCHING_VER}" \
+    '{agent: $agent, executor: $exec, lib: $lib, "gp-content": $content, "branching-model": $branching}')"
   gp_body="$(jq -n \
     --arg ver "${GP_VER}" \
     --argjson comp "${composition}" \
@@ -134,11 +142,15 @@ for stack in "${GP_CONTENT_STACKS[@]}"; do
   fi
   rm -f "${gp_tmp}"
 
-  pin_enc="$(python3 -c "import urllib.parse; print(urllib.parse.quote('=${GP_VER}', safe=''))")"
-  echo "==> verify /golden-paths/${stack}/version"
-  curl -fsS "${API}/v1/golden-paths/${stack}/version?pin=${pin_enc}" \
+  echo "==> verify /golden-paths/${stack}/versions/${GP_VER}/manifest (lib + branching)"
+  curl -fsS "${API}/v1/golden-paths/${stack}/versions/${GP_VER}/manifest" \
     -H "Authorization: Bearer ${COIN_API_TOKEN:-dev-local-token}" \
-    | jq -e --arg lib "${LIB_VER}" '.library.version == $lib' >/dev/null
+    | jq -e --arg lib "${LIB_VER}" --arg bm "${BRANCHING_VER}" \
+      '.lib.version == $lib and .branching.name == "trunk-based" and .branching.version == $bm' >/dev/null
 done
 
-echo "OK: jenkins-lib stack seeded (${GP_CONTENT_STACKS[*]}@${GP_VER}, coin-agent@${AGENT_VER})"
+echo "OK: jenkins-lib stack seeded (${GP_CONTENT_STACKS[*]}@${GP_VER}, trunk-based@${BRANCHING_VER}, coin-agent@${AGENT_VER})"
+
+echo "==> Jenkins: coin-lib Nexus HTTP retriever (primary path)"
+chmod +x "${ROOT}/scripts/coin-lib-http.sh"
+"${ROOT}/scripts/coin-lib-http.sh"

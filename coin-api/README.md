@@ -81,7 +81,29 @@ Fleet scanner удалён (UI-02).
 
 ## Component registry SoT
 
-Версии компонентов (agent, executor, …) публикуются через `POST /v1/admin/components/{type}/{name}/versions`.
+Версии компонентов (agent, executor, …):
+
+| Endpoint | Назначение |
+|----------|------------|
+| `POST .../versions/drafts` | Создать draft (Component Studio) |
+| `PATCH .../versions/{v}` | Редактировать draft (metadata, contentRef) |
+| `POST .../versions/{v}/validate-package` | Server-side validation draft package |
+| `POST .../versions/{v}/register-package` | Draft bodies (PG) → Nexus package + content_ref v2 |
+| `PUT .../versions/{v}/artifacts/*` | Draft artifact bodies (PG, Q1) |
+| `POST .../versions/{v}/publish-canary` | draft → canary |
+| `POST .../versions/{v}/promote` | canary → published |
+| `POST .../versions` | Прямой publish → published (legacy CI scripts) |
+
+**content_ref v2** (Component Package Model): JSON Schema в `schemas/content-ref.v2.schema.json` и `schemas/package.manifest.schema.json`. При `PATCH`/создании draft v2-конверт валидируется в store; legacy `artifactKey` refs допускаются до миграции.
+
+**Resolve visibility** (`ComponentResolveMode`):
+
+| Mode | Когда | Component statuses |
+|------|-------|-------------------|
+| `stable` | product CI, stable channel | `published` |
+| `canary` | canary channel / pilot | `published`, `canary` |
+| `admin` | GP draft snapshot preview | `published`, `canary`, `draft` |
+
 CI repos (`coin-executor`, `coin-gp-content`, `coin-lib`) отчитывают версии в API после publish артефакта.
 Runtime agent image: `agent/coin-agent` через `coin-executor/scripts/publish-agent.sh`.
 
@@ -96,6 +118,7 @@ internal/store/        PostgreSQL access
 internal/resolve/      Resolve service
 migrations/            goose SQL
 openapi/v1.yaml        API contract
+schemas/               content_ref v2 + package.manifest JSON Schema
 manifest.schema.json   Resolved manifest JSON Schema
 ```
 

@@ -112,7 +112,7 @@ func (s *Store) CreateGPProfile(ctx context.Context, name string, slots []GPProf
 	return err
 }
 
-// CreateGPProfileByAgentStack creates a canonical four-slot profile (agentStack is ignored).
+// CreateGPProfileByAgentStack creates a canonical five-slot profile (agentStack is ignored).
 func (s *Store) CreateGPProfileByAgentStack(ctx context.Context, name, _ string) error {
 	if name == "" {
 		return fmt.Errorf("name is required")
@@ -120,12 +120,27 @@ func (s *Store) CreateGPProfileByAgentStack(ctx context.Context, name, _ string)
 	return s.CreateGPProfile(ctx, name, CanonicalGPSlots(name))
 }
 
-var canonicalSlotKeys = []string{"agent", "executor", "lib", "gp-content"}
+var (
+	canonicalSlotKeys       = []string{"agent", "executor", "lib", "gp-content", "branching-model"}
+	legacyCanonicalSlotKeys = []string{"agent", "executor", "lib", "gp-content"}
+)
 
-// ValidateCanonicalGPSlots ensures profile uses the four-component GP model.
+// ValidateCanonicalGPSlots ensures profile uses the five-slot GP model (or legacy four-slot).
 func ValidateCanonicalGPSlots(slots []GPProfileSlot) error {
-	if len(slots) != len(canonicalSlotKeys) {
-		return fmt.Errorf("gp profile must have exactly %d slots", len(canonicalSlotKeys))
+	switch len(slots) {
+	case len(canonicalSlotKeys):
+		return validateGPSlotKeys(slots, canonicalSlotKeys, true)
+	case len(legacyCanonicalSlotKeys):
+		return validateGPSlotKeys(slots, legacyCanonicalSlotKeys, false)
+	default:
+		return fmt.Errorf("gp profile must have exactly %d slots (or %d legacy without branching-model)",
+			len(canonicalSlotKeys), len(legacyCanonicalSlotKeys))
+	}
+}
+
+func validateGPSlotKeys(slots []GPProfileSlot, expected []string, requireBranching bool) error {
+	if len(slots) != len(expected) {
+		return fmt.Errorf("gp profile must have exactly %d slots", len(expected))
 	}
 	seen := make(map[string]bool, len(slots))
 	for _, slot := range slots {
@@ -134,7 +149,7 @@ func ValidateCanonicalGPSlots(slots []GPProfileSlot) error {
 		}
 		seen[slot.Key] = true
 	}
-	for _, key := range canonicalSlotKeys {
+	for _, key := range expected {
 		if !seen[key] {
 			return fmt.Errorf("missing slot %q", key)
 		}
@@ -156,6 +171,13 @@ func ValidateCanonicalGPSlots(slots []GPProfileSlot) error {
 		case "gp-content":
 			if slot.Type != "gp-content" || slot.Name == "" {
 				return fmt.Errorf("gp-content slot must be gp-content/{golden-path}")
+			}
+		case "branching-model":
+			if !requireBranching {
+				return fmt.Errorf("unknown slot key %q", slot.Key)
+			}
+			if slot.Type != "branching-model" || slot.Name == "" {
+				return fmt.Errorf("branching-model slot must be branching-model/{model-name}")
 			}
 		default:
 			return fmt.Errorf("unknown slot key %q", slot.Key)

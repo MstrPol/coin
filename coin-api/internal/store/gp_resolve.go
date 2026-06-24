@@ -35,9 +35,9 @@ func (s *Store) ListPublishedGPVersions(ctx context.Context, name string) ([]str
 	return versions, rows.Err()
 }
 
-func (s *Store) GetGPReleaseForResolve(ctx context.Context, name, version string, allowDraft bool) (ReleaseRow, error) {
+func (s *Store) GetGPReleaseForResolve(ctx context.Context, name, version string, opts GPResolveOptions) (ReleaseRow, error) {
 	statusFilter := "status='published'"
-	if allowDraft {
+	if opts.AllowDraftGP {
 		statusFilter = "status IN ('published', 'draft')"
 	}
 	query := fmt.Sprintf(`
@@ -54,17 +54,28 @@ func (s *Store) GetGPReleaseForResolve(ctx context.Context, name, version string
 		return ReleaseRow{}, fmt.Errorf("gp release: %w", err)
 	}
 
-	parts, err := s.loadComposition(ctx, name, version)
+	mode := opts.ComponentMode
+	if mode == "" {
+		mode = ComponentResolveStable
+	}
+
+	parts, err := s.loadComposition(ctx, name, version, mode)
 	if err != nil {
 		return ReleaseRow{}, err
 	}
 	row.Parts = parts
 
-	content, err := s.loadContentBundle(ctx, name, version)
+	content, err := s.loadContentBundle(ctx, name, version, mode)
 	if err != nil {
 		return ReleaseRow{}, err
 	}
 	row.Content = content
+
+	branching, err := s.loadBranchingBundleOptional(ctx, name, version, mode)
+	if err != nil {
+		return ReleaseRow{}, err
+	}
+	row.Branching = branching
 	return row, nil
 }
 
@@ -88,7 +99,7 @@ func (s *Store) CreateDraftGPRelease(ctx context.Context, in PublishGPReleaseInp
 
 	for _, slot := range slots {
 		ver := in.Composition[slot.Key]
-		ok, err := s.componentVersionPublished(ctx, slot.Type, slot.Name, ver)
+		ok, err := s.componentVersionResolvable(ctx, slot.Type, slot.Name, ver, ComponentResolveAdmin)
 		if err != nil {
 			return GPReleaseRow{}, err
 		}
