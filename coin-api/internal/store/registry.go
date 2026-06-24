@@ -54,58 +54,6 @@ func (s *Store) DashboardStats(ctx context.Context) (DashboardStats, error) {
 	return stats, err
 }
 
-func (s *Store) ListProjects(ctx context.Context, goldenPath, version string, staleOnly bool) ([]ProjectRow, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT p.name,
-		       COALESCE(p.group_id, ''),
-		       COALESCE(p.artifact_id, p.name),
-		       COALESCE(p.git_repo_name, ''),
-		       COALESCE(p.git_repo_url, ''),
-		       COALESCE(p.gp_pin, ''),
-		       COALESCE(p.version_pin, ''),
-		       p.canary_mode::text,
-		       COALESCE(lb.branch, ''),
-		       lb.reported_at
-		FROM projects p
-		LEFT JOIN LATERAL (
-			SELECT branch, reported_at
-			FROM build_reports br
-			WHERE br.project_id = p.id
-			ORDER BY br.reported_at DESC
-			LIMIT 1
-		) lb ON true
-		WHERE ($1 = '' OR p.gp_pin = $1)
-		  AND ($2 = '' OR p.version_pin = $2)
-		  AND (
-		    NOT $3::bool OR NOT EXISTS (
-		      SELECT 1 FROM build_reports br2
-		      WHERE br2.project_id = p.id
-		        AND br2.reported_at > now() - interval '90 days'
-		    )
-		  )
-		ORDER BY p.name
-	`, goldenPath, version, staleOnly)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var out []ProjectRow
-	for rows.Next() {
-		var row ProjectRow
-		var lastBuild *time.Time
-		if err := rows.Scan(
-			&row.Name, &row.GroupID, &row.ArtifactID, &row.GitRepoName, &row.GitRepoURL,
-			&row.GoldenPath, &row.Version, &row.CanaryMode, &row.Branch, &lastBuild,
-		); err != nil {
-			return nil, err
-		}
-		row.LastBuildAt = lastBuild
-		out = append(out, row)
-	}
-	return out, rows.Err()
-}
-
 func (s *Store) ListGPReleases(ctx context.Context, name string, includeDrafts bool) ([]GPReleaseListItem, error) {
 	query := `
 		SELECT name, version, status, manifest_hash, manifest_url, git_export_tag, created_at

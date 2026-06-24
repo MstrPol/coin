@@ -21,6 +21,7 @@ import type {
   HealthSummary,
   ListResponse,
   MeResponse,
+  PaginatedListResponse,
   PlatformSettings,
   Project,
   PublishGPResult,
@@ -108,6 +109,35 @@ async function apiList<T>(path: string): Promise<ListResponse<T>> {
   return { items: data.items ?? [] };
 }
 
+async function apiPaginatedList<T>(path: string): Promise<PaginatedListResponse<T>> {
+  const data = await apiGet<PaginatedListResponse<T>>(path);
+  return {
+    items: data.items ?? [],
+    total: data.total ?? 0,
+    limit: data.limit ?? 50,
+    offset: data.offset ?? 0,
+  };
+}
+
+export async function downloadCsv(path: string, filename: string): Promise<void> {
+  const res = await fetch(`${base}${path}`, {
+    headers: {
+      ...headers(),
+      Accept: "text/csv",
+    },
+  });
+  if (!res.ok) {
+    throw new Error(await parseError(res, path));
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 /** Like apiList but returns empty items on 404 (unknown component). */
 async function apiListOptional<T>(path: string): Promise<ListResponse<T>> {
   const res = await fetch(`${base}${path}`, { headers: headers() });
@@ -165,23 +195,61 @@ export const api = {
     project?: string;
     goldenPath?: string;
     result?: string;
+    reportedAfter?: string;
+    reportedBefore?: string;
     limit?: number;
+    offset?: number;
   }) => {
     const q = new URLSearchParams();
     if (params?.project) q.set("project", params.project);
     if (params?.goldenPath) q.set("goldenPath", params.goldenPath);
     if (params?.result) q.set("result", params.result);
-    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.reportedAfter) q.set("reportedAfter", params.reportedAfter);
+    if (params?.reportedBefore) q.set("reportedBefore", params.reportedBefore);
+    if (params?.limit != null) q.set("limit", String(params.limit));
+    if (params?.offset != null) q.set("offset", String(params.offset));
     const qs = q.toString();
-    return apiList<BuildReport>(`/v1/admin/build-reports${qs ? `?${qs}` : ""}`);
+    return apiPaginatedList<BuildReport>(`/v1/admin/build-reports${qs ? `?${qs}` : ""}`);
   },
-  projects: (goldenPath?: string, version?: string, stale?: boolean) => {
+  buildReportsExportPath: (params?: {
+    project?: string;
+    goldenPath?: string;
+    result?: string;
+    reportedAfter?: string;
+    reportedBefore?: string;
+  }) => {
     const q = new URLSearchParams();
-    if (goldenPath) q.set("goldenPath", goldenPath);
-    if (version) q.set("version", version);
-    if (stale) q.set("stale", "true");
+    if (params?.project) q.set("project", params.project);
+    if (params?.goldenPath) q.set("goldenPath", params.goldenPath);
+    if (params?.result) q.set("result", params.result);
+    if (params?.reportedAfter) q.set("reportedAfter", params.reportedAfter);
+    if (params?.reportedBefore) q.set("reportedBefore", params.reportedBefore);
     const qs = q.toString();
-    return apiList<Project>(`/v1/admin/projects${qs ? `?${qs}` : ""}`);
+    return `/v1/admin/build-reports/export${qs ? `?${qs}` : ""}`;
+  },
+  projects: (params?: {
+    goldenPath?: string;
+    version?: string;
+    stale?: boolean;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.goldenPath) q.set("goldenPath", params.goldenPath);
+    if (params?.version) q.set("version", params.version);
+    if (params?.stale) q.set("stale", "true");
+    if (params?.limit != null) q.set("limit", String(params.limit));
+    if (params?.offset != null) q.set("offset", String(params.offset));
+    const qs = q.toString();
+    return apiPaginatedList<Project>(`/v1/admin/projects${qs ? `?${qs}` : ""}`);
+  },
+  projectsExportPath: (params?: { goldenPath?: string; version?: string; stale?: boolean }) => {
+    const q = new URLSearchParams();
+    if (params?.goldenPath) q.set("goldenPath", params.goldenPath);
+    if (params?.version) q.set("version", params.version);
+    if (params?.stale) q.set("stale", "true");
+    const qs = q.toString();
+    return `/v1/admin/projects/export${qs ? `?${qs}` : ""}`;
   },
   gpNames: () => apiList<string>("/v1/admin/golden-paths/names"),
   gpProfile: (name: string) => apiGet<GPProfile>(`/v1/admin/golden-paths/${name}/profile`),

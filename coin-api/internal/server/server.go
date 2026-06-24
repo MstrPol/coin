@@ -90,7 +90,9 @@ func (s *Server) Router() http.Handler {
 				r.Use(auth.RequireRole(auth.RoleReader))
 				r.With(shortTimeout).Get("/stats", s.adminStats)
 				r.With(shortTimeout).Get("/build-reports", s.listBuildReports)
+				r.With(shortTimeout).Get("/build-reports/export", s.exportBuildReports)
 				r.With(shortTimeout).Get("/projects", s.listProjects)
+				r.With(shortTimeout).Get("/projects/export", s.exportProjects)
 				r.With(shortTimeout).Get("/golden-paths", s.listGPReleases)
 				r.With(shortTimeout).Get("/golden-paths/names", s.listGPNames)
 				r.With(shortTimeout).Get("/golden-paths/{name}/profile", s.getGPProfile)
@@ -1011,37 +1013,6 @@ func (s *Server) adminStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, stats)
-}
-
-func (s *Server) listBuildReports(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	limit, _ := strconv.Atoi(q.Get("limit"))
-	offset, _ := strconv.Atoi(q.Get("offset"))
-	items, err := s.admin.ListBuildReports(r.Context(), store.ListBuildReportsFilter{
-		Project:    q.Get("project"),
-		GoldenPath: q.Get("goldenPath"),
-		Result:     q.Get("result"),
-		Limit:      limit,
-		Offset:     offset,
-	})
-	if err != nil {
-		s.logger.Error("list build reports", "err", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "list build reports failed"})
-		return
-	}
-	writeListJSON(w, items)
-}
-
-func (s *Server) listProjects(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-	staleOnly := q.Get("stale") == "true" || q.Get("stale") == "1"
-	rows, err := s.admin.ListProjects(r.Context(), q.Get("goldenPath"), q.Get("version"), staleOnly)
-	if err != nil {
-		s.logger.Error("list projects", "err", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "list projects failed"})
-		return
-	}
-	writeListJSON(w, rows)
 }
 
 func (s *Server) listGPReleases(w http.ResponseWriter, r *http.Request) {

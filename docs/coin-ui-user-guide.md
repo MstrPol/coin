@@ -66,13 +66,21 @@ Key или OIDC access token хранится в `localStorage`.
 
 Фильтры: `goldenPath`, `version`, `stale` (`/projects?stale=1` — без билда >90 дней).
 
+**Пагинация:** server-side (`limit`/`offset`, default 50). URL: `page`, `pageSize`. Счётчик «N из total».
+
+**Export CSV** — полный набор по текущим фильтрам (`GET /v1/admin/projects/export`).
+
 **Canary mode** per project: `default` | `canary` | `stable` — override для pin `*` (см. [canary.md](canary.md)).
 
 ### Build reports
 
 История `POST /v1/builds/report`: project, GP, pin, resolved version, result, channel, branch, build URL, время.
 
-Фильтры: project, goldenPath, result.
+Фильтры: project, goldenPath, result, **даты** (`reportedAfter`, `reportedBefore` — `YYYY-MM-DD`).
+
+**Пагинация:** server-side, URL `page` + `pageSize`.
+
+**Export CSV** — все matching reports по фильтрам (`GET /v1/admin/build-reports/export`).
 
 ### GP Releases
 

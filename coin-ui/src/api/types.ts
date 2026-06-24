@@ -72,6 +72,13 @@ export type BlastRadius = {
 
 export type ListResponse<T> = { items: T[] };
 
+export type PaginatedListResponse<T> = {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
 export type GPProfileSlot = {
   key: string;
   type: string;

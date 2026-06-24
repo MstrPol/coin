@@ -1,34 +1,54 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { Project } from "../api/types";
+import TablePagination, { pageToOffset } from "../components/TablePagination";
 import { useAuth } from "../context/AuthContext";
-import { api, getActor } from "../lib/api";
+import { api, downloadCsv, getActor } from "../lib/api";
 
 const MODES = ["default", "canary", "stable"] as const;
+const DEFAULT_PAGE_SIZE = 50;
+
+function intParam(sp: URLSearchParams, key: string, fallback: number): number {
+  const v = parseInt(sp.get(key) ?? "", 10);
+  return Number.isFinite(v) && v > 0 ? v : fallback;
+}
 
 export default function Projects() {
   const { can } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<Project[]>([]);
+  const [total, setTotal] = useState(0);
   const [gp, setGp] = useState(searchParams.get("goldenPath") ?? "");
   const [ver, setVer] = useState(searchParams.get("version") ?? "");
   const filterGp = searchParams.get("goldenPath") ?? "";
   const filterVer = searchParams.get("version") ?? "";
   const staleOnly = searchParams.get("stale") === "1" || searchParams.get("stale") === "true";
+  const page = intParam(searchParams, "page", 1);
+  const pageSize = intParam(searchParams, "pageSize", DEFAULT_PAGE_SIZE);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
-  function load(goldenPath: string, version: string, stale: boolean) {
+  function load() {
     setError(null);
     api
-      .projects(goldenPath || undefined, version || undefined, stale)
-      .then((r) => setItems(r.items))
+      .projects({
+        goldenPath: filterGp || undefined,
+        version: filterVer || undefined,
+        stale: staleOnly,
+        limit: pageSize,
+        offset: pageToOffset(page, pageSize),
+      })
+      .then((r) => {
+        setItems(r.items);
+        setTotal(r.total);
+      })
       .catch((err: Error) => setError(err.message));
   }
 
   useEffect(() => {
-    load(filterGp, filterVer, staleOnly);
-  }, [filterGp, filterVer, staleOnly]);
+    load();
+  }, [filterGp, filterVer, staleOnly, page, pageSize]);
 
   function onFilter(e: FormEvent) {
     e.preventDefault();
@@ -39,6 +59,20 @@ export default function Projects() {
     else next.delete("goldenPath");
     if (v) next.set("version", v);
     else next.delete("version");
+    next.set("page", "1");
+    setSearchParams(next);
+  }
+
+  function setPage(nextPage: number) {
+    const next = new URLSearchParams(searchParams);
+    next.set("page", String(nextPage));
+    setSearchParams(next);
+  }
+
+  function setPageSize(nextSize: number) {
+    const next = new URLSearchParams(searchParams);
+    next.set("pageSize", String(nextSize));
+    next.set("page", "1");
     setSearchParams(next);
   }
 
@@ -47,7 +81,7 @@ export default function Projects() {
     setUpdating(projectName);
     try {
       await api.updateProjectCanaryMode(projectName, mode, getActor() || undefined);
-      load(filterGp, filterVer, staleOnly);
+      load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "update failed");
     } finally {
@@ -55,13 +89,40 @@ export default function Projects() {
     }
   }
 
+  async function exportCsv() {
+    setExporting(true);
+    setError(null);
+    try {
+      const path = api.projectsExportPath({
+        goldenPath: filterGp || undefined,
+        version: filterVer || undefined,
+        stale: staleOnly,
+      });
+      await downloadCsv(path, `projects-${new Date().toISOString().slice(0, 10)}.csv`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "export failed");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Projects</h1>
-        <p className="mt-1 text-zinc-400">
-          Регистрация при первом билде, обновление при каждом report
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Projects</h1>
+          <p className="mt-1 text-zinc-400">
+            Регистрация при первом билде, обновление при каждом report
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={exportCsv}
+          disabled={exporting}
+          className="rounded border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-800 disabled:opacity-50"
+        >
+          {exporting ? "Экспорт…" : "Export CSV"}
+        </button>
       </div>
 
       <form onSubmit={onFilter} className="flex flex-wrap gap-3">
@@ -89,6 +150,14 @@ export default function Projects() {
       </form>
 
       {error && <p className="text-red-400">{error}</p>}
+
+      <TablePagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
 
       <div className="overflow-x-auto rounded-lg border border-zinc-800">
         <table className="w-full text-left text-sm">

@@ -42,7 +42,7 @@ export default function PilotPromotePanel({ type, name, version, canEdit, onProm
       setGpUsage(usage);
 
       const gpNames = [...new Set(usage.map((u) => u.gpName))];
-      const projectLists = await Promise.all(gpNames.map((gp) => api.projects(gp)));
+      const projectLists = await Promise.all(gpNames.map((gp) => api.projects({ goldenPath: gp })));
       const merged = new Map<string, Project>();
       for (const list of projectLists) {
         for (const p of list.items) {

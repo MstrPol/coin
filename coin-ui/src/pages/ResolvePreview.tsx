@@ -32,7 +32,7 @@ export default function ResolvePreview() {
 
   useEffect(() => {
     api
-      .projects(gpName || undefined)
+      .projects({ goldenPath: gpName || undefined, limit: 500 })
       .then((r) => setProjects(r.items))
       .catch(() => setProjects([]));
   }, [gpName]);

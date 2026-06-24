@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"strings"
 	"time"
@@ -22,35 +23,26 @@ type BuildReportRow struct {
 }
 
 type ListBuildReportsFilter struct {
-	Project    string
-	GoldenPath string
-	Result     string
-	Limit      int
-	Offset     int
+	Project        string
+	GoldenPath     string
+	Result         string
+	ReportedAfter  *time.Time
+	ReportedBefore *time.Time
+	Limit          int
+	Offset         int
 }
 
-func (s *Store) ListBuildReports(ctx context.Context, f ListBuildReportsFilter) ([]BuildReportRow, error) {
-	limit := f.Limit
-	if limit <= 0 || limit > 500 {
-		limit = 50
+func normalizeBuildReportsLimitOffset(f *ListBuildReportsFilter) {
+	if f.Limit <= 0 || f.Limit > 500 {
+		f.Limit = 50
 	}
-	offset := f.Offset
-	if offset < 0 {
-		offset = 0
+	if f.Offset < 0 {
+		f.Offset = 0
 	}
+}
 
-	query := `
-		SELECT br.id, p.name, br.gp_name, br.gp_version,
-		       COALESCE(br.resolved_version, br.gp_version),
-		       COALESCE(br.branch, ''), COALESCE(br.build_url, ''),
-		       br.result, COALESCE(br.channel, ''), COALESCE(br.failed_stage, ''),
-		       br.reported_at
-		FROM build_reports br
-		JOIN projects p ON p.id = br.project_id
-		WHERE 1=1
-	`
-	args := []any{}
-	n := 1
+func appendBuildReportsWhere(query string, f ListBuildReportsFilter, args []any) (string, []any) {
+	n := len(args) + 1
 	if f.Project != "" {
 		query += fmt.Sprintf(" AND p.name = $%d", n)
 		args = append(args, f.Project)
@@ -66,8 +58,50 @@ func (s *Store) ListBuildReports(ctx context.Context, f ListBuildReportsFilter) 
 		args = append(args, strings.ToLower(f.Result))
 		n++
 	}
+	if f.ReportedAfter != nil {
+		query += fmt.Sprintf(" AND br.reported_at >= $%d", n)
+		args = append(args, *f.ReportedAfter)
+		n++
+	}
+	if f.ReportedBefore != nil {
+		query += fmt.Sprintf(" AND br.reported_at <= $%d", n)
+		args = append(args, *f.ReportedBefore)
+		n++
+	}
+	return query, args
+}
+
+const buildReportsFromSQL = `
+		FROM build_reports br
+		JOIN projects p ON p.id = br.project_id
+		WHERE 1=1
+`
+
+func (s *Store) CountBuildReports(ctx context.Context, f ListBuildReportsFilter) (int, error) {
+	query := `SELECT COUNT(*)::int ` + buildReportsFromSQL
+	query, args := appendBuildReportsWhere(query, f, nil)
+
+	var total int
+	err := s.pool.QueryRow(ctx, query, args...).Scan(&total)
+	return total, err
+}
+
+func (s *Store) ListBuildReports(ctx context.Context, f ListBuildReportsFilter) ([]BuildReportRow, error) {
+	normalizeBuildReportsLimitOffset(&f)
+
+	query := `
+		SELECT br.id, p.name, br.gp_name, br.gp_version,
+		       COALESCE(br.resolved_version, br.gp_version),
+		       COALESCE(br.branch, ''), COALESCE(br.build_url, ''),
+		       br.result, COALESCE(br.channel, ''), COALESCE(br.failed_stage, ''),
+		       br.reported_at
+	` + buildReportsFromSQL
+
+	args := []any{}
+	query, args = appendBuildReportsWhere(query, f, args)
+	n := len(args) + 1
 	query += fmt.Sprintf(" ORDER BY br.reported_at DESC LIMIT $%d OFFSET $%d", n, n+1)
-	args = append(args, limit, offset)
+	args = append(args, f.Limit, f.Offset)
 
 	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
@@ -75,6 +109,63 @@ func (s *Store) ListBuildReports(ctx context.Context, f ListBuildReportsFilter) 
 	}
 	defer rows.Close()
 
+	return scanBuildReportRows(rows)
+}
+
+func (s *Store) WriteBuildReportsCSV(ctx context.Context, f ListBuildReportsFilter, w *csv.Writer) error {
+	query := `
+		SELECT br.id, p.name, br.gp_name, br.gp_version,
+		       COALESCE(br.resolved_version, br.gp_version),
+		       COALESCE(br.branch, ''), COALESCE(br.build_url, ''),
+		       br.result, COALESCE(br.channel, ''), COALESCE(br.failed_stage, ''),
+		       br.reported_at
+	` + buildReportsFromSQL
+
+	query, args := appendBuildReportsWhere(query, f, nil)
+	query += " ORDER BY br.reported_at DESC"
+
+	rows, err := s.pool.Query(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	if err := w.Write([]string{
+		"id", "project", "goldenPath", "version", "resolvedVersion",
+		"result", "channel", "branch", "buildUrl", "failedStage", "reportedAt",
+	}); err != nil {
+		return err
+	}
+
+	for rows.Next() {
+		var row BuildReportRow
+		if err := rows.Scan(
+			&row.ID, &row.Project, &row.GoldenPath, &row.Version,
+			&row.ResolvedVersion, &row.Branch, &row.BuildURL,
+			&row.Result, &row.Channel, &row.FailedStage, &row.ReportedAt,
+		); err != nil {
+			return err
+		}
+		if err := w.Write([]string{
+			fmt.Sprintf("%d", row.ID),
+			row.Project,
+			row.GoldenPath,
+			row.Version,
+			row.ResolvedVersion,
+			row.Result,
+			row.Channel,
+			row.Branch,
+			row.BuildURL,
+			row.FailedStage,
+			row.ReportedAt.UTC().Format(time.RFC3339),
+		}); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}
+
+func scanBuildReportRows(rows projectRowScanner) ([]BuildReportRow, error) {
 	var items []BuildReportRow
 	for rows.Next() {
 		var row BuildReportRow
@@ -87,5 +178,12 @@ func (s *Store) ListBuildReports(ctx context.Context, f ListBuildReportsFilter) 
 		}
 		items = append(items, row)
 	}
+	if items == nil {
+		items = []BuildReportRow{}
+	}
 	return items, rows.Err()
+}
+
+func FormatBuildReportsExportFilename() string {
+	return fmt.Sprintf("build-reports-%s.csv", time.Now().UTC().Format("20060102"))
 }

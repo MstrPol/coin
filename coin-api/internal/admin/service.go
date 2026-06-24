@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/csv"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -280,8 +281,24 @@ func (s *Service) ListBuildReports(ctx context.Context, f store.ListBuildReports
 	return s.store.ListBuildReports(ctx, f)
 }
 
-func (s *Service) ListProjects(ctx context.Context, goldenPath, version string, staleOnly bool) ([]store.ProjectRow, error) {
-	return s.store.ListProjects(ctx, goldenPath, version, staleOnly)
+func (s *Service) CountBuildReports(ctx context.Context, f store.ListBuildReportsFilter) (int, error) {
+	return s.store.CountBuildReports(ctx, f)
+}
+
+func (s *Service) WriteBuildReportsCSV(ctx context.Context, f store.ListBuildReportsFilter, w *csv.Writer) error {
+	return s.store.WriteBuildReportsCSV(ctx, f, w)
+}
+
+func (s *Service) ListProjects(ctx context.Context, f store.ListProjectsFilter) ([]store.ProjectRow, error) {
+	return s.store.ListProjects(ctx, f)
+}
+
+func (s *Service) CountProjects(ctx context.Context, f store.ListProjectsFilter) (int, error) {
+	return s.store.CountProjects(ctx, f)
+}
+
+func (s *Service) WriteProjectsCSV(ctx context.Context, f store.ListProjectsFilter, w *csv.Writer) error {
+	return s.store.WriteProjectsCSV(ctx, f, w)
 }
 
 func (s *Service) ListGPReleases(ctx context.Context, name string) ([]store.GPReleaseListItem, error) {

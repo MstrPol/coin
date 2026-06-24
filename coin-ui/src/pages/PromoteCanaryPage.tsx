@@ -74,7 +74,7 @@ export default function PromoteWizard() {
       const health = canaryVersion
         ? await api.health(gpName, canaryVersion, "canary").catch(() => null)
         : null;
-      const projects = (await api.projects(gpName)).items;
+      const projects = (await api.projects({ goldenPath: gpName })).items;
       const pilots = pilotProjects(projects);
 
       const { checks, ready, blockers } = buildPromoteChecks({
