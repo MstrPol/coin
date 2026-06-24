@@ -3,9 +3,7 @@
 ## Purpose
 
 Platform catalog and GP detail integration for gp-content build stacks.
-
 ## Requirements
-
 ### Requirement: Build stacks catalog
 
 The coin-ui SHALL provide a Platform → Build stacks catalog for all `gp-content` components.
@@ -24,12 +22,13 @@ The coin-ui SHALL provide a Platform → Build stacks catalog for all `gp-conten
 
 The GP release detail page SHALL include a Build stack tab as the primary path to gp-content for that profile.
 
-#### Scenario: View build stack from GP release
+#### Scenario: View build stack from GP hub
 
-- **WHEN** enabling team opens a GP release detail for profile `go-app`
-- **THEN** the UI MUST offer a Build stack tab showing gp-content versions pinned or available for that GP name
+- **WHEN** enabling team opens the Build stack tab on GP hub for profile `go-app`
+- **THEN** the UI MUST show gp-content versions for that GP name (primary path)
 
-#### Scenario: Open Studio from GP tab
+#### Scenario: Release detail defers to hub
 
-- **WHEN** user clicks edit on a gp-content version from the GP Build stack tab
-- **THEN** the UI MUST deep-link to Component Studio for that gp-content version
+- **WHEN** enabling team views release detail for a GP release
+- **THEN** the UI MAY link to the GP hub Build stack tab rather than duplicating full build stack management on release detail
+

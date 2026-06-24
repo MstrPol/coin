@@ -153,7 +153,10 @@ export default function PromoteWizard() {
   return (
     <div className="space-y-6">
       <div>
-        <Link to="/catalog" className="text-sm text-sky-400 hover:underline">
+        <Link
+          to={gpName ? `/gp/${encodeURIComponent(gpName)}/policy` : "/gp"}
+          className="text-sm text-sky-400 hover:underline"
+        >
           ← GP Policy
         </Link>
         <h1 className="mt-2 text-2xl font-semibold">Promote canary → stable</h1>
@@ -256,7 +259,7 @@ export default function PromoteWizard() {
                 {executing ? "Выполнение…" : "Выполнить promote"}
               </button>
               <Link
-                to={`/canary`}
+                to={gpName ? `/gp/${encodeURIComponent(gpName)}/canary` : "/gp"}
                 className="text-sm text-sky-400 hover:underline"
               >
                 Canary policy →

@@ -270,7 +270,7 @@ export default function ComponentDetailPage() {
                     <td className="px-3 py-2">{u.gpName}</td>
                     <td className="px-3 py-2">
                       <Link
-                        to={`/releases/${u.gpName}/${u.version}`}
+                        to={`/gp/${encodeURIComponent(u.gpName)}/releases/${encodeURIComponent(u.version)}`}
                         className="font-mono text-sky-400 hover:underline"
                       >
                         {u.version}

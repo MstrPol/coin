@@ -154,7 +154,10 @@ export default function PilotPromotePanel({ type, name, version, canEdit, onProm
           <ul className="space-y-1 font-mono text-xs text-zinc-300">
             {gpUsage.map((u) => (
               <li key={`${u.gpName}/${u.version}`}>
-                <Link to={`/releases/${u.gpName}/${u.version}`} className="text-sky-400 hover:underline">
+                <Link
+                  to={`/gp/${encodeURIComponent(u.gpName)}/releases/${encodeURIComponent(u.version)}`}
+                  className="text-sky-400 hover:underline"
+                >
                   {u.gpName}@{u.version}
                 </Link>{" "}
                 <span className="text-zinc-500">({u.status})</span>
@@ -165,8 +168,8 @@ export default function PilotPromotePanel({ type, name, version, canEdit, onProm
       ) : (
         <p className="text-sm text-amber-300">
           Компонент не pin&apos;нут в canary/draft GP release. Добавьте в composition через{" "}
-          <Link to="/releases/publish" className="text-sky-400 hover:underline">
-            Publish wizard
+          <Link to="/gp" className="text-sky-400 hover:underline">
+            GP Profiles
           </Link>
           .
         </p>

@@ -8,22 +8,34 @@ import PlatformSettings from "./pages/PlatformSettings";
 import AuditLog from "./pages/AuditLog";
 import BranchingModelsPage from "./pages/BranchingModelsPage";
 import BuildReports from "./pages/BuildReports";
-import Canary from "./pages/Canary";
-import Catalog from "./pages/Catalog";
 import Dashboard from "./pages/Dashboard";
 import GpReleaseDetail from "./pages/GpReleaseDetail";
-import GpReleases from "./pages/GpReleases";
 import Login from "./pages/Login";
 import LoginCallback from "./pages/LoginCallback";
 import Projects from "./pages/Projects";
 import CreateGPProfile from "./pages/CreateGPProfile";
-import PublishWizard from "./pages/PublishWizard";
 import PromoteCanaryPage from "./pages/PromoteCanaryPage";
 import ResolvePreview from "./pages/ResolvePreview";
 import PlatformRuntimePage from "./pages/platform/PlatformRuntimePage";
 import PlatformBuildStacksPage from "./pages/platform/PlatformBuildStacksPage";
 import PlatformJenkinsLibPage from "./pages/platform/PlatformJenkinsLibPage";
 import PlatformComponentsPage from "./pages/platform/PlatformComponentsPage";
+import GpCatalogPage from "./pages/gp/GpCatalogPage";
+import GpHubLayout from "./pages/gp/GpHubLayout";
+import GpNewDraft from "./pages/gp/GpNewDraft";
+import GpNewRelease from "./pages/gp/GpNewRelease";
+import GpOverviewTab from "./pages/gp/tabs/GpOverviewTab";
+import GpReleasesTab from "./pages/gp/tabs/GpReleasesTab";
+import GpPolicyTab from "./pages/gp/tabs/GpPolicyTab";
+import GpCanaryTab from "./pages/gp/tabs/GpCanaryTab";
+import GpBuildStackTab from "./pages/gp/tabs/GpBuildStackTab";
+import {
+  LegacyCanaryRedirect,
+  LegacyCatalogRedirect,
+  LegacyPublishRedirect,
+  LegacyReleaseDetailRedirect,
+  LegacyReleasesRedirect,
+} from "./pages/gp/LegacyRedirects";
 
 export default function App() {
   return (
@@ -35,11 +47,24 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="projects" element={<Projects />} />
           <Route path="build-reports" element={<BuildReports />} />
-          <Route path="releases" element={<GpReleases />} />
-          <Route path="releases/:name/:version" element={<GpReleaseDetail />} />
-          <Route path="catalog" element={<Catalog />} />
+          <Route path="gp" element={<GpCatalogPage />} />
+          <Route path="gp/:name" element={<GpHubLayout />}>
+            <Route index element={<GpOverviewTab />} />
+            <Route path="releases" element={<GpReleasesTab />} />
+            <Route element={<RequireRole min="publisher" />}>
+              <Route path="releases/new" element={<GpNewRelease />} />
+              <Route path="releases/new-draft" element={<GpNewDraft />} />
+            </Route>
+            <Route path="releases/:version" element={<GpReleaseDetail />} />
+            <Route path="policy" element={<GpPolicyTab />} />
+            <Route path="canary" element={<GpCanaryTab />} />
+            <Route path="build-stack" element={<GpBuildStackTab />} />
+          </Route>
+          <Route path="releases" element={<LegacyReleasesRedirect />} />
+          <Route path="releases/:name/:version" element={<LegacyReleaseDetailRedirect />} />
+          <Route path="catalog" element={<LegacyCatalogRedirect />} />
+          <Route path="canary" element={<LegacyCanaryRedirect />} />
           <Route path="resolve" element={<ResolvePreview />} />
-          <Route path="canary" element={<Canary />} />
           <Route path="branching-models" element={<Navigate to="/platform/branching-models" replace />} />
           <Route path="components" element={<Navigate to="/platform/components" replace />} />
           <Route path="components/:type/:name" element={<ComponentDetail />} />
@@ -54,8 +79,9 @@ export default function App() {
           <Route element={<RequireRole min="publisher" />}>
             <Route path="studio" element={<ComponentStudio />} />
             <Route path="studio/:type/:name/:version" element={<ComponentStudio />} />
-            <Route path="releases/new-gp" element={<CreateGPProfile />} />
-            <Route path="releases/publish" element={<PublishWizard />} />
+            <Route path="gp/new" element={<CreateGPProfile />} />
+            <Route path="releases/new-gp" element={<Navigate to="/gp/new" replace />} />
+            <Route path="releases/publish" element={<LegacyPublishRedirect />} />
             <Route path="promote" element={<PromoteCanaryPage />} />
           </Route>
         </Route>

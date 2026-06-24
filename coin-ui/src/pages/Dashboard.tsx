@@ -31,9 +31,9 @@ export default function Dashboard() {
     ? [
         { label: "Projects", value: stats.projects, to: "/projects" },
         { label: "Stale projects", value: stats.staleProjects, to: "/projects?stale=1" },
-        { label: "GP releases", value: stats.gpReleases, to: "/releases" },
+        { label: "GP profiles", value: stats.gpReleases, to: "/gp" },
         { label: "Build reports", value: stats.buildReports, to: "/build-reports" },
-        { label: "Golden paths", value: stats.goldenPaths, to: "/releases" },
+        { label: "Golden paths", value: stats.goldenPaths, to: "/gp" },
       ]
     : [];
 

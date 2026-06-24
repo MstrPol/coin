@@ -7,6 +7,15 @@ import { isCanonicalProfile, SLOT_LABELS, sortProfileSlots } from "../lib/gpSlot
 type SlotVersions = Record<string, string[]>;
 type Tab = "draft" | "publish" | "promote";
 
+type PublishWizardProps = {
+  scopedGpName?: string;
+  lockedTab?: "draft" | "publish";
+};
+
+function releasePath(gp: string, ver: string) {
+  return `/gp/${encodeURIComponent(gp)}/releases/${encodeURIComponent(ver)}`;
+}
+
 function stripSnapshot(version: string): string {
   const idx = version.indexOf("-snapshot.");
   return idx >= 0 ? version.slice(0, idx) : version;
@@ -25,12 +34,13 @@ function nextSnapshotVersion(drafts: GPRelease[], base: string): string {
   return `${cleanBase}-snapshot.${maxN + 1}`;
 }
 
-export default function PublishWizard() {
+export default function PublishWizard({ scopedGpName, lockedTab }: PublishWizardProps = {}) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [tab, setTab] = useState<Tab>("draft");
+  const isScoped = Boolean(scopedGpName);
+  const [tab, setTab] = useState<Tab>(lockedTab ?? "draft");
   const [gpNames, setGpNames] = useState<string[]>([]);
-  const [gpName, setGpName] = useState(searchParams.get("name") ?? "");
+  const [gpName, setGpName] = useState(scopedGpName ?? searchParams.get("name") ?? "");
   const [slots, setSlots] = useState<GPProfileSlot[]>([]);
   const [composition, setComposition] = useState<Record<string, string>>({});
   const [versionOptions, setVersionOptions] = useState<SlotVersions>({});
@@ -45,6 +55,10 @@ export default function PublishWizard() {
   const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
+    if (scopedGpName) {
+      setGpName(scopedGpName);
+      return;
+    }
     api
       .gpNames()
       .then((r) => {
@@ -61,7 +75,11 @@ export default function PublishWizard() {
         }
       })
       .catch((err: Error) => setError(err.message));
-  }, []);
+  }, [scopedGpName]);
+
+  useEffect(() => {
+    if (lockedTab) setTab(lockedTab);
+  }, [lockedTab]);
 
   useEffect(() => {
     if (!gpName) {
@@ -148,7 +166,7 @@ export default function PublishWizard() {
       });
       setSuccess(`Draft ${result.name}@${result.version} создан`);
       setTimeout(() => {
-        navigate(`/releases/${result.name}/${result.version}`);
+        navigate(releasePath(result.name, result.version));
       }, 1200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "create draft failed");
@@ -176,7 +194,7 @@ export default function PublishWizard() {
       });
       setSuccess(`${result.name}@${result.version} опубликован`);
       setTimeout(() => {
-        navigate(`/releases/${result.name}/${result.version}`);
+        navigate(releasePath(result.name, result.version));
       }, 1200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "publish failed");
@@ -203,7 +221,7 @@ export default function PublishWizard() {
       );
       setSuccess(`${result.name}@${result.version} promoted → published`);
       setTimeout(() => {
-        navigate(`/releases/${result.name}/${result.version}`);
+        navigate(releasePath(result.name, result.version));
       }, 1200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "promote failed");
@@ -212,16 +230,33 @@ export default function PublishWizard() {
     }
   }
 
+  const backTo = isScoped
+    ? `/gp/${encodeURIComponent(gpName)}/releases`
+    : "/gp";
+
   return (
     <div className="space-y-6">
       <div>
-        <Link to="/releases" className="text-sm text-sky-400 hover:underline">
-          ← GP Releases
+        <Link to={backTo} className="text-sm text-sky-400 hover:underline">
+          ← {isScoped ? "Releases" : "GP Profiles"}
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold">Publish GP release</h1>
-        <p className="mt-1 text-zinc-400">Draft snapshots, direct publish или promote draft</p>
+        <h1 className="mt-2 text-2xl font-semibold">
+          {lockedTab === "draft"
+            ? "New draft snapshot"
+            : lockedTab === "publish"
+              ? "New release"
+              : "Publish GP release"}
+        </h1>
+        <p className="mt-1 text-zinc-400">
+          {isScoped
+            ? lockedTab === "draft"
+              ? `Draft snapshot для ${gpName}`
+              : `Stable release для ${gpName}`
+            : "Draft snapshots, direct publish или promote draft"}
+        </p>
       </div>
 
+      {!isScoped && (
       <div className="flex gap-2 border-b border-zinc-800">
         {(
           [
@@ -249,6 +284,7 @@ export default function PublishWizard() {
           </button>
         ))}
       </div>
+      )}
 
       {error && (
         <p className="rounded border border-red-900/50 bg-red-950/30 px-4 py-3 text-red-400">
@@ -265,7 +301,7 @@ export default function PublishWizard() {
         <div className="rounded-lg border border-amber-900/40 bg-amber-950/20 px-4 py-4 text-sm text-amber-200">
           <p>Нет Golden Path на платформе.</p>
           <p className="mt-2">
-            <Link to="/releases/new-gp" className="font-medium text-sky-400 hover:underline">
+            <Link to="/gp/new" className="font-medium text-sky-400 hover:underline">
               Создайте GP profile
             </Link>{" "}
             — затем вернитесь к publish.
@@ -277,11 +313,11 @@ export default function PublishWizard() {
         <p className="text-zinc-500">Загрузка profile…</p>
       ) : gpName ? (
         <>
-          <GpSelector gpNames={gpNames} gpName={gpName} onChange={setGpName} />
+          {!isScoped && <GpSelector gpNames={gpNames} gpName={gpName} onChange={setGpName} />}
           {!isCanonicalProfile(slots) && (
             <p className="rounded border border-amber-500/40 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
               Профиль использует устаревшие slots (не 4-component model). Создайте новый GP через{" "}
-              <Link to="/releases/new-gp" className="text-sky-400 hover:underline">
+              <Link to="/gp/new" className="text-sky-400 hover:underline">
                 Новый GP
               </Link>
               .
@@ -408,7 +444,7 @@ export default function PublishWizard() {
                 </button>
                 {promoteVersion && (
                   <Link
-                    to={`/releases/${gpName}/${encodeURIComponent(promoteVersion)}`}
+                    to={releasePath(gpName, promoteVersion)}
                     className="rounded border border-zinc-700 px-5 py-2.5 text-sm text-zinc-300 hover:bg-zinc-800"
                   >
                     View draft
@@ -447,7 +483,7 @@ function GpSelector({
           </select>
         </Field>
         <Link
-          to="/releases/new-gp"
+          to="/gp/new"
           className="rounded-lg border border-sky-500/70 bg-sky-950/50 px-4 py-2 text-sm font-semibold text-sky-300 hover:border-sky-400 hover:bg-sky-900/60"
         >
           + Новый GP

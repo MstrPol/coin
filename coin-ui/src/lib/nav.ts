@@ -33,9 +33,7 @@ export const navGroups: NavGroup[] = [
     id: "golden-paths",
     label: "Golden Paths",
     items: [
-      { label: "Releases", to: "/releases" },
-      { label: "GP Policy", to: "/catalog" },
-      { label: "Canary", to: "/canary" },
+      { label: "GP Profiles", to: "/gp" },
       { label: "Resolve", to: "/resolve" },
     ],
   },

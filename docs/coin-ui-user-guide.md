@@ -34,9 +34,7 @@ Key или OIDC access token хранится в `localStorage`.
 | Overview | Dashboard | `/` | reader+ |
 | Fleet | Projects | `/projects` | reader+ |
 | Fleet | Build reports | `/build-reports` | reader+ |
-| Golden Paths | Releases | `/releases` | reader+ |
-| Golden Paths | GP Policy | `/catalog` | reader+ |
-| Golden Paths | Canary | `/canary` | reader+ |
+| Golden Paths | GP Profiles | `/gp` | reader+ |
 | Golden Paths | Resolve | `/resolve` | reader+ |
 | Platform | Runtime | `/platform/runtime` | reader+ |
 | Platform | Build stacks | `/platform/build-stacks` | reader+ |
@@ -46,9 +44,9 @@ Key или OIDC access token хранится в `localStorage`.
 | Admin | Audit | `/audit` | admin |
 | Footer | Studio | `/studio` | publisher+ |
 
-**Redirects:** `/branching-models` → `/platform/branching-models`, `/components` → `/platform/components` (legacy aggregate).
+**Redirects:** `/branching-models` → `/platform/branching-models`, `/components` → `/platform/components`, `/releases` → `/gp`, `/catalog` → `/gp`, `/canary` → `/gp`, `/releases/:n/:v` → `/gp/:n/releases/:v`, `/releases/new-gp` → `/gp/new`, `/releases/publish` → `/gp` (или `/gp/:name/releases/new` с `?name=`).
 
-**Publish wizard** — только с GP Releases (кнопка Publish), не в sidebar. Route: `/releases/publish`.
+**Publish flows** — внутри GP hub (кнопки на hub / Releases tab), не в sidebar.
 
 ## Страницы
 
@@ -82,18 +80,32 @@ Key или OIDC access token хранится в `localStorage`.
 
 **Export CSV** — все matching reports по фильтрам (`GET /v1/admin/build-reports/export`).
 
-### GP Releases
+### GP Profiles (`/gp`)
 
-Список published + draft releases. Dropdown-фильтр по GP.
+Каталог Golden Path profiles (не flat-список всех версий). Колонки: slots, latest stable/canary, release count.
 
-- **Publish** — wizard (`/releases/publish`): draft snapshot, direct publish, promote
-- **Detail** — composition, artifact editor (draft), blast radius (published)
+- **Open** → GP hub (`/gp/:name`) с вкладками Overview, Releases, Policy, Canary, Build stack
+- **New profile** (`/gp/new`) — только `createGPProfile`; initial release — отдельный CTA на hub
 
-### GP Policy (бывш. Catalog)
+### GP hub (`/gp/:name`)
 
-Политика версий GP: latest stable, latest canary, minimum, deprecated.
+Entity-centric view одного GP:
 
-Превью resolve для pin `*` — stable и canary линии (★).
+| Вкладка | Содержание |
+|---------|------------|
+| Overview | Slots, policy summary, quick links |
+| Releases | Список releases + drafts для этого GP |
+| Policy | latest / minimum / deprecated, resolve preview |
+| Canary | Rollout %, health, resolve preview |
+| Build stack | gp-content версии для profile name |
+
+**Publisher actions:** New draft (`/gp/:name/releases/new-draft`), New release (`/gp/:name/releases/new`).
+
+### GP release detail (`/gp/:name/releases/:version`)
+
+Composition, metadata, blast radius (published). Promote draft — только здесь.
+
+Build stack — ссылка на вкладку hub **Build stack**.
 
 ### Resolve preview
 
@@ -102,10 +114,6 @@ Key или OIDC access token хранится в `localStorage`.
 При выбранном project — панель **Canary status** (audience, mode, bucket, rollout).
 
 Override **auto | stable | canary** — только для preview (`forceChannel`), не меняет project в БД.
-
-### Canary
-
-Slider `canary_percent`, preview audience, health badge по build reports.
 
 ### Components (Platform)
 
@@ -120,7 +128,7 @@ Legacy aggregate: `/platform/components` (redirect с `/components`).
 
 Detail: `/components/:type/:name` — версии, metadata/contentRef, GP usage, publish (publisher).
 
-**GP release detail** — вкладка **Build stack**: gp-content версии для profile name, ссылки в Studio.
+**Build stack** для GP — вкладка hub `/gp/:name/build-stack` (gp-content версии, ссылки в Studio).
 
 **Component Studio** — `/studio` (publisher, shortcut в footer sidebar). Authoring: validate → register (PG) → canary → promote (Nexus).
 

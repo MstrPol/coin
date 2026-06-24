@@ -28,12 +28,13 @@ make coin-ui-up   # http://localhost:8091
 | **Overview** | `/` | Dashboard (status, versions, stats) | reader+ |
 | **Fleet** | `/projects` | Projects registry + canary mode | reader+ |
 | | `/build-reports` | Build reports list | reader+ |
-| **Golden Paths** | `/releases` | GP releases + GP filter | reader+ |
-| | `/catalog` | GP Policy (version policy) | reader+ |
-| | `/canary` | Canary policy + health | reader+ |
+| **Golden Paths** | `/gp` | GP Profiles catalog | reader+ |
+| | `/gp/:name` | GP hub (Overview, Releases, Policy, Canary, Build stack) | reader+ |
+| | `/gp/:name/releases/:version` | Release detail, composition, blast radius | reader+ |
+| | `/gp/new` | New GP profile (без auto-publish) | publisher+ |
+| | `/gp/:name/releases/new` | New stable release | publisher+ |
+| | `/gp/:name/releases/new-draft` | New draft snapshot | publisher+ |
 | | `/resolve` | Resolve preview + canary debug | reader+ |
-| | `/releases/:name/:version` | Detail, composition, **Build stack** tab, blast radius | reader+ |
-| | `/releases/publish` | Publish wizard (кнопка на GP Releases) | publisher+ |
 | **Platform** | `/platform/runtime` | Agent + executor catalog | reader+ |
 | | `/platform/build-stacks` | gp-content catalog | reader+ |
 | | `/platform/branching-models` | Branching models catalog | reader+ |
@@ -45,7 +46,7 @@ make coin-ui-up   # http://localhost:8091
 | **Admin** | `/platform-settings` | Nexus platform settings | admin (edit publisher+) |
 | | `/audit` | Audit log | admin |
 
-**Redirects:** `/branching-models` → `/platform/branching-models`, `/components` → `/platform/components`.
+**Redirects:** `/branching-models` → `/platform/branching-models`, `/components` → `/platform/components`, `/releases` → `/gp`, `/catalog` → `/gp`, `/canary` → `/gp`, `/releases/:n/:v` → `/gp/:n/releases/:v`, `/releases/new-gp` → `/gp/new`, `/releases/publish` → `/gp` (или `/gp/:name/releases/new` с `?name=`).
 
 Header: **API docs ↗** → `/api/docs/` (Swagger UI через proxy).
 

@@ -3,9 +3,7 @@
 ## Purpose
 
 Enabling-team operator console shell: sidebar IA, Fleet vs Platform grouping, legacy route redirects.
-
 ## Requirements
-
 ### Requirement: Sidebar navigation shell
 
 The coin-ui SHALL use a left sidebar navigation grouped by operator concern instead of a single horizontal top navigation bar.
@@ -15,15 +13,10 @@ The coin-ui SHALL use a left sidebar navigation grouped by operator concern inst
 - **WHEN** an authenticated user opens any coin-ui page
 - **THEN** the UI MUST show sidebar groups: Overview, Fleet, Golden Paths, Platform, and Admin (admin-only items where applicable)
 
-#### Scenario: Reader sees Platform catalogs
+#### Scenario: Golden Paths nav entries
 
-- **WHEN** user has role `reader`
-- **THEN** the Platform group MUST include Runtime, Build stacks, Branching models, and Jenkins library entries (read-only)
-
-#### Scenario: Publisher Studio shortcut
-
-- **WHEN** user has role `publisher` or `admin`
-- **THEN** the sidebar footer MUST show a Studio shortcut linking to `/studio`
+- **WHEN** user views the Golden Paths group in the sidebar
+- **THEN** the UI MUST include GP Profiles (`/gp`) and Resolve (`/resolve`) only — not separate Releases, GP Policy, or Canary top-level items
 
 ### Requirement: Legacy route redirects
 
@@ -47,3 +40,4 @@ The shell SHALL allow catalog and entity pages to use available viewport width.
 
 - **WHEN** user views a catalog table under the new shell
 - **THEN** main content MUST NOT be constrained to `max-w-5xl` at the layout level
+

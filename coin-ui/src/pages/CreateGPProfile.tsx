@@ -41,7 +41,6 @@ function buildInitialSlots(
 
 export default function CreateGPProfile() {
   const navigate = useNavigate();
-  const gpVersion = "0.0.1";
   const [name, setName] = useState("");
   const [slots, setSlots] = useState<SlotRow[]>(() => buildInitialSlots({}));
   const [componentNames, setComponentNames] = useState<Record<string, string[]>>({});
@@ -159,7 +158,6 @@ export default function CreateGPProfile() {
       }
     }
 
-    const composition = Object.fromEntries(slots.map((s) => [s.key, s.version]));
     const profileSlots = slotsToProfile(slots);
 
     setSubmitting(true);
@@ -170,12 +168,7 @@ export default function CreateGPProfile() {
         slots: profileSlots,
         actor: actor.trim() || undefined,
       });
-      await api.publishGPRelease(trimmed, {
-        version: gpVersion,
-        composition,
-        actor: actor.trim() || undefined,
-      });
-      navigate(`/releases/${encodeURIComponent(trimmed)}/${encodeURIComponent(gpVersion)}`);
+      navigate(`/gp/${encodeURIComponent(trimmed)}?welcome=1`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка создания GP");
     } finally {
@@ -186,19 +179,19 @@ export default function CreateGPProfile() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <Link to="/releases" className="text-sm text-sky-400 hover:underline">
-          ← GP releases
+        <Link to="/gp" className="text-sm text-sky-400 hover:underline">
+          ← GP Profiles
         </Link>
         <h1 className="mt-2 text-2xl font-semibold">Новый Golden Path</h1>
         <p className="mt-1 text-sm text-zinc-400">
-          Профиль и первый release: выберите зарегистрированные версии для 4 runtime-компонентов
-          (jnlp, agent, executor, lib, gp-content).
+          Создайте GP profile — выберите зарегистрированные версии для runtime-компонентов
+          (jnlp, agent, executor, lib, gp-content). Initial release — отдельный шаг на hub.
         </p>
       </div>
 
       <form onSubmit={onSubmit} className="space-y-4 rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block space-y-1">
+          <label className="block space-y-1 sm:col-span-2">
             <span className="text-sm text-zinc-300">Имя GP (coin.goldenPath)</span>
             <input
               className={inputClass}
@@ -207,17 +200,6 @@ export default function CreateGPProfile() {
               placeholder="go-app"
               required
             />
-          </label>
-          <label className="block space-y-1">
-            <span className="text-sm text-zinc-300">Версия release</span>
-            <input
-              className={`${inputClass} cursor-not-allowed opacity-70`}
-              value={gpVersion}
-              readOnly
-              disabled
-              aria-readonly="true"
-            />
-            <p className="text-xs text-zinc-500">Первый release нового GP всегда 0.0.1</p>
           </label>
         </div>
 
@@ -317,7 +299,7 @@ export default function CreateGPProfile() {
           disabled={submitting || loading}
           className="rounded bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50"
         >
-          {submitting ? "Создание…" : "Создать GP и опубликовать release"}
+          {submitting ? "Создание…" : "Создать GP profile"}
         </button>
       </form>
     </div>
