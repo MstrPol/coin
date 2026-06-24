@@ -99,7 +99,8 @@ export default function BranchingModelsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Branching Models</h1>
+          <p className="text-xs uppercase tracking-wide text-zinc-500">Platform</p>
+          <h1 className="text-2xl font-semibold">Branching models</h1>
           <p className="mt-1 text-zinc-400">
             Каталог моделей ветвления · canary в PostgreSQL, Nexus на promote
           </p>

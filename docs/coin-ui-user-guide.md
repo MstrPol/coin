@@ -25,22 +25,30 @@ Operator UI для Control Plane: fleet analytics, GP releases, политика
 
 Key или OIDC access token хранится в `localStorage`.
 
-## Nav
+## Nav (sidebar)
 
-| Пункт | Route | RBAC |
-|-------|-------|------|
-| Dashboard | `/` | reader+ |
-| Projects | `/projects` | reader+ |
-| GP Releases | `/releases` | reader+ |
-| GP Policy | `/catalog` | reader+ |
-| Resolve | `/resolve` | reader+ |
-| Canary | `/canary` | reader+ |
-| Components | `/components` | reader+ |
-| Platform | `/platform-settings` | reader+ (edit — publisher+) |
-| Audit | `/audit` | reader+ |
-| Build reports | `/build-reports` | reader+ |
+Группы в левом sidebar:
 
-**Publish wizard** — только с GP Releases (кнопка Publish), не в top nav. Route: `/releases/publish`.
+| Group | Пункт | Route | RBAC |
+|-------|-------|-------|------|
+| Overview | Dashboard | `/` | reader+ |
+| Fleet | Projects | `/projects` | reader+ |
+| Fleet | Build reports | `/build-reports` | reader+ |
+| Golden Paths | Releases | `/releases` | reader+ |
+| Golden Paths | GP Policy | `/catalog` | reader+ |
+| Golden Paths | Canary | `/canary` | reader+ |
+| Golden Paths | Resolve | `/resolve` | reader+ |
+| Platform | Runtime | `/platform/runtime` | reader+ |
+| Platform | Build stacks | `/platform/build-stacks` | reader+ |
+| Platform | Branching models | `/platform/branching-models` | reader+ |
+| Platform | Jenkins library | `/platform/jenkins-lib` | reader+ |
+| Admin | Platform settings | `/platform-settings` | admin |
+| Admin | Audit | `/audit` | admin |
+| Footer | Studio | `/studio` | publisher+ |
+
+**Redirects:** `/branching-models` → `/platform/branching-models`, `/components` → `/platform/components` (legacy aggregate).
+
+**Publish wizard** — только с GP Releases (кнопка Publish), не в sidebar. Route: `/releases/publish`.
 
 ## Страницы
 
@@ -91,11 +99,22 @@ Override **auto | stable | canary** — только для preview (`forceChann
 
 Slider `canary_percent`, preview audience, health badge по build reports.
 
-### Components
+### Components (Platform)
 
-Component registry (SoT — coin-api). Список → **Detail** (`/components/:type/:name`).
+Каталоги по ролям в composition — **Platform** в sidebar:
 
-На detail: версии, metadata/contentRef, использование в GP releases, **Publish new version** (publisher).
+- **Runtime** (`/platform/runtime`) — `agent`, `executor`
+- **Build stacks** (`/platform/build-stacks`) — `gp-content`
+- **Branching models** (`/platform/branching-models`) — lifecycle draft → canary → published
+- **Jenkins library** (`/platform/jenkins-lib`) — `lib` / coin-lib
+
+Legacy aggregate: `/platform/components` (redirect с `/components`).
+
+Detail: `/components/:type/:name` — версии, metadata/contentRef, GP usage, publish (publisher).
+
+**GP release detail** — вкладка **Build stack**: gp-content версии для profile name, ссылки в Studio.
+
+**Component Studio** — `/studio` (publisher, shortcut в footer sidebar). Authoring: validate → register (PG) → canary → promote (Nexus).
 
 ### Platform settings
 

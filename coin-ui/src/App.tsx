@@ -1,10 +1,9 @@
-import { Link, Route, Routes } from "react-router-dom";
+import { Link, Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import RequireAuth from "./components/RequireAuth";
 import RequireRole from "./components/RequireRole";
 import ComponentDetail from "./pages/ComponentDetail";
 import ComponentStudio from "./pages/ComponentStudio";
-import Components from "./pages/Components";
 import PlatformSettings from "./pages/PlatformSettings";
 import AuditLog from "./pages/AuditLog";
 import BranchingModelsPage from "./pages/BranchingModelsPage";
@@ -21,6 +20,10 @@ import CreateGPProfile from "./pages/CreateGPProfile";
 import PublishWizard from "./pages/PublishWizard";
 import PromoteCanaryPage from "./pages/PromoteCanaryPage";
 import ResolvePreview from "./pages/ResolvePreview";
+import PlatformRuntimePage from "./pages/platform/PlatformRuntimePage";
+import PlatformBuildStacksPage from "./pages/platform/PlatformBuildStacksPage";
+import PlatformJenkinsLibPage from "./pages/platform/PlatformJenkinsLibPage";
+import PlatformComponentsPage from "./pages/platform/PlatformComponentsPage";
 
 export default function App() {
   return (
@@ -37,12 +40,17 @@ export default function App() {
           <Route path="catalog" element={<Catalog />} />
           <Route path="resolve" element={<ResolvePreview />} />
           <Route path="canary" element={<Canary />} />
-          <Route path="components" element={<Components />} />
-          <Route path="branching-models" element={<BranchingModelsPage />} />
+          <Route path="branching-models" element={<Navigate to="/platform/branching-models" replace />} />
+          <Route path="components" element={<Navigate to="/platform/components" replace />} />
           <Route path="components/:type/:name" element={<ComponentDetail />} />
           <Route path="components/:type/:name/:version" element={<ComponentDetail />} />
           <Route path="platform-settings" element={<PlatformSettings />} />
           <Route path="audit" element={<AuditLog />} />
+          <Route path="platform/runtime" element={<PlatformRuntimePage />} />
+          <Route path="platform/build-stacks" element={<PlatformBuildStacksPage />} />
+          <Route path="platform/branching-models" element={<BranchingModelsPage />} />
+          <Route path="platform/jenkins-lib" element={<PlatformJenkinsLibPage />} />
+          <Route path="platform/components" element={<PlatformComponentsPage />} />
           <Route element={<RequireRole min="publisher" />}>
             <Route path="studio" element={<ComponentStudio />} />
             <Route path="studio/:type/:name/:version" element={<ComponentStudio />} />

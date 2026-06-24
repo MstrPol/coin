@@ -19,26 +19,33 @@ cd docker
 make coin-ui-up   # http://localhost:8091
 ```
 
-## Pages & nav
+## Pages & nav (sidebar)
 
-| Route | Содержание | Nav | RBAC |
-|-------|------------|-----|------|
-| `/` | Dashboard (status, versions, stats) | Dashboard | reader+ |
-| `/projects` | Projects registry + canary mode | Projects | reader+ |
-| `/build-reports` | Build reports list | — (Dashboard link) | reader+ |
-| `/releases` | GP releases + GP filter | GP Releases | reader+ |
-| `/releases/:name/:version` | Detail, artifacts, blast radius | — | reader+ |
-| `/releases/publish` | Publish wizard | — (кнопка на GP Releases) | publisher+ |
-| `/catalog` | GP Policy (version policy) | GP Policy | reader+ |
-| `/promote` | Promote canary → stable wizard | — | publisher+ |
-| `/resolve` | Resolve preview + canary debug | Resolve | reader+ |
-| `/canary` | Canary policy + health | Canary | reader+ |
-| `/components` | Component list | Components | reader+ |
-| `/components/:type/:name` | Component detail + publish | — | reader+ |
-| `/studio` | Component Studio — новый draft | Studio | publisher+ |
-| `/studio/:type/:name/:version` | Editor + validate → canary + pilot promote gate | — | publisher+ |
-| `/platform-settings` | Nexus platform settings | Platform | reader+ / edit publisher+ |
-| `/audit` | Audit log | Audit | reader+ |
+Навигация — **левый sidebar** с группами. Аудитория: enabling/platform team.
+
+| Group | Route | Содержание | RBAC |
+|-------|-------|------------|------|
+| **Overview** | `/` | Dashboard (status, versions, stats) | reader+ |
+| **Fleet** | `/projects` | Projects registry + canary mode | reader+ |
+| | `/build-reports` | Build reports list | reader+ |
+| **Golden Paths** | `/releases` | GP releases + GP filter | reader+ |
+| | `/catalog` | GP Policy (version policy) | reader+ |
+| | `/canary` | Canary policy + health | reader+ |
+| | `/resolve` | Resolve preview + canary debug | reader+ |
+| | `/releases/:name/:version` | Detail, composition, **Build stack** tab, blast radius | reader+ |
+| | `/releases/publish` | Publish wizard (кнопка на GP Releases) | publisher+ |
+| **Platform** | `/platform/runtime` | Agent + executor catalog | reader+ |
+| | `/platform/build-stacks` | gp-content catalog | reader+ |
+| | `/platform/branching-models` | Branching models catalog | reader+ |
+| | `/platform/jenkins-lib` | coin-lib catalog | reader+ |
+| | `/platform/components` | Legacy aggregate (deprecated) | reader+ |
+| | `/components/:type/:name` | Component detail + publish | reader+ |
+| | `/studio` | Component Studio | publisher+ (sidebar footer shortcut) |
+| | `/studio/:type/:name/:version` | Editor + validate → canary | publisher+ |
+| **Admin** | `/platform-settings` | Nexus platform settings | admin (edit publisher+) |
+| | `/audit` | Audit log | admin |
+
+**Redirects:** `/branching-models` → `/platform/branching-models`, `/components` → `/platform/components`.
 
 Header: **API docs ↗** → `/api/docs/` (Swagger UI через proxy).
 
