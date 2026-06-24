@@ -29,6 +29,7 @@ import {
   isStudioType,
   STUDIO_COMPONENT_TYPES,
   studioTypeConfig,
+  usesPGOnlyCanaryRegistry,
 } from "../lib/componentStudio";
 
 function statusBadge(status: string): string {
@@ -367,7 +368,11 @@ function StudioEditor({
         actor: getActor() || undefined,
       });
       await api.publishComponentToCanary(type, name, version, getActor() || undefined);
-      setMessage(`Опубликовано в canary: ${type}/${name}@${version}`);
+      setMessage(
+        usesPGOnlyCanaryRegistry(type)
+          ? `Опубликовано в canary (PG): ${type}/${name}@${version}`
+          : `Опубликовано в canary: ${type}/${name}@${version}`,
+      );
       await load();
       setValidation(null);
     } catch (err) {
@@ -469,6 +474,7 @@ function StudioEditor({
           )}
 
           <LifecyclePanel
+            type={type}
             status={detail?.status ?? "draft"}
             hasContentRef={hasContentRef}
             validation={validation}
@@ -495,6 +501,7 @@ function StudioEditor({
 }
 
 function LifecyclePanel({
+  type,
   status,
   hasContentRef,
   validation,
@@ -504,6 +511,7 @@ function LifecyclePanel({
   onValidate,
   onPublishCanary,
 }: {
+  type: string;
   status: string;
   hasContentRef: boolean;
   validation: ValidateComponentPackageResult | null;
@@ -514,12 +522,21 @@ function LifecyclePanel({
   onPublishCanary: () => void;
 }) {
   const validated = validation?.valid === true;
+  const pgOnly = usesPGOnlyCanaryRegistry(type);
   const steps = [
     { id: "draft", label: "Draft (PG)", done: true },
     { id: "validate", label: "Validate", done: validated },
-    { id: "register", label: "Nexus register", done: hasContentRef },
+    {
+      id: "register",
+      label: pgOnly ? "Register (PG)" : "Nexus register",
+      done: hasContentRef,
+    },
     { id: "canary", label: "Publish canary", done: status === "canary" || status === "published" },
-    { id: "stable", label: "Promote stable", done: status === "published" },
+    {
+      id: "stable",
+      label: pgOnly ? "Promote (Nexus)" : "Promote stable",
+      done: status === "published",
+    },
   ];
 
   return (
@@ -573,6 +590,7 @@ function LifecyclePanel({
       {status === "canary" && (
         <p className="text-xs text-sky-400">
           Версия в canary — назначьте pilot projects и promote stable ниже.
+          {pgOnly && " Promote загрузит immutable package в Nexus."}
         </p>
       )}
     </div>

@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"coin.local/coin-api/internal/manifest"
+	"coin.local/coin-api/internal/componentpackage"
 )
 
 func (s *Store) branchingModelVersionFromComposition(ctx context.Context, gpName, gpVersion string) (string, string, error) {
@@ -69,7 +70,7 @@ func branchingRulesFromRawRef(raw json.RawMessage) (map[string]any, error) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil, nil
 	}
-	if isContentRefV2(raw) {
+	if isContentRefV2(raw) || componentpackage.IsContentRefV2Envelope(raw) {
 		return branchingRulesFromV2Manifest(raw)
 	}
 	return nil, fmt.Errorf("branching-model content_ref v2 required")

@@ -104,6 +104,75 @@ func (s *Store) insertComponentVersion(ctx context.Context, in ComponentVersionI
 	}, nil
 }
 
+func (s *Store) PromoteComponentToPublishedWithContentRef(ctx context.Context, typ, name, version string, contentRef json.RawMessage, actor string) (ComponentVersionRow, error) {
+	if typ == "" || name == "" || version == "" {
+		return ComponentVersionRow{}, fmt.Errorf("type, name and version are required")
+	}
+	if _, err := componentpackage.ValidateContentRefV2(contentRef); err != nil {
+		return ComponentVersionRow{}, fmt.Errorf("%w: %s", ErrInvalidContentRef, err)
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return ComponentVersionRow{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var row ComponentVersionRow
+	var meta, existingRef []byte
+	err = tx.QueryRow(ctx, `
+		SELECT cv.id, c.id, c.type, c.name, cv.version, cv.status::text, cv.metadata, cv.content_ref
+		FROM component_versions cv
+		JOIN components c ON c.id = cv.component_id
+		WHERE c.type = $1 AND c.name = $2 AND cv.version = $3
+		FOR UPDATE
+	`, typ, name, version).Scan(
+		&row.ID, &row.ComponentID, &row.Type, &row.Name, &row.Version, &row.Status, &meta, &existingRef,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ComponentVersionRow{}, ErrNotFound
+		}
+		return ComponentVersionRow{}, err
+	}
+	if row.Status != "canary" {
+		return ComponentVersionRow{}, ErrComponentVersionNotCanary
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE component_versions SET status = 'published'::component_status, content_ref = $2
+		WHERE id = $1
+	`, row.ID, nullableJSON(contentRef))
+	if err != nil {
+		return ComponentVersionRow{}, err
+	}
+
+	entityKey := fmt.Sprintf("%s/%s@%s", typ, name, version)
+	auditPayload, _ := json.Marshal(map[string]any{
+		"type":    typ,
+		"name":    name,
+		"version": version,
+		"from":    "canary",
+		"to":      "published",
+	})
+	_, err = tx.Exec(ctx, `
+		INSERT INTO audit_log (action, entity_type, entity_key, actor, payload)
+		VALUES ('promote_component_version', 'component_version', $1, $2, $3)
+	`, entityKey, nullIfEmpty(actor), auditPayload)
+	if err != nil {
+		return ComponentVersionRow{}, fmt.Errorf("audit log: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ComponentVersionRow{}, err
+	}
+
+	row.Status = "published"
+	row.Metadata = meta
+	row.ContentRef = contentRef
+	return row, nil
+}
+
 func (s *Store) transitionComponentVersion(ctx context.Context, typ, name, version, actor, fromStatus, toStatus, auditAction string) (ComponentVersionRow, error) {
 	if typ == "" || name == "" || version == "" {
 		return ComponentVersionRow{}, fmt.Errorf("type, name and version are required")
@@ -141,7 +210,7 @@ func (s *Store) transitionComponentVersion(ctx context.Context, typ, name, versi
 		}
 		return ComponentVersionRow{}, fmt.Errorf("%w: %s -> %s", ErrInvalidComponentStatusTransition, row.Status, toStatus)
 	}
-	if toStatus == "canary" && !componentpackage.IsContentRefV2(contentRef) {
+	if toStatus == "canary" && !componentpackage.IsRegisteredForCanary(contentRef) {
 		return ComponentVersionRow{}, ErrComponentPackageNotRegistered
 	}
 

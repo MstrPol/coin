@@ -32,3 +32,8 @@ export function studioTypeConfig(type: string): StudioComponentType | undefined 
 export function isStudioType(type: string): boolean {
   return STUDIO_COMPONENT_TYPES.some((t) => t.type === type);
 }
+
+/** Types where register-package writes PG-only until promote (BML). */
+export function usesPGOnlyCanaryRegistry(type: string): boolean {
+  return type === "branching-model";
+}

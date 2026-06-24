@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 
+	"coin.local/coin-api/internal/componentpackage"
 	"coin.local/coin-api/internal/manifest"
 )
 
@@ -107,12 +108,5 @@ func contentBundleFromV2Manifest(meta gpContentMetadata, raw json.RawMessage) (m
 }
 
 func isContentRefV2(raw json.RawMessage) bool {
-	var probe struct {
-		SchemaVersion int             `json:"schemaVersion"`
-		Package       json.RawMessage `json:"package"`
-	}
-	if json.Unmarshal(raw, &probe) != nil {
-		return false
-	}
-	return probe.SchemaVersion == 2 && len(probe.Package) > 0
+	return componentpackage.IsContentRefV2Envelope(raw)
 }

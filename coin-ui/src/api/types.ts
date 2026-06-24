@@ -123,8 +123,8 @@ export type RegisterComponentPackageResult = {
   type: string;
   name: string;
   version: string;
-  packageUrl: string;
-  packageSha256: string;
+  packageUrl?: string;
+  packageSha256?: string;
   filesUploaded: number;
   contentRef: Record<string, unknown>;
 };

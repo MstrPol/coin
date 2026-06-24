@@ -7,6 +7,7 @@ import ComponentStudio from "./pages/ComponentStudio";
 import Components from "./pages/Components";
 import PlatformSettings from "./pages/PlatformSettings";
 import AuditLog from "./pages/AuditLog";
+import BranchingModelsPage from "./pages/BranchingModelsPage";
 import BuildReports from "./pages/BuildReports";
 import Canary from "./pages/Canary";
 import Catalog from "./pages/Catalog";
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="resolve" element={<ResolvePreview />} />
           <Route path="canary" element={<Canary />} />
           <Route path="components" element={<Components />} />
+          <Route path="branching-models" element={<BranchingModelsPage />} />
           <Route path="components/:type/:name" element={<ComponentDetail />} />
           <Route path="components/:type/:name/:version" element={<ComponentDetail />} />
           <Route path="platform-settings" element={<PlatformSettings />} />

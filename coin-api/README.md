@@ -88,7 +88,8 @@ Fleet scanner удалён (UI-02).
 | `POST .../versions/drafts` | Создать draft (Component Studio) |
 | `PATCH .../versions/{v}` | Редактировать draft (metadata, contentRef) |
 | `POST .../versions/{v}/validate-package` | Server-side validation draft package |
-| `POST .../versions/{v}/register-package` | Draft bodies (PG) → Nexus package + content_ref v2 |
+| `POST .../versions/{v}/register-package` | Draft bodies (PG) → content_ref v2; `branching-model` — PG-only до promote, остальные types — Nexus |
+| `POST .../versions/{v}/promote` | `branching-model` — Nexus upload + published content_ref; остальные — смена status |
 | `PUT .../versions/{v}/artifacts/*` | Draft artifact bodies (PG, Q1) |
 | `POST .../versions/{v}/publish-canary` | draft → canary |
 | `POST .../versions/{v}/promote` | canary → published |

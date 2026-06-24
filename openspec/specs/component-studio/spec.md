@@ -3,7 +3,6 @@
 ## Purpose
 
 Component Studio as primary UI-first authoring path for platform components.
-
 ## Requirements
 ### Requirement: Component Studio as primary authoring path
 
@@ -21,13 +20,13 @@ The coin-ui SHALL provide Component Studio as the primary path for enabling team
 
 #### Scenario: Publish to canary
 
-- **WHEN** enabling team publishes a validated draft to canary
-- **THEN** the UI MUST call Admin API to upload package to Nexus, register version, and set state to `canary`
+- **WHEN** enabling team publishes a validated draft to canary for `branching-model`
+- **THEN** the UI MUST call Admin API to register the package in PostgreSQL only (artifact bodies + content_ref manifest subset), set state to `canary`, and MUST NOT upload immutable package files to Nexus
 
 #### Scenario: Promote to stable
 
-- **WHEN** health gate passes for pilot projects on canary line
-- **THEN** the UI MUST offer Promote to stable updating component state and catalog pointers in one flow
+- **WHEN** health gate passes for pilot projects on canary line and enabling team promotes `branching-model` to stable
+- **THEN** the UI MUST upload the immutable package to Nexus, update `content_ref` v2 with `package.url` and digest, and set component state to `published` in one flow
 
 ### Requirement: Type-aware editors
 

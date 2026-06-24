@@ -1089,8 +1089,10 @@ components:
     ContentRefV2:
       type: object
       additionalProperties: false
-      required: [schemaVersion, package]
-      description: Component package envelope (GCP component platform)
+      required: [schemaVersion]
+      description: |
+        Component package envelope (GCP component platform).
+        Draft/canary may omit package (PG-only); published requires package.url + package.sha256.
       properties:
         schemaVersion:
           type: integer
@@ -1103,7 +1105,7 @@ components:
             url:
               type: string
               format: uri
-              description: Nexus URL of package.manifest.json
+              description: Nexus URL of package.manifest.json (required when status is published)
             sha256:
               type: string
               pattern: "^sha256:[a-f0-9]{64}$"
@@ -1262,7 +1264,7 @@ components:
 
     RegisterComponentPackageResult:
       type: object
-      required: [type, name, version, packageUrl, packageSha256, filesUploaded, contentRef]
+      required: [type, name, version, filesUploaded, contentRef]
       properties:
         type:
           type: string

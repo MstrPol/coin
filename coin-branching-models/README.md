@@ -23,7 +23,7 @@ Primary artifact: `model.yaml`. Resolve materializer читает `content_ref` 
 
 ## Publish
 
-**Primary path:** Component Studio (`/studio`) → validate → register → canary → promote.
+**Primary path:** Component Studio (`/studio` или `/branching-models`) → validate → register (PG) → canary → promote (Nexus).
 
 **Bootstrap / local seed** (deprecated для fleet, OK для pilot):
 
@@ -32,7 +32,7 @@ Primary artifact: `model.yaml`. Resolve materializer читает `content_ref` 
 ./scripts/publish-branching-model.sh semver-tag 1.0.0
 ```
 
-Flow: draft → artifact `model.yaml` → `register-package` (Nexus + content_ref v2) → canary → published.
+Flow: draft → artifact `model.yaml` → `register-package` (PG content_ref v2, без Nexus) → canary → promote (Nexus + published).
 
 ```bash
 cd docker

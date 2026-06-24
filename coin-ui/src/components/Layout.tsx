@@ -36,6 +36,9 @@ export default function Layout() {
             <NavLink to="/components" className={linkClass}>
               Components
             </NavLink>
+            <NavLink to="/branching-models" className={linkClass}>
+              Branching Models
+            </NavLink>
             <NavLink to="/studio" className={linkClass}>
               Studio
             </NavLink>

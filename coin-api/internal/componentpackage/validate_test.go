@@ -58,10 +58,35 @@ func TestValidateContentRefOnWrite(t *testing.T) {
 
 func TestIsContentRefV2(t *testing.T) {
 	t.Parallel()
-	if !IsContentRefV2(json.RawMessage(`{"schemaVersion":2,"package":{"url":"http://x","sha256":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}`)) {
-		t.Fatal("expected v2")
+	full := json.RawMessage(`{"schemaVersion":2,"package":{"url":"http://x","sha256":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}`)
+	if !IsContentRefV2(full) {
+		t.Fatal("expected full v2")
+	}
+	pgOnly := json.RawMessage(`{"schemaVersion":2,"manifest":{"branching":{"model":"trunk-based"}}}`)
+	if IsContentRefV2(pgOnly) {
+		t.Fatal("PG-only should not be full v2")
+	}
+	if !IsContentRefV2Envelope(pgOnly) {
+		t.Fatal("expected v2 envelope")
+	}
+	if !IsRegisteredForCanary(pgOnly) {
+		t.Fatal("expected registered for canary")
 	}
 	if IsContentRefV2(json.RawMessage(`{"artifactKey":"x"}`)) {
 		t.Fatal("legacy should not be v2")
+	}
+}
+
+func TestBuildContentRefV2PGOnly(t *testing.T) {
+	t.Parallel()
+	raw, err := BuildContentRefV2PGOnly(map[string]any{"branching": map[string]any{"model": "trunk-based"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if HasPackageURL(raw) {
+		t.Fatal("PG-only should not have package")
+	}
+	if err := ValidateContentRefOnWrite(raw); err != nil {
+		t.Fatalf("PG-only should validate on write: %v", err)
 	}
 }

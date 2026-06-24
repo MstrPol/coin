@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"coin.local/coin-api/internal/compatibility"
+	"coin.local/coin-api/internal/componentpackage"
 	"coin.local/coin-api/internal/gpcontent"
 	"coin.local/coin-api/internal/manifest"
 	"coin.local/coin-api/internal/pin"
@@ -58,7 +59,8 @@ func (s *Store) PublishGPRelease(ctx context.Context, in PublishGPReleaseInput) 
 
 	for _, slot := range slots {
 		ver := in.Composition[slot.Key]
-		ok, err := s.componentVersionResolvable(ctx, slot.Type, slot.Name, ver, ComponentResolveStable)
+		mode := componentResolveModeForGPPublish(slot.Type)
+		ok, err := s.componentVersionResolvable(ctx, slot.Type, slot.Name, ver, mode)
 		if err != nil {
 			return GPReleaseRow{}, err
 		}
@@ -156,6 +158,15 @@ func (s *Store) componentVersionResolvable(ctx context.Context, typ, name, versi
 		return false, err
 	}
 	return componentStatusAllowed(status, mode), nil
+}
+
+// componentResolveModeForGPPublish selects which component statuses are valid when pinning a GP release.
+// branching-model may be canary-only until promote (BML); other slots require published for stable GP lines.
+func componentResolveModeForGPPublish(componentType string) ComponentResolveMode {
+	if componentpackage.UsesPGOnlyCanaryRegistry(componentType) {
+		return ComponentResolveCanary
+	}
+	return ComponentResolveStable
 }
 
 // componentVersionPublished is stable-channel resolve (published only).

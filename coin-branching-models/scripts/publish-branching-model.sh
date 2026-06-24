@@ -85,7 +85,7 @@ subset = {
 out_path.write_text(json.dumps(subset))
 PY
 
-echo "==> register-package (Nexus + content_ref v2)"
+echo "==> register-package (PG-only content_ref v2, no Nexus)"
 register_body="$(jq -n \
   --slurpfile manifest "${OUT_DIR}/manifest-subset.json" \
   --arg a "${ACTOR}" \
@@ -105,7 +105,7 @@ echo "==> publish-canary"
 api_post "/v1/admin/components/${COMP_TYPE}/${MODEL}/versions/${VERSION}/publish-canary" \
   "$(jq -n --arg a "${ACTOR}" '{actor: $a}')"
 
-echo "==> promote to published"
+echo "==> promote to published (Nexus upload + final content_ref)"
 promote_tmp="$(mktemp)"
 promote_code="$(curl -sS -o "${promote_tmp}" -w '%{http_code}' -X POST \
   "${COIN_API_URL}/v1/admin/components/${COMP_TYPE}/${MODEL}/versions/${VERSION}/promote" \

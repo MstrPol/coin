@@ -11,6 +11,7 @@ import (
 
 	"coin.local/coin-api/internal/canary"
 	"coin.local/coin-api/internal/catalog"
+	"coin.local/coin-api/internal/componentpackage"
 	"coin.local/coin-api/internal/nexus"
 	"coin.local/coin-api/internal/pin"
 	"coin.local/coin-api/internal/resolve"
@@ -98,6 +99,9 @@ func (s *Service) PublishComponentToCanary(ctx context.Context, typ, name, versi
 }
 
 func (s *Service) PromoteComponentToPublished(ctx context.Context, typ, name, version, actor string) (store.ComponentVersionRow, error) {
+	if componentpackage.UsesPGOnlyCanaryRegistry(typ) {
+		return s.promotePGOnlyRegistryToPublished(ctx, typ, name, version, actor)
+	}
 	return s.store.PromoteComponentToPublished(ctx, typ, name, version, actor)
 }
 

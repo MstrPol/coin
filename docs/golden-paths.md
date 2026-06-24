@@ -35,10 +35,10 @@ flowchart TD
 
 | Шаг | UI / API | Результат |
 |-----|----------|-----------|
-| 1. Author | `/studio` — `branching-model`, `gp-content` | `component_artifact_bodies` (draft) |
-| 2. Register | Validate → Register package | Nexus ZIP + `content_ref` v2 |
+| 1. Author | `/studio` или `/branching-models` — `branching-model`, `gp-content` | `component_artifact_bodies` (draft) |
+| 2. Register | Validate → Register package | `branching-model`: PG `content_ref` v2 (без Nexus); остальные types: Nexus + `content_ref` v2 |
 | 3. Canary | Publish to canary | `component_versions.status = canary` |
-| 4. Promote | PilotPromotePanel / `/promote` | `published` + catalog latest |
+| 4. Promote | PilotPromotePanel / `/promote` | `branching-model`: Nexus upload + `published`; catalog latest |
 | 5. GP pin | Catalog или Admin API | `gp_composition` + resolve |
 
 **Local bootstrap** (без Studio): `make seed-jenkins-lib` — публикует lib + gp-content + GP profiles.  

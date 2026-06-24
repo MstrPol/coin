@@ -4,7 +4,7 @@
   "title": "Component content_ref v2",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "package"],
+  "required": ["schemaVersion"],
   "properties": {
     "schemaVersion": {
       "type": "integer",
@@ -30,5 +30,9 @@
       "type": "object",
       "description": "Type-specific resolve subset (build, pipeline, branching rules, …)"
     }
-  }
+  },
+  "anyOf": [
+    { "required": ["package"] },
+    { "required": ["manifest"] }
+  ]
 }
