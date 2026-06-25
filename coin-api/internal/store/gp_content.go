@@ -12,17 +12,6 @@ import (
 	"coin.local/coin-api/internal/manifest"
 )
 
-// CanonicalGPSlots returns the five platform composition slots for a golden path.
-func CanonicalGPSlots(gpName string) []GPProfileSlot {
-	return []GPProfileSlot{
-		{Key: "agent", Type: "agent", Name: "coin-agent"},
-		{Key: "executor", Type: "executor", Name: "coin-executor"},
-		{Key: "lib", Type: "lib", Name: "coin-lib"},
-		{Key: "gp-content", Type: "gp-content", Name: gpName},
-		{Key: "branching-model", Type: "branching-model", Name: DefaultBranchingModelForGP(gpName)},
-	}
-}
-
 // DefaultBranchingModelForGP picks the reference branching model name for a GP profile.
 func DefaultBranchingModelForGP(gpName string) string {
 	switch gpName {
@@ -234,21 +223,6 @@ func (s *Store) gpContentVersionFromComposition(ctx context.Context, gpName, gpV
 	`, gpName, gpVersion).Scan(&name, &ver)
 	if err == pgx.ErrNoRows {
 		return "", "", fmt.Errorf("gp-content not in composition for %s@%s", gpName, gpVersion)
-	}
-	return name, ver, err
-}
-
-func (s *Store) LibVersionFromComposition(ctx context.Context, gpName, gpVersion string) (string, string, error) {
-	var name, ver string
-	err := s.pool.QueryRow(ctx, `
-		SELECT gc.component_name, gc.component_version
-		FROM gp_composition gc
-		JOIN gp_releases gr ON gr.id = gc.gp_release_id
-		WHERE gr.name = $1 AND gr.version = $2
-		  AND gc.component_type = 'lib'
-	`, gpName, gpVersion).Scan(&name, &ver)
-	if err == pgx.ErrNoRows {
-		return "", "", fmt.Errorf("lib not in composition for %s@%s", gpName, gpVersion)
 	}
 	return name, ver, err
 }

@@ -18,17 +18,14 @@ import PromoteCanaryPage from "./pages/PromoteCanaryPage";
 import ResolvePreview from "./pages/ResolvePreview";
 import PlatformRuntimePage from "./pages/platform/PlatformRuntimePage";
 import PlatformBuildStacksPage from "./pages/platform/PlatformBuildStacksPage";
-import PlatformJenkinsLibPage from "./pages/platform/PlatformJenkinsLibPage";
 import PlatformComponentsPage from "./pages/platform/PlatformComponentsPage";
 import GpCatalogPage from "./pages/gp/GpCatalogPage";
 import GpHubLayout from "./pages/gp/GpHubLayout";
 import GpNewDraft from "./pages/gp/GpNewDraft";
-import GpNewRelease from "./pages/gp/GpNewRelease";
 import GpOverviewTab from "./pages/gp/tabs/GpOverviewTab";
 import GpReleasesTab from "./pages/gp/tabs/GpReleasesTab";
 import GpPolicyTab from "./pages/gp/tabs/GpPolicyTab";
 import GpCanaryTab from "./pages/gp/tabs/GpCanaryTab";
-import GpBuildStackTab from "./pages/gp/tabs/GpBuildStackTab";
 import {
   LegacyCanaryRedirect,
   LegacyCatalogRedirect,
@@ -52,13 +49,11 @@ export default function App() {
             <Route index element={<GpOverviewTab />} />
             <Route path="releases" element={<GpReleasesTab />} />
             <Route element={<RequireRole min="publisher" />}>
-              <Route path="releases/new" element={<GpNewRelease />} />
               <Route path="releases/new-draft" element={<GpNewDraft />} />
             </Route>
             <Route path="releases/:version" element={<GpReleaseDetail />} />
             <Route path="policy" element={<GpPolicyTab />} />
             <Route path="canary" element={<GpCanaryTab />} />
-            <Route path="build-stack" element={<GpBuildStackTab />} />
           </Route>
           <Route path="releases" element={<LegacyReleasesRedirect />} />
           <Route path="releases/:name/:version" element={<LegacyReleaseDetailRedirect />} />
@@ -74,7 +69,7 @@ export default function App() {
           <Route path="platform/runtime" element={<PlatformRuntimePage />} />
           <Route path="platform/build-stacks" element={<PlatformBuildStacksPage />} />
           <Route path="platform/branching-models" element={<BranchingModelsPage />} />
-          <Route path="platform/jenkins-lib" element={<PlatformJenkinsLibPage />} />
+          <Route path="platform/jenkins-lib" element={<Navigate to="/platform/runtime" replace />} />
           <Route path="platform/components" element={<PlatformComponentsPage />} />
           <Route element={<RequireRole min="publisher" />}>
             <Route path="studio" element={<ComponentStudio />} />

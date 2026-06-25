@@ -7,7 +7,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"coin.local/coin-api/internal/compatibility"
 	"coin.local/coin-api/internal/gpcontent"
 	"coin.local/coin-api/internal/pin"
 )
@@ -84,7 +83,7 @@ func (s *Store) CreateDraftGPRelease(ctx context.Context, in PublishGPReleaseInp
 		return GPReleaseRow{}, fmt.Errorf("name and version are required")
 	}
 
-	slots, err := s.profileSlots(ctx, in.Name)
+	prep, err := s.prepareGPRelease(ctx, in)
 	if err != nil {
 		return GPReleaseRow{}, err
 	}
@@ -93,19 +92,10 @@ func (s *Store) CreateDraftGPRelease(ctx context.Context, in PublishGPReleaseInp
 	if err != nil {
 		return GPReleaseRow{}, err
 	}
-	if err := compatibility.Validate(slots, in.Composition, rules); err != nil {
-		return GPReleaseRow{}, fmt.Errorf("%w: %v", ErrInvalidComposition, err)
-	}
-
-	for _, slot := range slots {
-		ver := in.Composition[slot.Key]
-		ok, err := s.componentVersionResolvable(ctx, slot.Type, slot.Name, ver, ComponentResolveAdmin)
-		if err != nil {
-			return GPReleaseRow{}, err
-		}
-		if !ok {
-			return GPReleaseRow{}, fmt.Errorf("%w: %s/%s@%s", ErrComponentNotFound, slot.Type, slot.Name, ver)
-		}
+	if err := validateGPReleaseComposition(s, ctx, prep, rules, func(string) ComponentResolveMode {
+		return ComponentResolveAdmin
+	}); err != nil {
+		return GPReleaseRow{}, err
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -127,14 +117,8 @@ func (s *Store) CreateDraftGPRelease(ctx context.Context, in PublishGPReleaseInp
 		return GPReleaseRow{}, fmt.Errorf("draft insert: %w", err)
 	}
 
-	for _, slot := range slots {
-		_, err = tx.Exec(ctx, `
-			INSERT INTO gp_composition (gp_release_id, component_type, component_name, component_version)
-			VALUES ($1, $2, $3, $4)
-		`, releaseID, slot.Type, slot.Name, in.Composition[slot.Key])
-		if err != nil {
-			return GPReleaseRow{}, fmt.Errorf("composition insert: %w", err)
-		}
+	if err := insertGPComposition(ctx, tx, releaseID, prep.storeSlots, in.Composition); err != nil {
+		return GPReleaseRow{}, err
 	}
 
 	entityKey := fmt.Sprintf("%s@%s", in.Name, in.Version)

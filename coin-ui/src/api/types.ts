@@ -79,18 +79,16 @@ export type PaginatedListResponse<T> = {
   offset: number;
 };
 
-export type GPProfileSlot = {
-  key: string;
-  type: string;
-  name: string;
-};
-
 export type GPProfile = {
   name: string;
-  agentStack?: string;
-  defaultLib?: string;
-  defaultGpContent?: string;
-  slots: GPProfileSlot[];
+  description?: string;
+  createdAt: string;
+};
+
+export type ComponentPin = {
+  type: string;
+  name: string;
+  version: string;
 };
 
 export type ComponentVersion = {

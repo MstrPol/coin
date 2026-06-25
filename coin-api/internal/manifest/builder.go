@@ -30,10 +30,6 @@ type Composition struct {
 	AgentDigest      string
 	ExecutorURL      string
 	ExecutorSHA256   string
-	LibName          string
-	LibVersion       string
-	LibURL           string
-	LibSHA256        string
 	GPContentName           string
 	GPContentVersion        string
 	PipelineVersion         string
@@ -98,9 +94,6 @@ func (b Builder) Build(release GPRelease, opts BuildOptions) (map[string]any, st
 	if len(release.Content.Capabilities) > 0 {
 		doc["capabilities"] = release.Content.Capabilities
 	}
-	if libDoc := b.libSection(release); libDoc != nil {
-		doc["lib"] = libDoc
-	}
 	if branchingDoc := b.branchingSection(release.Branching); branchingDoc != nil {
 		doc["branching"] = branchingDoc
 	}
@@ -113,28 +106,6 @@ func (b Builder) Build(release GPRelease, opts BuildOptions) (map[string]any, st
 	hash := "sha256:" + hex.EncodeToString(sum[:])
 	doc["manifestHash"] = hash
 	return doc, hash, nil
-}
-
-func (b Builder) libSection(release GPRelease) map[string]string {
-	version := strings.TrimSpace(release.Parts.LibVersion)
-	if version == "" {
-		return nil
-	}
-	name := strings.TrimSpace(release.Parts.LibName)
-	if name == "" {
-		name = "coin-lib"
-	}
-	out := map[string]string{
-		"name":    name,
-		"version": version,
-	}
-	if url := strings.TrimSpace(release.Parts.LibURL); url != "" {
-		out["url"] = RuntimeNexusURL(url)
-	}
-	if sha := strings.TrimSpace(release.Parts.LibSHA256); sha != "" {
-		out["sha256"] = sha
-	}
-	return out
 }
 
 func (b Builder) branchingSection(bundle BranchingBundle) map[string]any {

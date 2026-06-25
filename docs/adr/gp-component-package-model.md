@@ -6,7 +6,7 @@
 
 ## Контекст
 
-Golden Path release собирается из platform components (`agent`, `executor`, `lib`, `gp-content`, в перспективе `branching-model`). Сегодня каждый тип прошёл свой путь публикации:
+Golden Path release собирается из platform components (`agent`, `executor`, `gp-content`, `branching-model`). Jenkins Shared Library (`coin-lib`) **не** является platform component — см. [jenkins-lib-outside-platform.md](jenkins-lib-outside-platform.md). Сегодня каждый тип прошёл свой путь публикации:
 
 - разные shell-скрипты и форматы `metadata` / `content_ref`;
 - dual-write артефактов в PostgreSQL (`component_artifact_bodies`, `gp_artifact_bodies`) и Nexus;

@@ -22,7 +22,7 @@ export function LegacyPublishRedirect() {
   const [searchParams] = useSearchParams();
   const name = searchParams.get("name");
   if (name) {
-    return <Navigate to={`/gp/${encodeURIComponent(name)}/releases/new`} replace />;
+    return <Navigate to={`/gp/${encodeURIComponent(name)}/releases/new-draft`} replace />;
   }
   return <Navigate to="/gp" replace />;
 }

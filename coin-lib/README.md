@@ -97,14 +97,14 @@ cd docker && make coin-lib   # bootstrap only — не primary path
 
 ## Primary path (Nexus HTTP)
 
-Immutable ZIP в Nexus + Jenkins HTTP Shared Library retriever:
+Immutable ZIP в Nexus + Jenkins HTTP Shared Library retriever. **coin-api registry не используется** — см. [docs/adr/jenkins-lib-outside-platform.md](../docs/adr/jenkins-lib-outside-platform.md).
 
 ```
 maven-releases/coin/lib/coin-lib/{version}/coin-lib-{version}.zip
 ```
 
 ```bash
-# publish ZIP + register in coin-api
+# publish ZIP to Nexus only
 ./scripts/publish-lib.sh 1.0.0
 
 # local stack: seed + switch Jenkins retriever
@@ -113,3 +113,5 @@ cd docker && make seed-jenkins-lib   # includes coin-lib-http
 # или только переключить retriever после publish
 cd docker && make coin-lib-http
 ```
+
+Версия lib для product jobs — в Jenkins CASC / `@Library('coin-lib@…')`, не в coin-api manifest.

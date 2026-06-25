@@ -43,7 +43,8 @@ coinPipeline()
 
 ### Platform API
 
-- `GET /v1/golden-paths/{name}/version` — policy/debug API для lib version; product Jenkinsfile не использует его на build path
+> **Superseded (2026-06):** lib registry, platform lib pin, manifest `lib` section и `LibraryVersion` API удалены — см. [jenkins-lib-outside-platform.md](jenkins-lib-outside-platform.md). Product Jenkinsfile по-прежнему не использует coin-api для выбора lib на build path.
+
 - Manifest **не** содержит `orchestration.bundle`; scripts/schema refs из `gp-content`
 - `coin-lib` исполняет Jenkins stages динамически из `manifest.pipeline.stages`
 

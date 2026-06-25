@@ -44,7 +44,6 @@ export const navGroups: NavGroup[] = [
       { label: "Runtime", to: "/platform/runtime" },
       { label: "Build stacks", to: "/platform/build-stacks" },
       { label: "Branching models", to: "/platform/branching-models" },
-      { label: "Jenkins library", to: "/platform/jenkins-lib" },
     ],
   },
   {

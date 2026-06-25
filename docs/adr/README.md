@@ -12,6 +12,7 @@ Architecture Decision Records — постоянные архитектурны�
 | GP composition — четыре компонента | superseded | [`gp-composition-four-components.md`](gp-composition-four-components.md) |
 | Pipeline bundle layer | superseded | [`gp-pipeline-bundle-layer.md`](gp-pipeline-bundle-layer.md) |
 | Jenkins Shared Library + gp-content | accepted | [`jenkins-lib-http-nexus.md`](jenkins-lib-http-nexus.md) |
+| Jenkins lib вне control plane | accepted | [`jenkins-lib-outside-platform.md`](jenkins-lib-outside-platform.md) |
 | Build engine contract | accepted | [`build-engine-contract.md`](build-engine-contract.md) |
 | GP Component Package Model (UI-first) | accepted | [`gp-component-package-model.md`](gp-component-package-model.md) |
 

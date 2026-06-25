@@ -18,7 +18,10 @@ func (s *Store) GetPlatformSettings(ctx context.Context) (PlatformSettings, erro
 		SELECT nexus_maven_base, nexus_credentials_id, updated_at
 		FROM platform_settings WHERE id = 1
 	`).Scan(&row.NexusMavenBase, &row.NexusCredentialsID, &row.UpdatedAt)
-	return row, err
+	if err != nil {
+		return PlatformSettings{}, err
+	}
+	return row, nil
 }
 
 func (s *Store) UpdatePlatformSettings(ctx context.Context, in PlatformSettings, actor string) error {

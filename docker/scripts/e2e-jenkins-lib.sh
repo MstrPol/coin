@@ -40,16 +40,20 @@ if echo "${manifest}" | jq -e '.orchestration' >/dev/null 2>&1; then
   echo "FAIL: manifest must not contain orchestration" >&2
   exit 1
 fi
+if echo "${manifest}" | jq -e '.lib' >/dev/null 2>&1; then
+  echo "FAIL: manifest must not contain lib section" >&2
+  exit 1
+fi
 echo "${manifest}" | jq -e '.runtime.image | length > 0'
 echo "${manifest}" | jq -e '.capabilities.deliverables | index("image")'
 
-echo "==> GP composition (5-slot)"
+echo "==> GP composition (3-pin)"
 curl -fsS "${API}/v1/admin/golden-paths/${GP}/versions/${VER}" \
   -H "X-API-Key: ${COIN_PUBLISHER_API_KEY:-dev-local-publisher-key}" \
   | jq -e '.composition[] | select(.type=="agent" and .name=="coin-agent")'
 curl -fsS "${API}/v1/admin/golden-paths/${GP}/versions/${VER}" \
   -H "X-API-Key: ${COIN_PUBLISHER_API_KEY:-dev-local-publisher-key}" \
-  | jq -e '.composition[] | select(.type=="lib" and .name=="coin-lib" and .version=="1.0.0")'
+  | jq -e '.composition[] | select(.type=="gp-content" and .name=="go-app")'
 curl -fsS "${API}/v1/admin/golden-paths/${GP}/versions/${VER}" \
   -H "X-API-Key: ${COIN_PUBLISHER_API_KEY:-dev-local-publisher-key}" \
   | jq -e '.composition[] | select(.type=="branching-model" and .name=="trunk-based")'
@@ -59,7 +63,7 @@ echo "${manifest}" | jq -e '.branching.name == "trunk-based"'
 echo "${manifest}" | jq -e '.branching.publish.when == "tag"'
 
 echo "==> registry components"
-for comp in "agent/coin-agent" "executor/coin-executor" "lib/coin-lib" "gp-content/go-app" "branching-model/trunk-based"; do
+for comp in "agent/coin-agent" "executor/coin-executor" "gp-content/go-app" "branching-model/trunk-based"; do
   typ="${comp%%/*}"
   name="${comp#*/}"
   curl -fsS "${API}/v1/admin/components/${typ}/${name}/versions" \

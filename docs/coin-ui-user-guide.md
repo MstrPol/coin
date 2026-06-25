@@ -39,12 +39,11 @@ Key или OIDC access token хранится в `localStorage`.
 | Platform | Runtime | `/platform/runtime` | reader+ |
 | Platform | Build stacks | `/platform/build-stacks` | reader+ |
 | Platform | Branching models | `/platform/branching-models` | reader+ |
-| Platform | Jenkins library | `/platform/jenkins-lib` | reader+ |
 | Admin | Platform settings | `/platform-settings` | admin |
 | Admin | Audit | `/audit` | admin |
 | Footer | Studio | `/studio` | publisher+ |
 
-**Redirects:** `/branching-models` → `/platform/branching-models`, `/components` → `/platform/components`, `/releases` → `/gp`, `/catalog` → `/gp`, `/canary` → `/gp`, `/releases/:n/:v` → `/gp/:n/releases/:v`, `/releases/new-gp` → `/gp/new`, `/releases/publish` → `/gp` (или `/gp/:name/releases/new` с `?name=`).
+**Redirects:** `/branching-models` → `/platform/branching-models`, `/components` → `/platform/components`, `/releases` → `/gp`, `/catalog` → `/gp`, `/canary` → `/gp`, `/releases/:n/:v` → `/gp/:n/releases/:v`, `/releases/new-gp` → `/gp/new`, `/releases/publish` → `/gp/:name/releases/new-draft` (с `?name=`).
 
 **Publish flows** — внутри GP hub (кнопки на hub / Releases tab), не в sidebar.
 
@@ -82,10 +81,10 @@ Key или OIDC access token хранится в `localStorage`.
 
 ### GP Profiles (`/gp`)
 
-Каталог Golden Path profiles (не flat-список всех версий). Колонки: slots, latest stable/canary, release count.
+Каталог Golden Path profiles (не flat-список всех версий). Колонки: description, latest stable/canary, release count.
 
-- **Open** → GP hub (`/gp/:name`) с вкладками Overview, Releases, Policy, Canary, Build stack
-- **New profile** (`/gp/new`) — только `createGPProfile`; initial release — отдельный CTA на hub
+- **Open** → GP hub (`/gp/:name`) с вкладками Overview, Releases, Policy, Canary
+- **New profile** (`/gp/new`) — `name` + optional `description`; composition — в первом draft
 
 ### GP hub (`/gp/:name`)
 
@@ -93,19 +92,18 @@ Entity-centric view одного GP:
 
 | Вкладка | Содержание |
 |---------|------------|
-| Overview | Slots, policy summary, quick links |
+| Overview | Description, policy summary, quick links |
 | Releases | Список releases + drafts для этого GP |
 | Policy | latest / minimum / deprecated, resolve preview |
 | Canary | Rollout %, health, resolve preview |
-| Build stack | gp-content версии для profile name |
 
-**Publisher actions:** New draft (`/gp/:name/releases/new-draft`), New release (`/gp/:name/releases/new`).
+**Publisher actions:** New draft (`/gp/:name/releases/new-draft`) — 3 pickers: agent stack, gp-content, branching-model. Stable release — только promote draft на release detail.
+
+**Draft lifecycle:** пока `status=draft` — composition редактируется на release detail (**Save composition**), draft можно удалить. После promote — read-only, без Save/Delete.
 
 ### GP release detail (`/gp/:name/releases/:version`)
 
-Composition, metadata, blast radius (published). Promote draft — только здесь.
-
-Build stack — ссылка на вкладку hub **Build stack**.
+Composition (agent, gp-content, branching-model). **Draft:** editable form + **Save composition**, Promote, Delete draft. **Published:** read-only таблица, без Save/Delete. gp-content → Studio или Platform build stacks.
 
 ### Resolve preview
 
@@ -122,9 +120,8 @@ Override **auto | stable | canary** — только для preview (`forceChann
 - **Runtime** (`/platform/runtime`) — `agent`, `executor`
 - **Build stacks** (`/platform/build-stacks`) — `gp-content`
 - **Branching models** (`/platform/branching-models`) — lifecycle draft → canary → published
-- **Jenkins library** (`/platform/jenkins-lib`) — `lib` / coin-lib
 
-Legacy aggregate: `/platform/components` (redirect с `/components`).
+Legacy aggregate: `/platform/components` (redirect с `/components`). `/platform/jenkins-lib` → redirect на `/platform/runtime`.
 
 Detail: `/components/:type/:name` — версии, metadata/contentRef, GP usage, publish (publisher).
 
@@ -134,7 +131,9 @@ Detail: `/components/:type/:name` — версии, metadata/contentRef, GP usag
 
 ### Platform settings
 
-Глобальные настройки Nexus (`nexus.mavenBase`, `nexus.credentialsId`) — бывший `platform.yaml`.
+Глобальные настройки Nexus (`nexus.mavenBase`, `nexus.credentialsId`). Agent stack выбирается в GP draft. coin-lib вне scope платформы — см. [ADR jenkins-lib-outside-platform](adr/jenkins-lib-outside-platform.md).
+
+**Runtime** (`/platform/runtime`) — каталог agent и executor.
 
 ### Audit log
 

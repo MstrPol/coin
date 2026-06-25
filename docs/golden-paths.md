@@ -46,31 +46,67 @@ flowchart TD
 
 Studio types: `branching-model` (`model.yaml`), `gp-content` (`content.yaml` + Containerfile).
 
-## Composition (5 slots)
+## Component lifecycle → GP composition
 
-При publish GP release в manifest попадают:
+```mermaid
+flowchart LR
+  subgraph registry["Platform registry (independent)"]
+    GC["gp-content/*"]
+    BM["branching-model/*"]
+  end
+  subgraph gp["GP entity"]
+    P["Profile: name + description"]
+    D["Draft: agent + gpContent + branching pins"]
+    R["Release: promote"]
+  end
+  RT["platform_settings.runtime\nlib only"]
+  AG["agent/*"]
+  AG --> D
+  GC --> D
+  BM --> D
+  P --> D
+  D --> R
+  RT --> Resolve
+  R --> Resolve
+```
 
-| Slot | Component type | Пример | Manifest section |
-|------|----------------|--------|------------------|
-| `agent` | `agent` | `coin-agent@1.0.0` | `runtime.image` |
-| `executor` | `executor` | `coin-executor@0.1.0` | `executor` |
-| `lib` | `lib` | `coin-lib@1.0.0` | `lib` (Nexus ZIP ref) |
-| `gp-content` | `gp-content` | `gp-content/go-app@1.0.2` | `build`, `pipeline`, `validateSchema` |
-| `branching-model` | `branching-model` | `trunk-based@1.0.0` | `branching` |
+1. **Platform team** публикует `gp-content` и `branching-model` в registry (Studio / publish scripts) — **без** GP profile.
+2. **Enabling team** создаёт GP profile (`name`, `description`) — identity для `coin.goldenPath` в product repos.
+3. **Draft** выбирает из каталога: `agentStackName`, `gpContentName`, `branchingModelName` + versions. Имя profile **может отличаться** от `gpContentName` (например profile `xxx` → `go-app@1.0.0`).
+4. **Resolve** мержит GP composition (3 pins) + derived executor из agent stack → manifest для coin-executor (без секции `lib`).
+5. **Draft edit** — operator может менять composition pins на draft (`PATCH`); published immutable в Nexus.
+6. **Draft deletion** — operator может удалить draft; published нельзя удалить.
 
-Legacy 4-slot GP releases (без `branching-model` в composition) resolve без секции `branching` до re-publish.
+## Composition (GP draft 3-pin)
 
-**Superseded:** 5-slot с `jnlp` + `agent/{stack}`, slots `pipeline` / `validate` / `dockerfile` как отдельные component types.
+**GP composition** (per release version, draft/promote) — 3 слота:
+
+| Slot | Component type | Выбор | Manifest section |
+|------|----------------|-------|------------------|
+| `agent` | `agent` | `agentStackName` + version | `runtime` (+ executor derived) |
+| `gp-content` | `gp-content` | `gpContentName` + version | `build`, `pipeline`, `validateSchema` |
+| `branching-model` | `branching-model` | `branchingModelName` + version | `branching` |
+
+При resolve coin-api **мержит** GP composition + executor из agent bundle → manifest для coin-executor.
+
+**coin-lib** (Jenkins glue) — вне control plane: версия задаётся в Jenkins org (`@Library`), publish только в Nexus. См. [adr/jenkins-lib-outside-platform.md](adr/jenkins-lib-outside-platform.md).
+
+GP profile (`gp_profiles`) — только `name` + optional `description`; **нет** связи profile ↔ build stack. gp-content pin виден на **release detail** (composition table).
+
+Legacy 4-slot direct publish (bootstrap scripts) поддерживается для migration; новый UI — draft → promote only.
+
+**Superseded:** platform lib pin; 2-slot GP; per-GP pins agent/executor/lib в profile slots; Build stack tab на GP hub.
 
 ## Component types (platform)
 
 | Type | Authoring (primary) | Consumer |
 |------|---------------------|----------|
 | `gp-content` | Component Studio | coin-executor (`build`, stages) |
-| `lib` | `publish-lib.sh` / future Studio | Jenkins `@Library` + manifest `lib` |
 | `agent` | `publish-agent.sh` | Jenkins pod (`runtime`) |
 | `executor` | `publish-executor.sh` | coin-agent (binary) |
 | `branching-model` | Component Studio | coin-executor (`manifest.branching`) |
+
+**Вне registry:** `coin-lib` — Nexus ZIP + Jenkins HTTP retriever ([ADR](adr/jenkins-lib-outside-platform.md)).
 
 Package layout: `maven-releases/coin/{type}/{name}/{version}/package.manifest.json` + artifacts.
 

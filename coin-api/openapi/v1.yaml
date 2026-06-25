@@ -55,55 +55,6 @@ paths:
               schema:
                 type: string
 
-  /v1/golden-paths/{name}/version:
-    get:
-      summary: Resolve coin-lib version for Jenkins bootstrap
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: name
-          in: path
-          required: true
-          schema:
-            type: string
-          example: go-app
-        - name: pin
-          in: query
-          required: true
-          schema:
-            type: string
-          example: "~1.0.0"
-        - name: project
-          in: query
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Lib version for dynamic library() call
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  goldenPath:
-                    type: string
-                  resolvedVersion:
-                    type: string
-                  library:
-                    type: object
-                    properties:
-                      type:
-                        type: string
-                        example: lib
-                      name:
-                        type: string
-                        example: coin-lib
-                      version:
-                        type: string
-                        example: "1.0.0"
-        "404":
-          description: GP release not found
-
   /v1/golden-paths/{name}/resolve:
     get:
       summary: Resolve manifest by semver pin
@@ -802,6 +753,68 @@ paths:
           description: Not found
         "401":
           description: Unauthorized
+    delete:
+      summary: Delete GP draft release
+      description: Only releases with status draft may be deleted. Published releases are immutable.
+      security:
+        - adminKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: actor
+          in: query
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Draft deleted
+        "404":
+          description: Not found
+        "409":
+          description: Published release cannot be deleted
+        "401":
+          description: Unauthorized
+    patch:
+      summary: Update GP draft composition
+      description: Only releases with status draft may be updated. Published releases are immutable.
+      security:
+        - adminKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGPDraft"
+      responses:
+        "200":
+          description: Draft updated
+        "400":
+          description: Invalid composition
+        "404":
+          description: Not found
+        "409":
+          description: Published release cannot be updated
+        "401":
+          description: Unauthorized
 
   /v1/admin/me:
     get:
@@ -961,24 +974,6 @@ components:
               description: Universal coin-agent image ref
             digest:
               type: string
-        lib:
-          type: object
-          description: Jenkins Shared Library ZIP ref (composition lib slot)
-          required: [name, version]
-          properties:
-            name:
-              type: string
-              example: coin-lib
-            version:
-              type: string
-              example: "1.0.0"
-            url:
-              type: string
-              format: uri
-              description: Nexus maven-releases ZIP download URL
-            sha256:
-              type: string
-              pattern: "^sha256:[a-f0-9]{64}$"
         branching:
           type: object
           description: Branching model rules from composition branching-model slot
@@ -1390,7 +1385,7 @@ components:
 
     PublishGPRelease:
       type: object
-      required: [version, composition]
+      required: [version, composition, agentStackName, gpContentName, branchingModelName]
       properties:
         version:
           type: string
@@ -1401,13 +1396,46 @@ components:
             type: string
           example:
             agent: "1.0.0"
-            executor: "0.1.0"
-            lib: "1.0.0"
             gp-content: "1.0.0"
             branching-model: "1.0.0"
+        agentStackName:
+          type: string
+          example: coin-agent
+          description: Registry name of the agent/executor runtime stack
+        branchingModelName:
+          type: string
+          example: trunk-based
+        gpContentName:
+          type: string
+          example: go-app
+          description: Registry name of the gp-content component (may differ from GP profile name)
         gitExportTag:
           type: string
           example: go-app/v1.0.1
+        actor:
+          type: string
+
+    UpdateGPDraft:
+      type: object
+      required: [composition, agentStackName, gpContentName, branchingModelName]
+      properties:
+        agentStackName:
+          type: string
+          example: coin-agent
+        gpContentName:
+          type: string
+          example: go-app
+        branchingModelName:
+          type: string
+          example: trunk-based
+        composition:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            agent: "1.0.0"
+            gp-content: "1.0.0"
+            branching-model: "1.0.0"
         actor:
           type: string
 
@@ -1504,6 +1532,17 @@ components:
         updatedAt:
           type: string
           format: date-time
+
+    ComponentPin:
+      type: object
+      required: [type, name, version]
+      properties:
+        type:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
 
     PlatformSettingsUpdate:
       type: object
@@ -1766,21 +1805,17 @@ components:
 
     GPProfile:
       type: object
-      required: [name, slots]
+      required: [name, createdAt]
       properties:
         name:
           type: string
           example: go-app
-        slots:
-          type: array
-          items:
-            $ref: "#/components/schemas/GPProfileSlot"
-          example:
-            - { key: agent, type: agent, name: coin-agent }
-            - { key: executor, type: executor, name: coin-executor }
-            - { key: lib, type: lib, name: coin-lib }
-            - { key: gp-content, type: gp-content, name: go-app }
-            - { key: branching-model, type: branching-model, name: trunk-based }
+        description:
+          type: string
+          example: Go applications golden path
+        createdAt:
+          type: string
+          format: date-time
 
     AdminPrincipal:
       type: object

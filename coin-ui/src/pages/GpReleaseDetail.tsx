@@ -1,9 +1,21 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import type { BlastRadius, GPReleaseDetail } from "../api/types";
+import type { BlastRadius, CompositionItem, GPReleaseDetail } from "../api/types";
 import BlastRadiusChart from "../components/BlastRadiusChart";
+import GpCompositionForm from "../components/GpCompositionForm";
 import { useAuth } from "../context/AuthContext";
 import { api, getActor } from "../lib/api";
+import { useGpCompositionEditor } from "../lib/useGpCompositionEditor";
+
+function componentLink(type: string, name: string, version: string): string | null {
+  if (type === "gp-content" && name && version) {
+    return `/studio/gp-content/${encodeURIComponent(name)}/${encodeURIComponent(version)}`;
+  }
+  if (type === "agent" && name) {
+    return `/platform/runtime`;
+  }
+  return null;
+}
 
 export default function GpReleaseDetailPage() {
   const { name = "", version = "" } = useParams();
@@ -12,11 +24,16 @@ export default function GpReleaseDetailPage() {
   const [detail, setDetail] = useState<GPReleaseDetail | null>(null);
   const [blast, setBlast] = useState<BlastRadius | null>(null);
   const [promoting, setPromoting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const isDraft = detail?.status === "draft";
+  const canEdit = isDraft && can("publisher");
   const hubBase = `/gp/${encodeURIComponent(name)}`;
+
+  const editor = useGpCompositionEditor(name, canEdit ? detail?.composition : undefined);
 
   useEffect(() => {
     if (!name || !version) return;
@@ -54,6 +71,44 @@ export default function GpReleaseDetailPage() {
     }
   }
 
+  async function deleteDraft() {
+    if (!name || !version || !isDraft) return;
+    if (!window.confirm(`Удалить draft ${name}@${version}?`)) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await api.deleteGPReleaseDraft(name, version, getActor() || undefined);
+      navigate(`${hubBase}/releases`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "delete failed");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function saveComposition() {
+    if (!name || !version || !canEdit) return;
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = await api.updateGPReleaseDraft(name, version, {
+        agentStackName: editor.agentStackName,
+        gpContentName: editor.gpContentName,
+        branchingModelName: editor.branchingModelName,
+        composition: editor.composition,
+        actor: getActor() || undefined,
+      });
+      setMessage("Composition сохранена");
+      const fresh = await api.gpRelease(updated.name, updated.version);
+      setDetail(fresh);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (error && !detail) {
     return (
       <div className="space-y-4">
@@ -85,20 +140,35 @@ export default function GpReleaseDetailPage() {
             <span className={isDraft ? "text-amber-400" : "text-emerald-400"}>{detail.status}</span>
           </p>
         </div>
-        {isDraft && can("publisher") && (
-          <button
-            type="button"
-            onClick={promote}
-            disabled={promoting}
-            className="rounded bg-sky-600 px-4 py-2 text-sm font-medium hover:bg-sky-500 disabled:opacity-50"
-          >
-            {promoting ? "Promoting…" : "Promote → published"}
-          </button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canEdit && (
+            <>
+              <button
+                type="button"
+                onClick={deleteDraft}
+                disabled={deleting}
+                className="rounded border border-red-800 px-4 py-2 text-sm text-red-300 hover:bg-red-950/40 disabled:opacity-50"
+              >
+                {deleting ? "Deleting…" : "Delete draft"}
+              </button>
+              <button
+                type="button"
+                onClick={promote}
+                disabled={promoting}
+                className="rounded bg-sky-600 px-4 py-2 text-sm font-medium hover:bg-sky-500 disabled:opacity-50"
+              >
+                {promoting ? "Promoting…" : "Promote → published"}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {error && <p className="text-red-400">{error}</p>}
       {message && <p className="text-emerald-400">{message}</p>}
+      {!isDraft && (
+        <p className="text-sm text-zinc-500">Published releases are immutable.</p>
+      )}
 
       <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
         <h2 className="font-medium">Metadata</h2>
@@ -116,30 +186,52 @@ export default function GpReleaseDetailPage() {
       </section>
 
       <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
-        <div className="flex items-start justify-between gap-4">
-          <h2 className="font-medium">Composition</h2>
-          <Link to={`${hubBase}/build-stack`} className="text-sm text-sky-400 hover:underline">
-            Build stack →
-          </Link>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Composition</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              {canEdit
+                ? "Редактируйте pins до promote (agent, gp-content, branching-model)."
+                : "Pins для этой версии GP (agent, gp-content, branching-model)."}
+            </p>
+          </div>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={saveComposition}
+              disabled={saving || editor.loading}
+              className="rounded bg-sky-600 px-4 py-2 text-sm font-medium hover:bg-sky-500 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save composition"}
+            </button>
+          )}
         </div>
-        <table className="mt-4 w-full text-left text-sm">
-          <thead className="text-zinc-500">
-            <tr>
-              <th className="pb-2 font-medium">Type</th>
-              <th className="pb-2 font-medium">Name</th>
-              <th className="pb-2 font-medium">Version</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(detail.composition ?? []).map((c) => (
-              <tr key={`${c.type}/${c.name}`} className="border-t border-zinc-800/60">
-                <td className="py-2">{c.type}</td>
-                <td className="py-2">{c.name}</td>
-                <td className="py-2 font-mono">{c.version}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+
+        {canEdit ? (
+          editor.loading ? (
+            <p className="mt-4 text-sm text-zinc-500">Загрузка каталога…</p>
+          ) : (
+            <GpCompositionForm
+              agentStackName={editor.agentStackName}
+              agentStackOptions={editor.agentStackOptions}
+              onAgentStackChange={editor.setAgentStackName}
+              gpContentName={editor.gpContentName}
+              gpContentOptions={editor.gpContentOptions}
+              onGpContentChange={editor.setGpContentName}
+              branchingModelName={editor.branchingModelName}
+              branchingModelOptions={editor.branchingModelOptions}
+              onBranchingModelChange={editor.setBranchingModelName}
+              composition={editor.composition}
+              versionOptions={editor.versionOptions}
+              onCompositionChange={editor.setComposition}
+            />
+          )
+        ) : (
+          <CompositionReadOnlyTable
+            rows={detail.composition ?? []}
+            canLink={can("publisher")}
+          />
+        )}
       </section>
 
       {blast && !isDraft && (
@@ -151,6 +243,51 @@ export default function GpReleaseDetailPage() {
         </section>
       )}
     </div>
+  );
+}
+
+function CompositionReadOnlyTable({
+  rows,
+  canLink,
+}: {
+  rows: CompositionItem[];
+  canLink: boolean;
+}) {
+  return (
+    <table className="mt-4 w-full text-left text-sm">
+      <thead className="text-zinc-500">
+        <tr>
+          <th className="pb-2 font-medium">Type</th>
+          <th className="pb-2 font-medium">Name</th>
+          <th className="pb-2 font-medium">Version</th>
+          <th className="pb-2 font-medium" />
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((c) => {
+          const href = componentLink(c.type, c.name, c.version);
+          return (
+            <tr key={`${c.type}/${c.name}`} className="border-t border-zinc-800/60">
+              <td className="py-2">{c.type}</td>
+              <td className="py-2">{c.name}</td>
+              <td className="py-2 font-mono">{c.version}</td>
+              <td className="py-2 text-right">
+                {href && canLink && (
+                  <Link to={href} className="text-sky-400 hover:underline">
+                    {c.type === "gp-content" ? "Studio" : "Catalog"}
+                  </Link>
+                )}
+                {c.type === "gp-content" && !canLink && (
+                  <Link to="/platform/build-stacks" className="text-sky-400 hover:underline">
+                    Build stacks
+                  </Link>
+                )}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 

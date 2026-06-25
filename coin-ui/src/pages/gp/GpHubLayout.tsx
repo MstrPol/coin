@@ -6,7 +6,6 @@ const tabs = [
   { label: "Releases", segment: "releases" },
   { label: "Policy", segment: "policy" },
   { label: "Canary", segment: "canary" },
-  { label: "Build stack", segment: "build-stack" },
 ] as const;
 
 function tabClass({ isActive }: { isActive: boolean }) {
@@ -33,20 +32,12 @@ export default function GpHubLayout() {
           <p className="mt-1 text-zinc-400">Golden Path profile</p>
         </div>
         {can("publisher") && (
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <Link
-              to={`${base}/releases/new-draft`}
-              className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-800"
-            >
-              New draft
-            </Link>
-            <Link
-              to={`${base}/releases/new`}
-              className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500"
-            >
-              New release
-            </Link>
-          </div>
+          <Link
+            to={`${base}/releases/new-draft`}
+            className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-500"
+          >
+            New draft
+          </Link>
         )}
       </div>
 

@@ -37,16 +37,22 @@ type PublishComponentRequest struct {
 	Actor      string          `json:"actor"`
 }
 
-type PublishGPReleaseRequest struct {
-	Version     string            `json:"version"`
-	Composition map[string]string `json:"composition"`
-	Actor       string            `json:"actor"`
+type CreateDraftRequest struct {
+	Version            string            `json:"version"`
+	Composition        map[string]string `json:"composition"`
+	AgentStackName     string            `json:"agentStackName"`
+	GPContentName      string            `json:"gpContentName"`
+	BranchingModelName string            `json:"branchingModelName"`
+	Actor              string            `json:"actor"`
 }
 
-type CreateDraftRequest struct {
-	Version     string            `json:"version"`
-	Composition map[string]string `json:"composition"`
-	Actor       string            `json:"actor"`
+type PublishGPReleaseRequest struct {
+	Version            string            `json:"version"`
+	Composition        map[string]string `json:"composition"`
+	AgentStackName     string            `json:"agentStackName"`
+	GPContentName      string            `json:"gpContentName"`
+	BranchingModelName string            `json:"branchingModelName"`
+	Actor              string            `json:"actor"`
 }
 
 type PublishGPReleaseResult struct {
@@ -108,19 +114,41 @@ func (s *Service) PromoteComponentToPublished(ctx context.Context, typ, name, ve
 
 func (s *Service) CreateDraftGPRelease(ctx context.Context, name string, req CreateDraftRequest) (store.GPReleaseRow, error) {
 	return s.store.CreateDraftGPRelease(ctx, store.PublishGPReleaseInput{
-		Name:        name,
-		Version:     req.Version,
-		Composition: req.Composition,
-		Actor:       req.Actor,
+		Name:               name,
+		Version:            req.Version,
+		Composition:        req.Composition,
+		AgentStackName:     req.AgentStackName,
+		GPContentName:      req.GPContentName,
+		BranchingModelName: req.BranchingModelName,
+		Actor:              req.Actor,
+	})
+}
+
+func (s *Service) DeleteGPReleaseDraft(ctx context.Context, name, version, actor string) error {
+	return s.store.DeleteGPReleaseDraft(ctx, name, version, actor)
+}
+
+func (s *Service) UpdateGPReleaseDraft(ctx context.Context, name, version string, req CreateDraftRequest) (store.GPReleaseRow, error) {
+	return s.store.UpdateGPReleaseDraft(ctx, store.PublishGPReleaseInput{
+		Name:               name,
+		Version:            version,
+		Composition:        req.Composition,
+		AgentStackName:     req.AgentStackName,
+		GPContentName:      req.GPContentName,
+		BranchingModelName: req.BranchingModelName,
+		Actor:              req.Actor,
 	})
 }
 
 func (s *Service) PublishGPRelease(ctx context.Context, name string, req PublishGPReleaseRequest) (PublishGPReleaseResult, error) {
 	release, err := s.store.PublishGPRelease(ctx, store.PublishGPReleaseInput{
-		Name:        name,
-		Version:     req.Version,
-		Composition: req.Composition,
-		Actor:       req.Actor,
+		Name:               name,
+		Version:            req.Version,
+		Composition:        req.Composition,
+		AgentStackName:     req.AgentStackName,
+		GPContentName:      req.GPContentName,
+		BranchingModelName: req.BranchingModelName,
+		Actor:              req.Actor,
 	})
 	if err != nil {
 		return PublishGPReleaseResult{}, err
@@ -337,12 +365,8 @@ func (s *Service) GetGPProfile(ctx context.Context, name string) (store.GPProfil
 	return s.store.GetGPProfile(ctx, name)
 }
 
-func (s *Service) CreateGPProfile(ctx context.Context, name string, slots []store.GPProfileSlot, actor string) error {
-	return s.store.CreateGPProfileWithDefaults(ctx, name, slots, actor)
-}
-
-func (s *Service) CreateGPProfileByAgentStack(ctx context.Context, name, agentStack, actor string) error {
-	return s.store.CreateGPProfileByAgentStackWithDefaults(ctx, name, agentStack, actor)
+func (s *Service) CreateGPProfile(ctx context.Context, name, description, actor string) error {
+	return s.store.CreateGPProfileWithDefaults(ctx, name, description, actor)
 }
 
 func (s *Service) SaveComponentArtifact(ctx context.Context, typ, name, version, key string, body []byte) error {
@@ -536,28 +560,6 @@ func (s *Service) NextGPContentVersion(ctx context.Context, name, bump string) (
 		return NextGPContentVersionResult{}, err
 	}
 	return NextGPContentVersionResult{
-		Name:           name,
-		Bump:           bump,
-		CurrentVersion: current,
-		NextVersion:    next,
-		IsFirst:        isFirst,
-	}, nil
-}
-
-type NextLibVersionResult struct {
-	Name           string `json:"name"`
-	Bump           string `json:"bump"`
-	CurrentVersion string `json:"currentVersion"`
-	NextVersion    string `json:"nextVersion"`
-	IsFirst        bool   `json:"isFirst"`
-}
-
-func (s *Service) NextLibVersion(ctx context.Context, name, bump string) (NextLibVersionResult, error) {
-	current, next, isFirst, err := s.store.NextLibVersion(ctx, name, bump)
-	if err != nil {
-		return NextLibVersionResult{}, err
-	}
-	return NextLibVersionResult{
 		Name:           name,
 		Bump:           bump,
 		CurrentVersion: current,

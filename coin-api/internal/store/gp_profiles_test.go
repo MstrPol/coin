@@ -2,22 +2,80 @@ package store
 
 import "testing"
 
-func TestValidateCanonicalGPSlots(t *testing.T) {
-	valid := []GPProfileSlot{
-		{Key: "agent", Type: "agent", Name: "coin-agent"},
-		{Key: "executor", Type: "executor", Name: "coin-executor"},
-		{Key: "lib", Type: "lib", Name: "coin-lib"},
-		{Key: "gp-content", Type: "gp-content", Name: "go-app"},
-		{Key: "branching-model", Type: "branching-model", Name: "trunk-based"},
+func TestValidateNewGPCompositionRequiresAgentStackName(t *testing.T) {
+	comp := map[string]string{
+		"agent":           "1.0.0",
+		"gp-content":      "1.0.0",
+		"branching-model": "1.0.0",
 	}
-	if err := ValidateCanonicalGPSlots(valid); err != nil {
-		t.Fatalf("valid slots: %v", err)
+	if _, err := validateNewGPComposition("", "go-app", "trunk-based", comp); err == nil {
+		t.Fatal("expected error for empty agentStackName")
 	}
-	if err := ValidateCanonicalGPSlots(valid[:3]); err == nil {
-		t.Fatal("expected error for 3 slots")
+}
+
+func TestValidateNewGPCompositionThreePin(t *testing.T) {
+	comp := map[string]string{
+		"agent":           "1.0.0",
+		"gp-content":      "1.0.0",
+		"branching-model": "1.0.0",
 	}
-	legacy := valid[:4]
-	if err := ValidateCanonicalGPSlots(legacy); err != nil {
-		t.Fatalf("legacy 4-slot: %v", err)
+	slots, err := validateNewGPComposition("coin-agent", "go-app", "trunk-based", comp)
+	if err != nil {
+		t.Fatalf("valid composition: %v", err)
+	}
+	if len(slots) != 3 {
+		t.Fatalf("expected 3 slots, got %d", len(slots))
+	}
+	if slots[0].Key != "agent" || slots[0].Name != "coin-agent" {
+		t.Fatalf("agent slot: %#v", slots[0])
+	}
+}
+
+func TestValidateNewGPCompositionRejectsExecutorKey(t *testing.T) {
+	comp := map[string]string{
+		"agent":           "1.0.0",
+		"executor":        "1.0.0",
+		"gp-content":      "1.0.0",
+		"branching-model": "1.0.0",
+	}
+	if _, err := validateNewGPComposition("coin-agent", "go-app", "trunk-based", comp); err == nil {
+		t.Fatal("expected error for standalone executor key")
+	}
+}
+
+func TestValidateNewGPCompositionRejectsLibKey(t *testing.T) {
+	comp := map[string]string{
+		"agent":           "1.0.0",
+		"lib":             "1.0.0",
+		"gp-content":      "1.0.0",
+		"branching-model": "1.0.0",
+	}
+	if _, err := validateNewGPComposition("coin-agent", "go-app", "trunk-based", comp); err == nil {
+		t.Fatal("expected error for lib key in GP composition")
+	}
+}
+
+func TestValidateNewGPCompositionDecoupledFromProfileName(t *testing.T) {
+	comp := map[string]string{
+		"agent":           "1.0.0",
+		"gp-content":      "1.0.0",
+		"branching-model": "1.0.0",
+	}
+	slots, err := validateNewGPComposition("coin-agent", "go-app", "trunk-based", comp)
+	if err != nil {
+		t.Fatalf("valid composition: %v", err)
+	}
+	if slots[1].Name != "go-app" {
+		t.Fatalf("gp-content slot name = go-app, got %q", slots[1].Name)
+	}
+}
+
+func TestExecutorPinForAgentStack(t *testing.T) {
+	pin, err := executorPinForAgentStack("coin-agent", "1.0.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pin.Name != "coin-executor" || pin.Version != "1.0.0" {
+		t.Fatalf("unexpected pin: %#v", pin)
 	}
 }

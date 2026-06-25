@@ -78,7 +78,6 @@ func (s *Server) Router() http.Handler {
 		r.Use(auth.Bearer(s.cfg))
 		r.With(shortTimeout).Get("/golden-paths/{name}/versions/{version}/manifest", s.resolveManifest)
 		r.With(shortTimeout).Get("/golden-paths/{name}/resolve", s.resolveByPin)
-		r.With(shortTimeout).Get("/golden-paths/{name}/version", s.goldenPathVersion)
 		r.With(shortTimeout).Get("/golden-paths/{name}/policy-check", s.policyCheck)
 		r.With(shortTimeout).Post("/builds/report", s.buildReport)
 
@@ -108,7 +107,6 @@ func (s *Server) Router() http.Handler {
 				r.With(shortTimeout).Get("/components", s.listComponents)
 				r.With(shortTimeout).Get("/components/agent/{name}/next-version", s.nextAgentVersion)
 				r.With(shortTimeout).Get("/components/gp-content/{name}/next-version", s.nextGPContentVersion)
-				r.With(shortTimeout).Get("/components/lib/{name}/next-version", s.nextLibVersion)
 				r.With(shortTimeout).Get("/components/executor/{name}/next-version", s.nextExecutorVersion)
 				r.With(shortTimeout).Get("/components/{type}/{name}", s.getComponentDetail)
 				r.With(shortTimeout).Get("/components/{type}/{name}/versions", s.listComponentVersions)
@@ -133,6 +131,8 @@ func (s *Server) Router() http.Handler {
 				r.With(shortTimeout).Post("/golden-paths/{name}/versions", s.publishGPRelease)
 				r.With(shortTimeout).Post("/golden-paths/{name}/drafts", s.createDraftGPRelease)
 				r.With(shortTimeout).Post("/golden-paths/{name}/versions/{version}/promote", s.promoteDraftGPRelease)
+				r.With(shortTimeout).Delete("/golden-paths/{name}/versions/{version}", s.deleteGPReleaseDraft)
+				r.With(shortTimeout).Patch("/golden-paths/{name}/versions/{version}", s.updateGPReleaseDraft)
 				r.With(shortTimeout).Patch("/golden-paths/{name}/catalog", s.updateCatalog)
 				r.With(shortTimeout).Patch("/golden-paths/{name}/canary", s.updateCanary)
 				r.With(shortTimeout).Patch("/projects/{name}/canary-mode", s.updateProjectCanaryMode)
@@ -214,29 +214,6 @@ func (s *Server) resolveByPin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Coin-Resolved-Version", res.ResolvedVersion)
 	w.Header().Set("X-Coin-Channel", res.Channel)
 	writeJSON(w, http.StatusOK, res.Document)
-}
-
-func (s *Server) goldenPathVersion(w http.ResponseWriter, r *http.Request) {
-	name := chi.URLParam(r, "name")
-	pinRaw := r.URL.Query().Get("pin")
-	if pinRaw == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "pin query parameter is required"})
-		return
-	}
-
-	res, err := s.resolve.LibraryVersion(r.Context(), name, pinRaw, resolve.ResolveOptions{
-		Project: r.URL.Query().Get("project"),
-	})
-	if errors.Is(err, store.ErrNotFound) {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "gp release not found"})
-		return
-	}
-	if err != nil {
-		s.logger.Error("golden path version", "err", err, "gp", name, "pin", pinRaw)
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, res)
 }
 
 func (s *Server) resolveManifest(w http.ResponseWriter, r *http.Request) {
@@ -628,15 +605,21 @@ func (s *Server) validateComponentPackage(w http.ResponseWriter, r *http.Request
 }
 
 type publishGPReleaseBody struct {
-	Version     string            `json:"version"`
-	Composition map[string]string `json:"composition"`
-	Actor       string            `json:"actor"`
+	Version            string            `json:"version"`
+	Composition        map[string]string `json:"composition"`
+	AgentStackName     string            `json:"agentStackName"`
+	GPContentName      string            `json:"gpContentName"`
+	BranchingModelName string            `json:"branchingModelName"`
+	Actor              string            `json:"actor"`
 }
 
 type createDraftBody struct {
-	Version     string            `json:"version"`
-	Composition map[string]string `json:"composition"`
-	Actor       string            `json:"actor"`
+	Version            string            `json:"version"`
+	Composition        map[string]string `json:"composition"`
+	AgentStackName     string            `json:"agentStackName"`
+	GPContentName      string            `json:"gpContentName"`
+	BranchingModelName string            `json:"branchingModelName"`
+	Actor              string            `json:"actor"`
 }
 
 func (s *Server) publishGPRelease(w http.ResponseWriter, r *http.Request) {
@@ -657,9 +640,12 @@ func (s *Server) publishGPRelease(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := s.admin.PublishGPRelease(r.Context(), chi.URLParam(r, "name"), admin.PublishGPReleaseRequest{
-		Version:     req.Version,
-		Composition: req.Composition,
-		Actor:       req.Actor,
+		Version:            req.Version,
+		Composition:        req.Composition,
+		AgentStackName:     req.AgentStackName,
+		GPContentName:      req.GPContentName,
+		BranchingModelName: req.BranchingModelName,
+		Actor:              req.Actor,
 	})
 	if errors.Is(err, store.ErrDuplicateGPRelease) {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "gp release already exists"})
@@ -703,9 +689,12 @@ func (s *Server) createDraftGPRelease(w http.ResponseWriter, r *http.Request) {
 	}
 
 	release, err := s.admin.CreateDraftGPRelease(r.Context(), chi.URLParam(r, "name"), admin.CreateDraftRequest{
-		Version:     req.Version,
-		Composition: req.Composition,
-		Actor:       req.Actor,
+		Version:            req.Version,
+		Composition:        req.Composition,
+		AgentStackName:     req.AgentStackName,
+		GPContentName:      req.GPContentName,
+		BranchingModelName: req.BranchingModelName,
+		Actor:              req.Actor,
 	})
 	if errors.Is(err, store.ErrDuplicateGPRelease) {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "gp release already exists"})
@@ -745,6 +734,74 @@ func (s *Server) promoteDraftGPRelease(w http.ResponseWriter, r *http.Request) {
 		"manifestHash":    result.ManifestHash,
 		"manifestUrl":     result.ManifestURL,
 		"resolvedVersion": result.ResolvedVersion,
+	})
+}
+
+func (s *Server) deleteGPReleaseDraft(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	version := chi.URLParam(r, "version")
+	actor := r.URL.Query().Get("actor")
+
+	err := s.admin.DeleteGPReleaseDraft(r.Context(), name, version, actor)
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "gp release not found"})
+		return
+	}
+	if errors.Is(err, store.ErrGPReleaseNotDraft) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "published releases are immutable"})
+		return
+	}
+	if err != nil {
+		s.logger.Error("delete gp draft", "err", err, "gp", name, "version", version)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "delete failed"})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) updateGPReleaseDraft(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	version := chi.URLParam(r, "version")
+	defer r.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "read body failed"})
+		return
+	}
+	var req createDraftBody
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
+		return
+	}
+
+	release, err := s.admin.UpdateGPReleaseDraft(r.Context(), name, version, admin.CreateDraftRequest{
+		Composition:        req.Composition,
+		AgentStackName:     req.AgentStackName,
+		GPContentName:      req.GPContentName,
+		BranchingModelName: req.BranchingModelName,
+		Actor:              req.Actor,
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "gp release not found"})
+		return
+	}
+	if errors.Is(err, store.ErrGPReleaseNotDraft) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "published releases are immutable"})
+		return
+	}
+	if errors.Is(err, store.ErrInvalidComposition) || errors.Is(err, store.ErrComponentNotFound) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	if err != nil {
+		s.logger.Error("update gp draft", "err", err, "gp", name, "version", version)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "update failed"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"name":    release.Name,
+		"version": release.Version,
+		"status":  release.Status,
 	})
 }
 
@@ -934,10 +991,11 @@ func (s *Server) updatePlatformSettings(w http.ResponseWriter, r *http.Request) 
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
 		return
 	}
-	if err := s.admin.UpdatePlatformSettings(r.Context(), store.PlatformSettings{
+	next := store.PlatformSettings{
 		NexusMavenBase:     req.NexusMavenBase,
 		NexusCredentialsID: req.NexusCredentialsID,
-	}, req.Actor); err != nil {
+	}
+	if err := s.admin.UpdatePlatformSettings(r.Context(), next, req.Actor); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
@@ -1081,21 +1139,6 @@ func (s *Server) nextGPContentVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := s.admin.NextGPContentVersion(r.Context(), name, bump)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, res)
-}
-
-func (s *Server) nextLibVersion(w http.ResponseWriter, r *http.Request) {
-	name := chi.URLParam(r, "name")
-	bump := r.URL.Query().Get("bump")
-	if bump == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bump query param required (major, minor, patch)"})
-		return
-	}
-	res, err := s.admin.NextLibVersion(r.Context(), name, bump)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
@@ -1365,31 +1408,19 @@ func (s *Server) createGPProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name       string                `json:"name"`
-		AgentStack string                `json:"agentStack"`
-		Slots      []store.GPProfileSlot `json:"slots"`
-		Actor      string                `json:"actor"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Actor       string `json:"actor"`
 	}
 	if err := json.Unmarshal(body, &req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
 		return
 	}
-	var createErr error
-	switch {
-	case len(req.Slots) > 0:
-		if err := store.ValidateCanonicalGPSlots(req.Slots); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-			return
-		}
-		createErr = s.admin.CreateGPProfile(r.Context(), req.Name, req.Slots, req.Actor)
-	case req.AgentStack != "" || req.Name != "":
-		createErr = s.admin.CreateGPProfileByAgentStack(r.Context(), req.Name, req.AgentStack, req.Actor)
-	default:
-		writeJSON(w, http.StatusBadRequest, map[string]string{
-			"error": "slots are required (agent, executor, lib, gp-content)",
-		})
+	if req.Name == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
 		return
 	}
+	createErr := s.admin.CreateGPProfile(r.Context(), req.Name, req.Description, req.Actor)
 	if createErr != nil {
 		if errors.Is(createErr, store.ErrDuplicateGPProfile) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "gp profile already exists"})

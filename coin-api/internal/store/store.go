@@ -96,7 +96,50 @@ func (s *Store) loadComposition(ctx context.Context, name, version string, mode 
 		_ = json.Unmarshal(metadata, &meta)
 		applyCompositionSlot(&parts, typ, compName, compVersion, meta)
 	}
-	return parts, rows.Err()
+	if err := rows.Err(); err != nil {
+		return manifest.Composition{}, err
+	}
+	return s.augmentCompositionWithDerivedExecutor(ctx, name, version, parts, mode)
+}
+
+func (s *Store) augmentCompositionWithDerivedExecutor(ctx context.Context, gpName, gpVersion string, parts manifest.Composition, mode ComponentResolveMode) (manifest.Composition, error) {
+	if parts.ExecutorVersion != "" {
+		return parts, nil
+	}
+	agentName, agentVer, err := s.agentVersionFromComposition(ctx, gpName, gpVersion)
+	if err != nil || agentName == "" {
+		return parts, nil
+	}
+	execPin, err := executorPinForAgentStack(agentName, agentVer)
+	if err != nil {
+		return manifest.Composition{}, err
+	}
+	allowed := allowedComponentStatuses(mode)
+	var metadata []byte
+	var status string
+	err = s.pool.QueryRow(ctx, `
+		SELECT cv.metadata, cv.status::text
+		FROM component_versions cv
+		JOIN components c ON c.id = cv.component_id
+		WHERE c.type = $1 AND c.name = $2 AND cv.version = $3
+	`, execPin.Type, execPin.Name, execPin.Version).Scan(&metadata, &status)
+	if err != nil {
+		return manifest.Composition{}, fmt.Errorf("executor from agent stack %s/%s@%s: %w", execPin.Type, execPin.Name, execPin.Version, err)
+	}
+	ok := false
+	for _, st := range allowed {
+		if st == status {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return manifest.Composition{}, fmt.Errorf("executor %s/%s@%s status %q not allowed", execPin.Type, execPin.Name, execPin.Version, status)
+	}
+	var meta map[string]any
+	_ = json.Unmarshal(metadata, &meta)
+	applyCompositionSlot(&parts, execPin.Type, execPin.Name, execPin.Version, meta)
+	return parts, nil
 }
 
 func (s *Store) SaveManifestMeta(ctx context.Context, name, version, hash, url string) error {

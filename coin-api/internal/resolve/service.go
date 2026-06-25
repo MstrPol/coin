@@ -209,43 +209,6 @@ func (s *Service) publishContentArtifacts(ctx context.Context, gpName, version s
 	}
 }
 
-// RefreshWildcards updates ~ / ^ / * pointers when a new published version becomes best match.
-type LibraryVersionResult struct {
-	GoldenPath      string `json:"goldenPath"`
-	ResolvedVersion string `json:"resolvedVersion"`
-	Library         struct {
-		Type    string `json:"type"`
-		Name    string `json:"name"`
-		Version string `json:"version"`
-	} `json:"library"`
-}
-
-// LibraryVersion resolves coin-lib version for product Jenkins bootstrap.
-func (s *Service) LibraryVersion(ctx context.Context, name, pinRaw string, opts ResolveOptions) (LibraryVersionResult, error) {
-	p, err := pin.Parse(pinRaw)
-	if err != nil {
-		return LibraryVersionResult{}, fmt.Errorf("invalid pin: %w", err)
-	}
-
-	channel := "stable"
-	version, err := s.selectVersion(ctx, name, p, opts, &channel)
-	if err != nil {
-		return LibraryVersionResult{}, err
-	}
-
-	libName, libVer, err := s.store.LibVersionFromComposition(ctx, name, version)
-	if err != nil {
-		return LibraryVersionResult{}, err
-	}
-
-	var out LibraryVersionResult
-	out.GoldenPath = name
-	out.ResolvedVersion = version
-	out.Library.Type = "lib"
-	out.Library.Name = libName
-	out.Library.Version = libVer
-	return out, nil
-}
 
 func (s *Service) RefreshWildcards(ctx context.Context, gpName, version string, doc map[string]any, hash string) error {
 	if s.nexus == nil {

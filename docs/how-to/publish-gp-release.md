@@ -29,7 +29,7 @@ Manifest собирается из composition: `build`, `pipeline.stages` (type
 ```bash
 cd docker
 make publish-agent GOARCH=arm64   # при необходимости
-make seed-jenkins-lib             # lib ZIP + gp-content + GP + coin-lib-http
+make seed-jenkins-lib             # Nexus lib ZIP + gp-content + GP + coin-lib-http
 ```
 
 Скрипт: `docker/scripts/seed-jenkins-lib-stack.sh`.  

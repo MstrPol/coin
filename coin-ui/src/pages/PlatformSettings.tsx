@@ -3,6 +3,9 @@ import type { PlatformSettings } from "../api/types";
 import { useAuth } from "../context/AuthContext";
 import { api, getActor } from "../lib/api";
 
+const inputClass =
+  "mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-mono";
+
 export default function PlatformSettingsPage() {
   const { can } = useAuth();
   const [settings, setSettings] = useState<PlatformSettings | null>(null);
@@ -49,32 +52,34 @@ export default function PlatformSettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Platform settings</h1>
-        <p className="mt-1 text-zinc-400">
-          Глобальные настройки Nexus (бывший platform.yaml)
-        </p>
+        <p className="mt-1 text-zinc-400">Глобальные настройки Nexus для control plane</p>
       </div>
 
       {error && <p className="text-red-400">{error}</p>}
       {message && <p className="text-emerald-400">{message}</p>}
 
       {can("publisher") ? (
-        <form onSubmit={onSave} className="max-w-lg space-y-4 rounded-lg border border-zinc-800 bg-zinc-900 p-6">
-          <label className="block">
-            <span className="text-xs text-zinc-500">nexus.mavenBase</span>
-            <input
-              value={mavenBase}
-              onChange={(e) => setMavenBase(e.target.value)}
-              className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-mono"
-            />
-          </label>
-          <label className="block">
-            <span className="text-xs text-zinc-500">nexus.credentialsId</span>
-            <input
-              value={credentialsId}
-              onChange={(e) => setCredentialsId(e.target.value)}
-              className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-mono"
-            />
-          </label>
+        <form onSubmit={onSave} className="max-w-2xl space-y-6">
+          <section className="space-y-4 rounded-lg border border-zinc-800 bg-zinc-900 p-6">
+            <h2 className="font-medium">Nexus</h2>
+            <label className="block">
+              <span className="text-xs text-zinc-500">nexus.mavenBase</span>
+              <input
+                value={mavenBase}
+                onChange={(e) => setMavenBase(e.target.value)}
+                className={inputClass}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs text-zinc-500">nexus.credentialsId</span>
+              <input
+                value={credentialsId}
+                onChange={(e) => setCredentialsId(e.target.value)}
+                className={inputClass}
+              />
+            </label>
+          </section>
+
           <button
             type="submit"
             disabled={saving}

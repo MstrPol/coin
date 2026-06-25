@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import type { CatalogOverview, GPProfile, GPProfileSlot } from "../../../api/types";
+import type { CatalogOverview, GPProfile } from "../../../api/types";
 import { api } from "../../../lib/api";
-import { SLOT_LABELS } from "../../../lib/gpSlots";
 
 export default function GpOverviewTab() {
   const { name = "" } = useParams();
@@ -36,15 +35,15 @@ export default function GpOverviewTab() {
       {showWelcome && (
         <div className="rounded-lg border border-emerald-900/50 bg-emerald-950/30 px-4 py-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-emerald-200">
-            Profile <span className="font-mono">{name}</span> создан. Опубликуйте initial release,
-            когда composition готов.
+            Profile <span className="font-mono">{name}</span> создан. Создайте первый draft с
+            composition (agent + gp-content + branching-model), затем promote в stable release.
           </p>
           <div className="flex gap-2">
             <Link
-              to={`${base}/releases/new`}
+              to={`${base}/releases/new-draft`}
               className="rounded bg-sky-600 px-3 py-1.5 text-sm hover:bg-sky-500"
             >
-              Publish initial release
+              Create first draft
             </Link>
             <button
               type="button"
@@ -59,34 +58,17 @@ export default function GpOverviewTab() {
 
       {error && <p className="text-red-400">{error}</p>}
 
+      {profile?.description && (
+        <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
+          <h2 className="font-medium">Description</h2>
+          <p className="mt-2 text-sm text-zinc-300">{profile.description}</p>
+        </section>
+      )}
+
       <section className="grid gap-4 sm:grid-cols-3">
         <Stat label="Latest stable" value={catalog?.catalog.latest || "—"} mono />
         <Stat label="Latest canary" value={catalog?.catalog.latestCanary || "—"} mono />
         <Stat label="Minimum" value={catalog?.catalog.minimum || "—"} mono />
-      </section>
-
-      <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
-        <h2 className="font-medium">Composition slots</h2>
-        <table className="mt-4 w-full text-left text-sm">
-          <thead className="text-zinc-500">
-            <tr>
-              <th className="pb-2 font-medium">Slot</th>
-              <th className="pb-2 font-medium">Type</th>
-              <th className="pb-2 font-medium">Component</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(profile?.slots ?? []).map((s: GPProfileSlot) => (
-              <tr key={s.key} className="border-t border-zinc-800/60">
-                <td className="py-2 font-mono text-sky-400">{s.key}</td>
-                <td className="py-2">{SLOT_LABELS[s.key] ?? s.type}</td>
-                <td className="py-2 font-mono text-xs">
-                  {s.type}/{s.name}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </section>
 
       <section className="flex flex-wrap gap-4 text-sm">
@@ -98,9 +80,6 @@ export default function GpOverviewTab() {
         </Link>
         <Link to={`${base}/canary`} className="text-sky-400 hover:underline">
           Canary rollout →
-        </Link>
-        <Link to={`${base}/build-stack`} className="text-sky-400 hover:underline">
-          Build stack →
         </Link>
         <Link to={`/resolve?gp=${encodeURIComponent(name)}`} className="text-zinc-400 hover:underline">
           Resolve preview ↗

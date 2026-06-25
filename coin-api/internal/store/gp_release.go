@@ -22,10 +22,13 @@ var (
 )
 
 type PublishGPReleaseInput struct {
-	Name        string
-	Version     string
-	Composition map[string]string
-	Actor       string
+	Name               string
+	Version            string
+	Composition        map[string]string
+	AgentStackName     string
+	GPContentName      string
+	BranchingModelName string
+	Actor              string
 }
 
 type GPReleaseRow struct {
@@ -44,7 +47,7 @@ func (s *Store) PublishGPRelease(ctx context.Context, in PublishGPReleaseInput) 
 		return GPReleaseRow{}, fmt.Errorf("published version cannot contain snapshot suffix")
 	}
 
-	slots, err := s.profileSlots(ctx, in.Name)
+	prep, err := s.prepareGPRelease(ctx, in)
 	if err != nil {
 		return GPReleaseRow{}, err
 	}
@@ -53,20 +56,8 @@ func (s *Store) PublishGPRelease(ctx context.Context, in PublishGPReleaseInput) 
 	if err != nil {
 		return GPReleaseRow{}, err
 	}
-	if err := compatibility.Validate(slots, in.Composition, rules); err != nil {
-		return GPReleaseRow{}, fmt.Errorf("%w: %v", ErrInvalidComposition, err)
-	}
-
-	for _, slot := range slots {
-		ver := in.Composition[slot.Key]
-		mode := componentResolveModeForGPPublish(slot.Type)
-		ok, err := s.componentVersionResolvable(ctx, slot.Type, slot.Name, ver, mode)
-		if err != nil {
-			return GPReleaseRow{}, err
-		}
-		if !ok {
-			return GPReleaseRow{}, fmt.Errorf("%w: %s/%s@%s", ErrComponentNotFound, slot.Type, slot.Name, ver)
-		}
+	if err := validateGPReleaseComposition(s, ctx, prep, rules, componentResolveModeForGPPublish); err != nil {
+		return GPReleaseRow{}, err
 	}
 
 	var releaseID int64
@@ -88,14 +79,8 @@ func (s *Store) PublishGPRelease(ctx context.Context, in PublishGPReleaseInput) 
 		return GPReleaseRow{}, fmt.Errorf("gp release insert: %w", err)
 	}
 
-	for _, slot := range slots {
-		_, err = tx.Exec(ctx, `
-			INSERT INTO gp_composition (gp_release_id, component_type, component_name, component_version)
-			VALUES ($1, $2, $3, $4)
-		`, releaseID, slot.Type, slot.Name, in.Composition[slot.Key])
-		if err != nil {
-			return GPReleaseRow{}, fmt.Errorf("composition insert: %w", err)
-		}
+	if err := insertGPComposition(ctx, tx, releaseID, prep.storeSlots, in.Composition); err != nil {
+		return GPReleaseRow{}, err
 	}
 
 	_, err = tx.Exec(ctx, `

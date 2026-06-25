@@ -39,14 +39,8 @@ func TestApplyCompositionSlotRegistry(t *testing.T) {
 	applyCompositionSlot(&parts, "executor", "coin-executor", "2.0.0", map[string]any{
 		"url": "http://nexus/executor", "sha256": "deadbeef",
 	})
-	applyCompositionSlot(&parts, "lib", "coin-lib", "1.0.0", map[string]any{
-		"url": "http://nexus/lib.zip", "sha256": "sha256:abc",
-	})
 	applyCompositionSlot(&parts, "gp-content", "go-app", "1.0.0", nil)
 	if parts.ExecutorVersion != "2.0.0" || parts.GPContentName != "go-app" {
 		t.Fatalf("parts=%+v", parts)
-	}
-	if parts.LibURL != "http://nexus/lib.zip" || parts.LibSHA256 != "sha256:abc" {
-		t.Fatalf("lib fields=%+v", parts)
 	}
 }

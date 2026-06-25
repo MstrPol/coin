@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { GPRelease } from "../../../api/types";
 import { useAuth } from "../../../context/AuthContext";
-import { api } from "../../../lib/api";
+import { api, getActor } from "../../../lib/api";
 
 function statusBadge(status: string) {
   if (status === "draft") {
@@ -21,15 +21,34 @@ export default function GpReleasesTab() {
   const [items, setItems] = useState<GPRelease[]>([]);
   const [includeDrafts, setIncludeDrafts] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const base = `/gp/${encodeURIComponent(name)}`;
 
-  useEffect(() => {
+  function reload() {
     if (!name) return;
     api
       .gpReleases(name, includeDrafts)
       .then((r) => setItems(r.items))
       .catch((err: Error) => setError(err.message));
+  }
+
+  useEffect(() => {
+    reload();
   }, [name, includeDrafts]);
+
+  async function deleteDraft(version: string) {
+    if (!window.confirm(`Удалить draft ${name}@${version}?`)) return;
+    setDeleting(version);
+    setError(null);
+    try {
+      await api.deleteGPReleaseDraft(name, version, getActor() || undefined);
+      reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "delete failed");
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -44,14 +63,9 @@ export default function GpReleasesTab() {
           Показать drafts
         </label>
         {can("publisher") && (
-          <div className="flex gap-2">
-            <Link to={`${base}/releases/new-draft`} className="text-sm text-sky-400 hover:underline">
-              + New draft
-            </Link>
-            <Link to={`${base}/releases/new`} className="text-sm text-sky-400 hover:underline">
-              + New release
-            </Link>
-          </div>
+          <Link to={`${base}/releases/new-draft`} className="text-sm text-sky-400 hover:underline">
+            + New draft
+          </Link>
         )}
       </div>
 
@@ -82,13 +96,26 @@ export default function GpReleasesTab() {
                   <td className="px-4 py-3 text-zinc-400">
                     {new Date(r.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 text-right">
                     <Link
                       to={`${base}/releases/${encodeURIComponent(r.version)}`}
                       className="text-sky-400 hover:underline"
                     >
                       Detail
                     </Link>
+                    {r.status === "draft" && can("publisher") && (
+                      <>
+                        {" · "}
+                        <button
+                          type="button"
+                          disabled={deleting === r.version}
+                          onClick={() => deleteDraft(r.version)}
+                          className="text-red-400 hover:underline disabled:opacity-50"
+                        >
+                          {deleting === r.version ? "…" : "Delete"}
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))

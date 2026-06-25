@@ -4,11 +4,11 @@ export default function PlatformRuntimePage() {
   return (
     <PlatformCatalogPage
       config={{
-        title: "Runtime",
-        description: "Agent и executor — script-first publish, версии в registry",
+        title: "Runtime components",
+        description: "Agent и executor (CI runtime stacks); agent stack выбирается в GP draft",
         types: ["agent", "executor"],
         emptyLabel: "Нет runtime-компонентов",
-        hint: "Публикация через publish-скрипты и Nexus; Studio не требуется для agent/executor.",
+        hint: "Agent stack выбирается в GP draft composition.",
       }}
     />
   );

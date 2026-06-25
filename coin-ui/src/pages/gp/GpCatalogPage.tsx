@@ -5,12 +5,17 @@ import { useAuth } from "../../context/AuthContext";
 
 type GpRow = {
   name: string;
-  slotCount: number;
+  description: string;
   latestStable: string;
   latestCanary: string;
   releaseCount: number;
   draftCount: number;
 };
+
+function truncate(text: string, max = 60): string {
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 1)}…`;
+}
 
 export default function GpCatalogPage() {
   const { can } = useAuth();
@@ -36,7 +41,7 @@ export default function GpCatalogPage() {
             const drafts = releases.items.filter((r) => r.status === "draft");
             return {
               name,
-              slotCount: profile?.slots.length ?? 0,
+              description: profile?.description?.trim() || "—",
               latestStable: catalog?.catalog.latest ?? "—",
               latestCanary: catalog?.catalog.latestCanary ?? "—",
               releaseCount: published.length,
@@ -87,7 +92,7 @@ export default function GpCatalogPage() {
             <thead className="border-b border-zinc-800 bg-zinc-900/80 text-zinc-500">
               <tr>
                 <th className="px-4 py-3 font-medium">Profile</th>
-                <th className="px-4 py-3 font-medium">Slots</th>
+                <th className="px-4 py-3 font-medium">Description</th>
                 <th className="px-4 py-3 font-medium">Latest stable</th>
                 <th className="px-4 py-3 font-medium">Latest canary</th>
                 <th className="px-4 py-3 font-medium">Releases</th>
@@ -114,7 +119,9 @@ export default function GpCatalogPage() {
                 rows.map((row) => (
                   <tr key={row.name} className="border-b border-zinc-800/60">
                     <td className="px-4 py-3 font-mono font-medium">{row.name}</td>
-                    <td className="px-4 py-3 tabular-nums">{row.slotCount}</td>
+                    <td className="max-w-xs px-4 py-3 text-zinc-400" title={row.description}>
+                      {truncate(row.description)}
+                    </td>
                     <td className="px-4 py-3 font-mono text-emerald-400">{row.latestStable}</td>
                     <td className="px-4 py-3 font-mono text-amber-400">{row.latestCanary}</td>
                     <td className="px-4 py-3">

@@ -6,7 +6,7 @@
 
 | Слой | Где | Что хранит |
 |------|-----|------------|
-| **Content** | Nexus (+ PG draft bodies в Studio) | gp-content packages, lib ZIP, executor binary, manifest blobs |
+| **Content** | Nexus (+ PG draft bodies в Studio) | gp-content packages, executor binary, manifest blobs; coin-lib ZIP — вне PG registry |
 | **Metadata** | PostgreSQL | `component_versions`, GP releases, composition, catalog policy, audit |
 | **Runtime cache** | Nexus `maven-releases` / `maven-snapshots` | immutable manifest blobs + mutable pointers |
 

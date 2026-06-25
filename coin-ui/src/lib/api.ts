@@ -15,7 +15,6 @@ import type {
   DashboardStats,
   DraftGPResult,
   GPProfile,
-  GPProfileSlot,
   GPRelease,
   GPReleaseDetail,
   HealthSummary,
@@ -139,10 +138,10 @@ export async function downloadCsv(path: string, filename: string): Promise<void>
 }
 
 /** Like apiList but returns empty items on 404 (unknown component). */
-async function apiListOptional<T>(path: string): Promise<ListResponse<T>> {
+async function apiListOptional<T>(path: string): Promise<ListResponse<T> | null> {
   const res = await fetch(`${base}${path}`, { headers: headers() });
   if (res.status === 404) {
-    return { items: [] };
+    return null;
   }
   if (!res.ok) {
     throw new Error(await parseError(res, path));
@@ -161,6 +160,16 @@ async function apiPost<T>(path: string, body: unknown): Promise<T> {
     throw new Error(await parseError(res, path));
   }
   return res.json() as Promise<T>;
+}
+
+async function apiDelete(path: string): Promise<void> {
+  const res = await fetch(`${base}${path}`, {
+    method: "DELETE",
+    headers: headers(),
+  });
+  if (!res.ok) {
+    throw new Error(await parseError(res, path));
+  }
 }
 
 async function apiPatch<T>(path: string, body: unknown): Promise<T> {
@@ -255,7 +264,7 @@ export const api = {
   gpProfile: (name: string) => apiGet<GPProfile>(`/v1/admin/golden-paths/${name}/profile`),
   createGPProfile: (body: {
     name: string;
-    slots: GPProfileSlot[];
+    description?: string;
     actor?: string;
   }) => apiPost<{ status: string; name: string }>("/v1/admin/golden-paths/profiles", body),
   gpReleases: (name?: string, includeDrafts = false) => {
@@ -269,11 +278,44 @@ export const api = {
     apiGet<GPReleaseDetail>(`/v1/admin/golden-paths/${name}/versions/${version}`),
   createDraftGPRelease: (
     name: string,
-    body: { version: string; composition: Record<string, string>; actor?: string },
+    body: {
+      version: string;
+      composition: Record<string, string>;
+      agentStackName: string;
+      gpContentName: string;
+      branchingModelName: string;
+      actor?: string;
+    },
   ) => apiPost<DraftGPResult>(`/v1/admin/golden-paths/${name}/drafts`, body),
+  deleteGPReleaseDraft: (name: string, version: string, actor?: string) => {
+    const q = actor ? `?actor=${encodeURIComponent(actor)}` : "";
+    return apiDelete(`/v1/admin/golden-paths/${name}/versions/${encodeURIComponent(version)}${q}`);
+  },
+  updateGPReleaseDraft: (
+    name: string,
+    version: string,
+    body: {
+      composition: Record<string, string>;
+      agentStackName: string;
+      gpContentName: string;
+      branchingModelName: string;
+      actor?: string;
+    },
+  ) =>
+    apiPatch<{ name: string; version: string; status: string }>(
+      `/v1/admin/golden-paths/${name}/versions/${encodeURIComponent(version)}`,
+      body,
+    ),
   publishGPRelease: (
     name: string,
-    body: { version: string; composition: Record<string, string>; actor?: string },
+    body: {
+      version: string;
+      composition: Record<string, string>;
+      agentStackName?: string;
+      gpContentName?: string;
+      branchingModelName?: string;
+      actor?: string;
+    },
   ) => apiPost<PublishGPResult>(`/v1/admin/golden-paths/${name}/versions`, body),
   promoteDraftGPRelease: (name: string, version: string, actor?: string) => {
     const q = actor ? `?actor=${encodeURIComponent(actor)}` : "";

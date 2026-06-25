@@ -1,7 +1,0 @@
-import { useParams } from "react-router-dom";
-import PublishWizard from "../PublishWizard";
-
-export default function GpNewRelease() {
-  const { name = "" } = useParams();
-  return <PublishWizard scopedGpName={name} lockedTab="publish" />;
-}

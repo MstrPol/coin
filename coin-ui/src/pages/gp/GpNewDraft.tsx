@@ -3,5 +3,5 @@ import PublishWizard from "../PublishWizard";
 
 export default function GpNewDraft() {
   const { name = "" } = useParams();
-  return <PublishWizard scopedGpName={name} lockedTab="draft" />;
+  return <PublishWizard scopedGpName={name} />;
 }

@@ -66,10 +66,13 @@ echo "==> Nexus content artifact (test.sh)"
 test_url="$(host_url "$(echo "${manifest}" | jq -r '.pipeline.stages[] | select(.name=="test") | .script.url')")"
 curl -fsS "${test_url}" | grep -q coin
 
-echo "==> GP composition uses coin-lib@1.0.0"
-curl -fsS "${API}/v1/admin/golden-paths/${GP}/versions/${VER}" \
+echo "==> GP composition has no lib slot"
+if curl -fsS "${API}/v1/admin/golden-paths/${GP}/versions/${VER}" \
   -H "X-API-Key: ${COIN_PUBLISHER_API_KEY:-dev-local-publisher-key}" \
-  | jq -e '.composition[] | select(.type=="lib" and .name=="coin-lib" and .version=="1.0.0")'
+  | jq -e '.composition[] | select(.type=="lib")' >/dev/null 2>&1; then
+  echo "FAIL: GP composition must not include lib" >&2
+  exit 1
+fi
 
 echo "==> API-down fallback simulation (pointer → blob only)"
 sim_hash="$(curl -fsS "${blob_url}" | jq -r .manifestHash)"
