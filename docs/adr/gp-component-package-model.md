@@ -1,8 +1,10 @@
 # ADR: GP Component Package Model (UI-first)
 
-**Статус:** accepted (GCP-0.1, 2026-06-23)  
+**Статус:** accepted (GCP-0.1, 2026-06-23); **amended** platform-native-lifecycle (2026-06-16)  
 **Контекст:** [gp-component-platform](../../openspec/changes/gp-component-platform/)  
 **Связанные ADR:** [control-plane-v2.md](control-plane-v2.md), [jenkins-lib-http-nexus.md](jenkins-lib-http-nexus.md), [build-engine-contract.md](build-engine-contract.md)
+
+> **Amendment (2026-06):** component-level `canary` **superseded**. Lifecycle: `draft` → `published` only. Canary rollout — **GP-level** (`catalog.latest_canary`); draft pins на canary line разрешены для `gp-content` / `branching-model`. Component Studio (`/studio`) удалён в пользу Platform entity routes.
 
 ## Контекст
 
@@ -32,23 +34,24 @@ Gitea на local pilot остаётся для **product samples** и optional d
 
 ### 2. Component lifecycle
 
-Расширить `component_status` значением **`canary`** (миграция coin-api).
+**Superseded:** значение `canary` в `component_status` и переход `draft`→`canary`→`published`.
 
-| State | Product resolve (stable) | Product resolve (canary channel) | Admin draft preview |
-|-------|--------------------------|----------------------------------|---------------------|
-| `draft` | ❌ | ❌ | ✅ |
-| `canary` | ❌ | ✅ pilot / audience policy | ✅ |
-| `published` | ✅ | ✅ | ✅ |
+| State | Product resolve (stable) | Canary channel (GP) | Platform draft edit |
+|-------|--------------------------|---------------------|---------------------|
+| `draft` | ❌ | ✅ (draft pins) | ✅ |
+| `published` | ✅ | ✅ | ❌ |
 
-**Canary SoT (branching-model, BML):** artifact bodies + `content_ref` manifest subset **только в PostgreSQL** — без Nexus upload.
+**Draft SoT:** artifact bodies + `content_ref` manifest subset в PostgreSQL (без Nexus `package.url`).
 
 **Published SoT:** immutable Nexus package + `content_ref` v2 с `package.url` (CI fallback).
 
-Переходы: `draft` → validate → register (PG) → `canary` → pilot health gate → promote (Nexus) → `published`.
+Переход: `draft` → validate → register (PG) → **promote** (Nexus) → `published`.
 
-Интеграция с существующей canary-моделью GP ([docs/canary.md](../canary.md)): `catalog.latest` / `latest_canary`, `project.canary_mode`, `X-Coin-Channel`.
+Интеграция с canary GP ([docs/canary.md](../canary.md)): `catalog.latest` / `latest_canary` (может указывать на GP `draft`), `project.canary_mode`, `X-Coin-Channel`.
 
-Promote pipeline (единый UI wizard, GCP-2): component `canary`→`published` + `catalog.latest_canary`→`latest` + GP stable release.
+GP promote gate: все composition pins должны быть `published` (API 409 + `blockingPins`).
+
+Promote catalog wizard: `catalog.latest_canary`→`latest` + component promote (для legacy pilot flows).
 
 ### 3. Component Package Model
 

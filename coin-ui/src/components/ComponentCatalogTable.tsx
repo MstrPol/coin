@@ -1,16 +1,19 @@
 import { Link } from "react-router-dom";
 import type { Component } from "../api/types";
+import { platformEditPath } from "../lib/platformComponentPaths";
 
 type Props = {
   items: Component[];
   emptyLabel?: string;
   showType?: boolean;
+  platformType?: "gp-content" | "branching-model";
 };
 
 export default function ComponentCatalogTable({
   items,
   emptyLabel = "Нет компонентов",
   showType = true,
+  platformType,
 }: Props) {
   return (
     <div className="overflow-x-auto rounded-lg border border-zinc-800">
@@ -44,6 +47,17 @@ export default function ComponentCatalogTable({
                   >
                     Detail →
                   </Link>
+                  {platformType && c.latestVersion && platformEditPath(c.type, c.name, c.latestVersion) && (
+                    <>
+                      {" · "}
+                      <Link
+                        to={platformEditPath(c.type, c.name, c.latestVersion)!}
+                        className="text-zinc-400 hover:text-sky-400 hover:underline"
+                      >
+                        Edit
+                      </Link>
+                    </>
+                  )}
                 </td>
                 <td className="px-4 py-3 font-mono text-sky-400">{c.latestVersion || "—"}</td>
                 <td className="px-4 py-3 tabular-nums">{c.versionCount}</td>

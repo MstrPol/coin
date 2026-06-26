@@ -4,12 +4,10 @@ package store
 type ComponentResolveMode string
 
 const (
-	// ComponentResolveStable — product CI on stable channel: published only.
+	// ComponentResolveStable — published components only (stable channel, agent/executor slots).
 	ComponentResolveStable ComponentResolveMode = "stable"
-	// ComponentResolveCanary — canary channel / pilot projects: published + canary.
-	ComponentResolveCanary ComponentResolveMode = "canary"
-	// ComponentResolveAdmin — admin GP draft preview: published + canary + draft.
-	ComponentResolveAdmin ComponentResolveMode = "admin"
+	// ComponentResolveDraft — published + draft (GP draft edit, canary channel resolve).
+	ComponentResolveDraft ComponentResolveMode = "draft"
 )
 
 // GPResolveOptions configures GP release loading for resolve.
@@ -20,10 +18,8 @@ type GPResolveOptions struct {
 
 func allowedComponentStatuses(mode ComponentResolveMode) []string {
 	switch mode {
-	case ComponentResolveCanary:
-		return []string{"published", "canary"}
-	case ComponentResolveAdmin:
-		return []string{"published", "canary", "draft"}
+	case ComponentResolveDraft:
+		return []string{"published", "draft"}
 	default:
 		return []string{"published"}
 	}
@@ -35,5 +31,22 @@ func componentStatusAllowed(status string, mode ComponentResolveMode) bool {
 			return true
 		}
 	}
+	// Legacy rows until migration 029 is applied.
+	if status == "canary" {
+		return mode == ComponentResolveDraft
+	}
 	return false
+}
+
+// componentResolveModeForGPDraftEdit selects valid component statuses when creating/updating GP drafts.
+func componentResolveModeForGPDraftEdit(componentType string) ComponentResolveMode {
+	if componentType == "agent" || componentType == "executor" {
+		return ComponentResolveStable
+	}
+	return ComponentResolveDraft
+}
+
+// componentResolveModeForGPPromote requires all composition pins to be published.
+func componentResolveModeForGPPromote(string) ComponentResolveMode {
+	return ComponentResolveStable
 }

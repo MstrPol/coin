@@ -98,17 +98,14 @@ if has_package_url; then
 fi
 echo "OK: register PG-only"
 
-echo "==> publish-canary"
-api_post "/v1/admin/components/${COMP_TYPE}/${MODEL}/versions/${VERSION}/publish-canary" \
-  "$(jq -n --arg a "${ACTOR}" '{actor: $a}')" >/dev/null
-
+echo "==> verify draft after register"
 status="$(curl -fsS "${API}/v1/admin/components/${COMP_TYPE}/${MODEL}/versions/${VERSION}" "${AUTH[@]}" | jq -r '.status')"
-if [[ "${status}" != "canary" ]]; then
-  echo "FAIL: expected canary, got ${status}" >&2
+if [[ "${status}" != "draft" ]]; then
+  echo "FAIL: expected draft after register, got ${status}" >&2
   exit 1
 fi
 if has_package_url; then
-  echo "FAIL: canary content_ref must not have package.url yet" >&2
+  echo "FAIL: draft content_ref must not have package.url yet" >&2
   exit 1
 fi
 branching_name="$(jq -r '.contentRef.manifest.branching.name // empty' <<<"$(curl -fsS \
@@ -117,9 +114,9 @@ if [[ "${branching_name}" != "${MODEL}" ]]; then
   echo "FAIL: manifest subset missing branching.name" >&2
   exit 1
 fi
-echo "OK: canary PG content_ref"
+echo "OK: draft PG content_ref"
 
-echo "==> promote (expect Nexus package.url)"
+echo "==> promote (draft → published, Nexus package.url)"
 api_post "/v1/admin/components/${COMP_TYPE}/${MODEL}/versions/${VERSION}/promote" \
   "$(jq -n --arg a "${ACTOR}" '{actor: $a}')" >/dev/null
 

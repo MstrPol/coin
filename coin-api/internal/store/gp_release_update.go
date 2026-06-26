@@ -22,9 +22,7 @@ func (s *Store) UpdateGPReleaseDraft(ctx context.Context, in PublishGPReleaseInp
 	if err != nil {
 		return GPReleaseRow{}, err
 	}
-	if err := validateGPReleaseComposition(s, ctx, prep, rules, func(string) ComponentResolveMode {
-		return ComponentResolveAdmin
-	}); err != nil {
+	if err := validateGPReleaseComposition(s, ctx, prep, rules, componentResolveModeForGPDraftEdit); err != nil {
 		return GPReleaseRow{}, err
 	}
 

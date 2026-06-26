@@ -1,15 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { BlastRadius, CompositionItem, GPReleaseDetail } from "../api/types";
 import BlastRadiusChart from "../components/BlastRadiusChart";
 import GpCompositionForm from "../components/GpCompositionForm";
 import { useAuth } from "../context/AuthContext";
-import { api, getActor } from "../lib/api";
+import { api, getActor, PromoteBlockedError } from "../lib/api";
 import { useGpCompositionEditor } from "../lib/useGpCompositionEditor";
+import { GP_DRAFT_SLOT_ORDER } from "../lib/gpSlots";
+
+import { platformEditPath } from "../lib/platformComponentPaths";
 
 function componentLink(type: string, name: string, version: string): string | null {
-  if (type === "gp-content" && name && version) {
-    return `/studio/gp-content/${encodeURIComponent(name)}/${encodeURIComponent(version)}`;
+  if ((type === "gp-content" || type === "branching-model") && name && version) {
+    return platformEditPath(type, name, version);
   }
   if (type === "agent" && name) {
     return `/platform/runtime`;
@@ -28,12 +31,25 @@ export default function GpReleaseDetailPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [blockingPins, setBlockingPins] = useState<
+    { type: string; name: string; version: string; status: string }[] | null
+  >(null);
 
   const isDraft = detail?.status === "draft";
   const canEdit = isDraft && can("publisher");
   const hubBase = `/gp/${encodeURIComponent(name)}`;
 
   const editor = useGpCompositionEditor(name, canEdit ? detail?.composition : undefined);
+
+  const draftPinCount = useMemo(() => {
+    if (!canEdit) return 0;
+    let count = 0;
+    for (const key of GP_DRAFT_SLOT_ORDER) {
+      const ver = editor.composition[key];
+      if (ver && editor.versionStatuses[key]?.[ver] === "draft") count++;
+    }
+    return count;
+  }, [canEdit, editor.composition, editor.versionStatuses]);
 
   useEffect(() => {
     if (!name || !version) return;
@@ -57,6 +73,7 @@ export default function GpReleaseDetailPage() {
     if (!name || !version) return;
     setPromoting(true);
     setError(null);
+    setBlockingPins(null);
     try {
       const result = await api.promoteDraftGPRelease(name, version, getActor() || undefined);
       setMessage(`Promoted → ${result.version}`);
@@ -65,7 +82,12 @@ export default function GpReleaseDetailPage() {
         800,
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "promote failed");
+      if (err instanceof PromoteBlockedError) {
+        setBlockingPins(err.blockingPins);
+        setError(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : "promote failed");
+      }
     } finally {
       setPromoting(false);
     }
@@ -154,7 +176,8 @@ export default function GpReleaseDetailPage() {
               <button
                 type="button"
                 onClick={promote}
-                disabled={promoting}
+                disabled={promoting || draftPinCount > 0}
+                title={draftPinCount > 0 ? "Опубликуйте все draft pins перед promote" : undefined}
                 className="rounded bg-sky-600 px-4 py-2 text-sm font-medium hover:bg-sky-500 disabled:opacity-50"
               >
                 {promoting ? "Promoting…" : "Promote → published"}
@@ -165,6 +188,29 @@ export default function GpReleaseDetailPage() {
       </div>
 
       {error && <p className="text-red-400">{error}</p>}
+      {blockingPins && blockingPins.length > 0 && (
+        <div className="rounded border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-200">
+          <p className="font-medium text-red-300">Blocking pins</p>
+          <ul className="mt-2 space-y-1 font-mono text-xs">
+            {blockingPins.map((pin) => {
+              const href = platformEditPath(pin.type, pin.name, pin.version);
+              return (
+                <li key={`${pin.type}/${pin.name}@${pin.version}`}>
+                  {pin.type}/{pin.name}@{pin.version} ({pin.status})
+                  {href && (
+                    <>
+                      {" "}
+                      <Link to={href} className="text-sky-400 hover:underline">
+                        Publish
+                      </Link>
+                    </>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
       {message && <p className="text-emerald-400">{message}</p>}
       {!isDraft && (
         <p className="text-sm text-zinc-500">Published releases are immutable.</p>
@@ -223,6 +269,7 @@ export default function GpReleaseDetailPage() {
               onBranchingModelChange={editor.setBranchingModelName}
               composition={editor.composition}
               versionOptions={editor.versionOptions}
+              versionStatuses={editor.versionStatuses}
               onCompositionChange={editor.setComposition}
             />
           )
@@ -274,7 +321,7 @@ function CompositionReadOnlyTable({
               <td className="py-2 text-right">
                 {href && canLink && (
                   <Link to={href} className="text-sky-400 hover:underline">
-                    {c.type === "gp-content" ? "Studio" : "Catalog"}
+                    Edit
                   </Link>
                 )}
                 {c.type === "gp-content" && !canLink && (

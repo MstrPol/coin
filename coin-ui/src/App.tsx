@@ -3,7 +3,6 @@ import Layout from "./components/Layout";
 import RequireAuth from "./components/RequireAuth";
 import RequireRole from "./components/RequireRole";
 import ComponentDetail from "./pages/ComponentDetail";
-import ComponentStudio from "./pages/ComponentStudio";
 import PlatformSettings from "./pages/PlatformSettings";
 import AuditLog from "./pages/AuditLog";
 import BranchingModelsPage from "./pages/BranchingModelsPage";
@@ -18,6 +17,7 @@ import PromoteCanaryPage from "./pages/PromoteCanaryPage";
 import ResolvePreview from "./pages/ResolvePreview";
 import PlatformRuntimePage from "./pages/platform/PlatformRuntimePage";
 import PlatformBuildStacksPage from "./pages/platform/PlatformBuildStacksPage";
+import PlatformComponentEditorPage from "./pages/platform/PlatformComponentEditorPage";
 import PlatformComponentsPage from "./pages/platform/PlatformComponentsPage";
 import GpCatalogPage from "./pages/gp/GpCatalogPage";
 import GpHubLayout from "./pages/gp/GpHubLayout";
@@ -71,9 +71,17 @@ export default function App() {
           <Route path="platform/branching-models" element={<BranchingModelsPage />} />
           <Route path="platform/jenkins-lib" element={<Navigate to="/platform/runtime" replace />} />
           <Route path="platform/components" element={<PlatformComponentsPage />} />
+          <Route path="studio" element={<Navigate to="/platform/build-stacks" replace />} />
+          <Route path="studio/*" element={<Navigate to="/platform/build-stacks" replace />} />
           <Route element={<RequireRole min="publisher" />}>
-            <Route path="studio" element={<ComponentStudio />} />
-            <Route path="studio/:type/:name/:version" element={<ComponentStudio />} />
+            <Route
+              path="platform/build-stacks/:name/:version/edit"
+              element={<PlatformComponentEditorPage compType="gp-content" />}
+            />
+            <Route
+              path="platform/branching-models/:name/:version/edit"
+              element={<PlatformComponentEditorPage compType="branching-model" />}
+            />
             <Route path="gp/new" element={<CreateGPProfile />} />
             <Route path="releases/new-gp" element={<Navigate to="/gp/new" replace />} />
             <Route path="releases/publish" element={<LegacyPublishRedirect />} />

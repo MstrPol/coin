@@ -726,6 +726,53 @@ paths:
         "401":
           description: Unauthorized
 
+  /v1/admin/components/{type}/{name}/versions/{version}/promote:
+    post:
+      summary: Publish component version (draft → published)
+      description: |
+        Validates registered package, uploads to Nexus when needed, sets status `published`.
+        Legacy component status `canary` is accepted as input but new writes use draft→published only.
+      security:
+        - adminKey: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                actor:
+                  type: string
+      responses:
+        "200":
+          description: Component published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComponentVersionPromoteResult"
+        "404":
+          description: Version not found
+        "409":
+          description: Invalid status or package not registered
+        "401":
+          description: Unauthorized
+
   /v1/admin/golden-paths/{name}/versions/{version}:
     get:
       summary: GP release detail with composition
@@ -813,6 +860,49 @@ paths:
           description: Not found
         "409":
           description: Published release cannot be updated
+        "401":
+          description: Unauthorized
+
+  /v1/admin/golden-paths/{name}/versions/{version}/promote:
+    post:
+      summary: Promote GP draft release to published
+      description: |
+        Re-validates composition; all component pins must be `published`.
+        Returns HTTP 409 with `blockingPins` when draft pins block promote.
+      security:
+        - adminKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: actor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: GP release promoted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishGPReleaseResult"
+        "404":
+          description: Draft not found
+        "409":
+          description: Composition has draft pins or duplicate published version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GPPromoteBlockedError"
+        "400":
+          description: Validation error
         "401":
           description: Unauthorized
 
@@ -1192,7 +1282,7 @@ components:
       required: [schemaVersion]
       description: |
         Component package envelope (GCP component platform).
-        Draft/canary may omit package (PG-only); published requires package.url + package.sha256.
+        Draft may omit package (PG-only manifest subset); published requires package.url + package.sha256.
       properties:
         schemaVersion:
           type: integer
@@ -1382,6 +1472,67 @@ components:
           type: integer
         contentRef:
           $ref: "#/components/schemas/ContentRefV2"
+
+    ComponentVersionPromoteResult:
+      type: object
+      required: [type, name, version, status]
+      properties:
+        type:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        status:
+          type: string
+          enum: [published]
+
+    CompositionPinBlocker:
+      type: object
+      required: [type, name, version, status]
+      properties:
+        type:
+          type: string
+          example: gp-content
+        name:
+          type: string
+          example: go-app
+        version:
+          type: string
+          example: 1.0.1-draft
+        status:
+          type: string
+          example: draft
+
+    GPPromoteBlockedError:
+      type: object
+      required: [error, blockingPins]
+      properties:
+        error:
+          type: string
+          example: gp composition has draft component pins
+        blockingPins:
+          type: array
+          items:
+            $ref: "#/components/schemas/CompositionPinBlocker"
+
+    PublishGPReleaseResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        version:
+          type: string
+        status:
+          type: string
+        manifestHash:
+          type: string
+        manifestUrl:
+          type: string
+        resolvedVersion:
+          type: string
 
     PublishGPRelease:
       type: object
@@ -1651,6 +1802,8 @@ components:
           type: string
         status:
           type: string
+          enum: [draft, published]
+          description: Component lifecycle (legacy `canary` tolerated until migration)
         metadata:
           type: object
           additionalProperties: true

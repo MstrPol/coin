@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import type { ComponentDetail, ComponentVersion, ComponentVersionDetail } from "../api/types";
 import { useAuth } from "../context/AuthContext";
 import { api, getActor } from "../lib/api";
-import { isStudioType } from "../lib/componentStudio";
+import { platformEditPath } from "../lib/platformComponentPaths";
 
 export default function ComponentDetailPage() {
   const { type = "", name = "", version: versionParam } = useParams();
@@ -105,12 +105,12 @@ export default function ComponentDetailPage() {
 
         {can("publisher") && (
           <div className="flex flex-wrap gap-2">
-            {isStudioType(type) && (
+            {platformEditPath(type, name, selectedVersion ?? "") && selectedVersion && (
               <Link
-                to="/studio"
+                to={platformEditPath(type, name, selectedVersion)!}
                 className="rounded border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-800"
               >
-                Component Studio
+                Platform editor
               </Link>
             )}
             <button
@@ -199,22 +199,20 @@ export default function ComponentDetailPage() {
                           className={
                             v.status === "draft"
                               ? "text-amber-400"
-                              : v.status === "canary"
-                                ? "text-sky-400"
-                                : ""
+                              : ""
                           }
                         >
                           {v.status}
                         </span>
-                        {v.status === "draft" && can("publisher") && isStudioType(type) && (
+                        {v.status === "draft" && can("publisher") && platformEditPath(type, name, v.version) && (
                           <>
                             {" "}
                             <Link
-                              to={`/studio/${type}/${name}/${encodeURIComponent(v.version)}`}
+                              to={platformEditPath(type, name, v.version)!}
                               className="text-sky-400 hover:underline"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              Studio
+                              Edit
                             </Link>
                           </>
                         )}

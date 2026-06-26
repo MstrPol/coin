@@ -23,28 +23,27 @@ coin:
 
 ```mermaid
 flowchart TD
-  A["Component Studio /studio"] --> B["Draft в PG"]
+  A["Platform editor"] --> B["Draft в PG"]
   B --> C["Validate"]
-  C --> D["Register → Nexus package"]
-  D --> E["Publish canary"]
-  E --> F["Pilot projects + health gate"]
-  F --> G["Promote stable /promote"]
-  G --> H["Pin в GP composition"]
-  H --> I["Resolve → manifest blob"]
+  C --> D["Register → content_ref"]
+  D --> E["Promote → Nexus + published"]
+  E --> F["Pin в GP composition"]
+  F --> G["GP promote (all pins published)"]
+  G --> H["Resolve → manifest blob"]
 ```
 
 | Шаг | UI / API | Результат |
 |-----|----------|-----------|
-| 1. Author | `/studio` или `/branching-models` — `branching-model`, `gp-content` | `component_artifact_bodies` (draft) |
-| 2. Register | Validate → Register package | `branching-model`: PG `content_ref` v2 (без Nexus); остальные types: Nexus + `content_ref` v2 |
-| 3. Canary | Publish to canary | `component_versions.status = canary` |
-| 4. Promote | PilotPromotePanel / `/promote` | `branching-model`: Nexus upload + `published`; catalog latest |
-| 5. GP pin | Catalog или Admin API | `gp_composition` + resolve |
+| 1. Author | `/platform/build-stacks/.../edit`, `/platform/branching-models/.../edit` | `component_artifact_bodies` (draft) |
+| 2. Register | Validate → Register package | PG `content_ref` v2 (без Nexus `package.url`) |
+| 3. Publish | Promote component | Nexus upload + `component_versions.status = published` |
+| 4. GP pin | GP hub draft | `gp_composition` (draft pins допустимы на canary line) |
+| 5. GP promote | Release detail | GP `published`; gate — все pins `published` |
 
-**Local bootstrap** (без Studio): `make seed-jenkins-lib` — публикует lib + gp-content + GP profiles.  
-**Deprecated:** `publish-content.sh`, `make coin-lib` (Gitea), embedded seed bytes.
+**Local bootstrap** (без UI): `make seed-jenkins-lib` — публикует lib + gp-content + GP profiles.  
+**Deprecated:** `/studio`, `publish-canary`, `publish-content.sh`, `make coin-lib` (Gitea).
 
-Studio types: `branching-model` (`model.yaml`), `gp-content` (`content.yaml` + Containerfile).
+Platform types: `branching-model` (`model.yaml`), `gp-content` (`content.yaml` + Containerfile).
 
 ## Component lifecycle → GP composition
 

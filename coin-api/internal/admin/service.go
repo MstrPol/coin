@@ -12,7 +12,6 @@ import (
 
 	"coin.local/coin-api/internal/canary"
 	"coin.local/coin-api/internal/catalog"
-	"coin.local/coin-api/internal/componentpackage"
 	"coin.local/coin-api/internal/nexus"
 	"coin.local/coin-api/internal/pin"
 	"coin.local/coin-api/internal/resolve"
@@ -101,15 +100,8 @@ func (s *Service) CreateDraftComponentVersion(ctx context.Context, typ, name str
 	})
 }
 
-func (s *Service) PublishComponentToCanary(ctx context.Context, typ, name, version, actor string) (store.ComponentVersionRow, error) {
-	return s.store.PublishComponentToCanary(ctx, typ, name, version, actor)
-}
-
 func (s *Service) PromoteComponentToPublished(ctx context.Context, typ, name, version, actor string) (store.ComponentVersionRow, error) {
-	if componentpackage.UsesPGOnlyCanaryRegistry(typ) {
-		return s.promotePGOnlyRegistryToPublished(ctx, typ, name, version, actor)
-	}
-	return s.store.PromoteComponentToPublished(ctx, typ, name, version, actor)
+	return s.publishComponentFromDraft(ctx, typ, name, version, actor)
 }
 
 func (s *Service) CreateDraftGPRelease(ctx context.Context, name string, req CreateDraftRequest) (store.GPReleaseRow, error) {
@@ -172,6 +164,10 @@ func (s *Service) PublishGPRelease(ctx context.Context, name string, req Publish
 		ManifestURL:     url,
 		ResolvedVersion: res.ResolvedVersion,
 	}, nil
+}
+
+func (s *Service) ValidateGPReleasePromoteBlockers(ctx context.Context, name, version string) ([]store.CompositionPinBlocker, error) {
+	return s.store.ValidateGPReleasePromoteBlockers(ctx, name, version)
 }
 
 func (s *Service) PromoteDraftGPRelease(ctx context.Context, name, version, actor string) (PublishGPReleaseResult, error) {

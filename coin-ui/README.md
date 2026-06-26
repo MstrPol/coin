@@ -38,9 +38,9 @@ make coin-ui-up   # http://localhost:8091
 | | `/platform/build-stacks` | gp-content catalog | reader+ |
 | | `/platform/branching-models` | Branching models catalog | reader+ |
 | | `/platform/components` | Legacy aggregate (deprecated) | reader+ |
+| | `/platform/build-stacks/:name/:version/edit` | gp-content editor (validate → publish) | publisher+ |
+| | `/platform/branching-models/:name/:version/edit` | branching-model editor | publisher+ |
 | | `/components/:type/:name` | Component detail + publish | reader+ |
-| | `/studio` | Component Studio | publisher+ (sidebar footer shortcut) |
-| | `/studio/:type/:name/:version` | Editor + validate → canary | publisher+ |
 | **Admin** | `/platform-settings` | Nexus settings | admin (edit publisher+) |
 | | `/audit` | Audit log | admin |
 

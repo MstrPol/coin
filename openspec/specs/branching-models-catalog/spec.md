@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Branching models catalog in coin-ui under Platform: lifecycle statuses, GP usage, Studio links.
+Branching models catalog in coin-ui under Platform: lifecycle statuses, GP usage, Platform editor links.
 ## Requirements
 ### Requirement: Branching models navigation entry
 
@@ -25,29 +25,36 @@ The branching models catalog SHALL display model name, version lines, lifecycle 
 #### Scenario: View model statuses
 
 - **WHEN** enabling team opens the branching models catalog
-- **THEN** the UI MUST show for each model at least: name, versions grouped by status (`draft`, `canary`, `published`), and created/updated metadata when available
+- **THEN** the UI MUST show for each model at least: name, versions grouped by status (`draft`, `published`), and created/updated metadata when available
 
 #### Scenario: View GP profile usage
 
-- **WHEN** a branching model is referenced by a GP profile slot
+- **WHEN** a branching model is referenced by a GP release composition
 - **THEN** the catalog MUST list GP profile names that pin that model name
 
-#### Scenario: Open version in Studio
+#### Scenario: Open draft version editor
 
-- **WHEN** enabling team selects a model version from the catalog
-- **THEN** the UI MUST provide a link to Component Studio at `/studio/branching-model/{name}/{version}`
+- **WHEN** enabling team selects a `draft` branching model version from the catalog
+- **THEN** the UI MUST navigate to `/platform/branching-models/{name}/{version}/edit`
+- **AND** MUST NOT link to `/studio`
+
+#### Scenario: Open published version detail
+
+- **WHEN** enabling team selects a `published` branching model version from the catalog
+- **THEN** the UI MUST navigate to `/platform/branching-models/{name}/{version}` as read-only detail
 
 ### Requirement: Catalog actions for lifecycle
 
-The catalog SHALL expose lifecycle actions appropriate to the version status without requiring navigation through the generic components page.
+The catalog SHALL expose lifecycle actions appropriate to the version status without requiring navigation through the generic components page or Component Studio.
 
-#### Scenario: Promote canary from catalog
+#### Scenario: Publish draft from catalog
 
-- **WHEN** a version is in `canary` status and health gate criteria are met
-- **THEN** the catalog MUST offer Promote to stable linking to the existing promote wizard flow
+- **WHEN** a branching model version is in `draft` status and validation passes
+- **THEN** the catalog or detail page MUST offer Publish transitioning the version to `published`
 
 #### Scenario: Create new model version
 
 - **WHEN** enabling team starts a new branching model version from the catalog
-- **THEN** the UI MUST route to Component Studio create flow for `branching-model`
+- **THEN** the UI MUST create a draft and open `/platform/branching-models/{name}/{version}/edit`
+- **AND** MUST NOT route to Component Studio
 

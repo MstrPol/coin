@@ -3,8 +3,17 @@ import type { CompositionItem } from "../api/types";
 import { api } from "./api";
 import { defaultAgentStackName, defaultBranchingModelForGP } from "./gpSlots";
 
+function versionLabels(items: { version: string; status: string }[], publishedOnly: boolean): string[] {
+  if (publishedOnly) {
+    return items.filter((v) => v.status === "published").map((v) => v.version);
+  }
+  return items
+    .filter((v) => v.status === "published" || v.status === "draft")
+    .map((v) => v.version);
+}
+
 function publishedVersions(items: { version: string; status: string }[]): string[] {
-  return items.filter((v) => v.status === "published").map((v) => v.version);
+  return versionLabels(items, true);
 }
 
 export function useGpCompositionEditor(gpName: string, initial?: CompositionItem[]) {
@@ -16,6 +25,7 @@ export function useGpCompositionEditor(gpName: string, initial?: CompositionItem
   const [branchingModelOptions, setBranchingModelOptions] = useState<string[]>([]);
   const [composition, setComposition] = useState<Record<string, string>>({});
   const [versionOptions, setVersionOptions] = useState<Record<string, string[]>>({});
+  const [versionStatuses, setVersionStatuses] = useState<Record<string, Record<string, string>>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -90,17 +100,21 @@ export function useGpCompositionEditor(gpName: string, initial?: CompositionItem
         setBranchingModelName(bm);
 
         const versions: Record<string, string[]> = {};
+        const statuses: Record<string, Record<string, string>> = {};
         if (agent) {
           const r = await api.componentVersions("agent", agent);
           versions.agent = publishedVersions(r.items);
+          statuses.agent = Object.fromEntries(r.items.map((v) => [v.version, v.status]));
         }
         if (gc) {
           const r = await api.componentVersionsOptional("gp-content", gc);
-          versions["gp-content"] = publishedVersions(r?.items ?? []);
+          versions["gp-content"] = versionLabels(r?.items ?? [], false);
+          statuses["gp-content"] = Object.fromEntries((r?.items ?? []).map((v) => [v.version, v.status]));
         }
         if (bm) {
           const r = await api.componentVersions("branching-model", bm);
-          versions["branching-model"] = publishedVersions(r.items);
+          versions["branching-model"] = versionLabels(r.items, false);
+          statuses["branching-model"] = Object.fromEntries(r.items.map((v) => [v.version, v.status]));
         }
         if (cancelled) return;
 
@@ -112,6 +126,7 @@ export function useGpCompositionEditor(gpName: string, initial?: CompositionItem
         }
 
         setVersionOptions(versions);
+        setVersionStatuses(statuses);
         setComposition(comp);
       } catch (err) {
         if (!cancelled) {
@@ -147,8 +162,12 @@ export function useGpCompositionEditor(gpName: string, initial?: CompositionItem
     api
       .componentVersionsOptional("gp-content", gpContentName)
       .then((r) => {
-        const vers = publishedVersions(r?.items ?? []);
+        const vers = versionLabels(r?.items ?? [], false);
         setVersionOptions((prev) => ({ ...prev, "gp-content": vers }));
+        setVersionStatuses((prev) => ({
+          ...prev,
+          "gp-content": Object.fromEntries((r?.items ?? []).map((v) => [v.version, v.status])),
+        }));
         setComposition((prev) => {
           if (prev["gp-content"] && vers.includes(prev["gp-content"])) return prev;
           return { ...prev, "gp-content": vers[0] ?? "" };
@@ -162,8 +181,12 @@ export function useGpCompositionEditor(gpName: string, initial?: CompositionItem
     api
       .componentVersions("branching-model", branchingModelName)
       .then((r) => {
-        const vers = publishedVersions(r.items);
+        const vers = versionLabels(r.items, false);
         setVersionOptions((prev) => ({ ...prev, "branching-model": vers }));
+        setVersionStatuses((prev) => ({
+          ...prev,
+          "branching-model": Object.fromEntries(r.items.map((v) => [v.version, v.status])),
+        }));
         setComposition((prev) => {
           if (prev["branching-model"] && vers.includes(prev["branching-model"])) return prev;
           return { ...prev, "branching-model": vers[0] ?? "" };
@@ -185,6 +208,7 @@ export function useGpCompositionEditor(gpName: string, initial?: CompositionItem
     composition,
     setComposition,
     versionOptions,
+    versionStatuses,
     loading,
     error,
   };

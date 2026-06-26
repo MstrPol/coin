@@ -120,7 +120,6 @@ func (s *Server) Router() http.Handler {
 				r.With(shortTimeout).Post("/components", s.createComponent)
 				r.With(shortTimeout).Post("/components/{type}/{name}/versions", s.publishComponentVersion)
 				r.With(shortTimeout).Post("/components/{type}/{name}/versions/drafts", s.createDraftComponentVersion)
-				r.With(shortTimeout).Post("/components/{type}/{name}/versions/{version}/publish-canary", s.publishComponentToCanary)
 				r.With(shortTimeout).Post("/components/{type}/{name}/versions/{version}/promote", s.promoteComponentVersion)
 				r.With(shortTimeout).Patch("/components/{type}/{name}/versions/{version}", s.patchComponentVersion)
 				r.With(shortTimeout).Post("/components/{type}/{name}/versions/{version}/register-package", s.registerComponentPackage)
@@ -431,37 +430,6 @@ func (s *Server) createDraftComponentVersion(w http.ResponseWriter, r *http.Requ
 	})
 }
 
-func (s *Server) publishComponentToCanary(w http.ResponseWriter, r *http.Request) {
-	typ := chi.URLParam(r, "type")
-	name := chi.URLParam(r, "name")
-	version := chi.URLParam(r, "version")
-	actor := actorFromBody(r)
-
-	row, err := s.admin.PublishComponentToCanary(r.Context(), typ, name, version, actor)
-	if errors.Is(err, store.ErrNotFound) {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "component version not found"})
-		return
-	}
-	if errors.Is(err, store.ErrComponentPackageNotRegistered) {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
-		return
-	}
-	if errors.Is(err, store.ErrComponentVersionNotDraft) {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
-		return
-	}
-	if err != nil {
-		s.logger.Error("publish component to canary", "err", err)
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"type":    row.Type,
-		"name":    row.Name,
-		"version": row.Version,
-		"status":  row.Status,
-	})
-}
 
 func (s *Server) promoteComponentVersion(w http.ResponseWriter, r *http.Request) {
 	typ := chi.URLParam(r, "type")
@@ -472,6 +440,10 @@ func (s *Server) promoteComponentVersion(w http.ResponseWriter, r *http.Request)
 	row, err := s.admin.PromoteComponentToPublished(r.Context(), typ, name, version, actor)
 	if errors.Is(err, store.ErrNotFound) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "component version not found"})
+		return
+	}
+	if errors.Is(err, store.ErrComponentVersionNotDraft) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 		return
 	}
 	if errors.Is(err, store.ErrComponentVersionNotCanary) {
@@ -720,6 +692,14 @@ func (s *Server) promoteDraftGPRelease(w http.ResponseWriter, r *http.Request) {
 	result, err := s.admin.PromoteDraftGPRelease(r.Context(), name, version, actor)
 	if errors.Is(err, store.ErrNotFound) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "draft not found"})
+		return
+	}
+	if errors.Is(err, store.ErrGPCompositionHasDraftPins) {
+		blockers, _ := s.admin.ValidateGPReleasePromoteBlockers(r.Context(), name, version)
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":         err.Error(),
+			"blockingPins": blockers,
+		})
 		return
 	}
 	if err != nil {

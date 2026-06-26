@@ -13,20 +13,32 @@ The coin-ui SHALL provide a Platform → Build stacks catalog for all `gp-conten
 #### Scenario: List gp-content stacks
 
 - **WHEN** enabling team opens `/platform/build-stacks`
-- **THEN** the UI MUST list all `gp-content` components from the registry with versions and lifecycle status
+- **THEN** the UI MUST list all `gp-content` components from the registry with versions grouped by status (`draft`, `published`)
 - **AND** MUST NOT filter or align stacks by GP profile name
 
-#### Scenario: Open stack in Studio
+#### Scenario: Open stack editor from catalog
 
-- **WHEN** enabling team selects a gp-content version
-- **THEN** the UI MUST link to Component Studio at `/studio/gp-content/{name}/{version}` when publisher role is present
+- **WHEN** enabling team selects a `draft` gp-content version from the catalog
+- **THEN** the UI MUST navigate to `/platform/build-stacks/{name}/{version}/edit`
+- **AND** MUST NOT link to `/studio`
+
+#### Scenario: Open published stack detail
+
+- **WHEN** enabling team selects a `published` gp-content version from the catalog
+- **THEN** the UI MUST navigate to `/platform/build-stacks/{name}/{version}` as read-only detail
+
+#### Scenario: Create new build stack draft
+
+- **WHEN** enabling team with publisher role clicks create new build stack from the catalog
+- **THEN** the UI MUST create a draft via Admin API and open the edit page under `/platform/build-stacks`
 
 ### Requirement: gp-content from GP release composition
 
 When viewing a GP release, the UI SHALL surface the pinned gp-content from that release's composition — not from the profile entity.
 
-#### Scenario: Studio link from release composition
+#### Scenario: Platform link from release composition
 
 - **WHEN** enabling team views release detail and the composition includes `gp-content/go-app@1.0.0`
-- **THEN** the UI MUST offer a link to Studio or Platform build stacks for that component version
+- **THEN** the UI MUST offer a link to `/platform/build-stacks/go-app/1.0.0` or edit route for draft versions
+- **AND** MUST NOT link to `/studio`
 - **AND** MUST NOT link to a profile-level Build stack hub tab

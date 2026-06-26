@@ -27,7 +27,7 @@ func (s *Store) PublishComponentToCanary(ctx context.Context, typ, name, version
 }
 
 func (s *Store) PromoteComponentToPublished(ctx context.Context, typ, name, version, actor string) (ComponentVersionRow, error) {
-	return s.transitionComponentVersion(ctx, typ, name, version, actor, "canary", "published", "promote_component_version")
+	return s.transitionComponentVersion(ctx, typ, name, version, actor, "draft", "published", "publish_component_version")
 }
 
 func (s *Store) insertComponentVersion(ctx context.Context, in ComponentVersionInput, status, auditAction string) (ComponentVersionRow, error) {
@@ -135,8 +135,8 @@ func (s *Store) PromoteComponentToPublishedWithContentRef(ctx context.Context, t
 		}
 		return ComponentVersionRow{}, err
 	}
-	if row.Status != "canary" {
-		return ComponentVersionRow{}, ErrComponentVersionNotCanary
+	if row.Status != "draft" && row.Status != "canary" {
+		return ComponentVersionRow{}, ErrComponentVersionNotDraft
 	}
 
 	_, err = tx.Exec(ctx, `
@@ -152,7 +152,7 @@ func (s *Store) PromoteComponentToPublishedWithContentRef(ctx context.Context, t
 		"type":    typ,
 		"name":    name,
 		"version": version,
-		"from":    "canary",
+		"from":    row.Status,
 		"to":      "published",
 	})
 	_, err = tx.Exec(ctx, `

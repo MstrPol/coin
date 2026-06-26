@@ -29,6 +29,23 @@ import type {
   ValidateComponentPackageResult,
 } from "../api/types";
 
+export type CompositionPinBlocker = {
+  type: string;
+  name: string;
+  version: string;
+  status: string;
+};
+
+export class PromoteBlockedError extends Error {
+  blockingPins: CompositionPinBlocker[];
+
+  constructor(message: string, blockingPins: CompositionPinBlocker[]) {
+    super(message);
+    this.name = "PromoteBlockedError";
+    this.blockingPins = blockingPins;
+  }
+}
+
 const base = import.meta.env.VITE_API_BASE ?? "/api";
 const KEY_STORAGE = "coin-admin-api-key";
 const TOKEN_STORAGE = "coin-access-token";
@@ -317,12 +334,25 @@ export const api = {
       actor?: string;
     },
   ) => apiPost<PublishGPResult>(`/v1/admin/golden-paths/${name}/versions`, body),
-  promoteDraftGPRelease: (name: string, version: string, actor?: string) => {
+  promoteDraftGPRelease: async (name: string, version: string, actor?: string) => {
     const q = actor ? `?actor=${encodeURIComponent(actor)}` : "";
-    return apiPost<PublishGPResult>(
-      `/v1/admin/golden-paths/${name}/versions/${encodeURIComponent(version)}/promote${q}`,
-      {},
-    );
+    const path = `/v1/admin/golden-paths/${name}/versions/${encodeURIComponent(version)}/promote${q}`;
+    const res = await fetch(`${base}${path}`, {
+      method: "POST",
+      headers: { ...headers(), "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      blockingPins?: CompositionPinBlocker[];
+    };
+    if (!res.ok) {
+      if (res.status === 409 && Array.isArray(data.blockingPins)) {
+        throw new PromoteBlockedError(data.error ?? "GP promote blocked", data.blockingPins);
+      }
+      throw new Error(typeof data.error === "string" ? data.error : `${res.status} ${path}`);
+    }
+    return data as PublishGPResult;
   },
   catalog: (name: string) =>
     apiGet<CatalogOverview>(`/v1/admin/golden-paths/${name}/catalog`),
@@ -468,11 +498,6 @@ export const api = {
     }
     return data;
   },
-  publishComponentToCanary: (type: string, name: string, version: string, actor?: string) =>
-    apiPost<{ type: string; name: string; version: string; status: string }>(
-      `/v1/admin/components/${type}/${name}/versions/${encodeURIComponent(version)}/publish-canary`,
-      { actor },
-    ),
   promoteComponentVersion: (type: string, name: string, version: string, actor?: string) =>
     apiPost<{ type: string; name: string; version: string; status: string }>(
       `/v1/admin/components/${type}/${name}/versions/${encodeURIComponent(version)}/promote`,

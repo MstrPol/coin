@@ -1,11 +1,9 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import BranchingModelEditor from "../components/studio/BranchingModelEditor";
-import GpContentEditor from "../components/studio/GpContentEditor";
-import PilotPromotePanel from "../components/studio/PilotPromotePanel";
-import type { ComponentVersionDetail, ValidateComponentPackageResult } from "../api/types";
-import { useAuth } from "../context/AuthContext";
-import { api, getActor } from "../lib/api";
+import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import BranchingModelEditor from "../studio/BranchingModelEditor";
+import GpContentEditor from "../studio/GpContentEditor";
+import type { ComponentVersionDetail, ValidateComponentPackageResult } from "../../api/types";
+import { api, getActor } from "../../lib/api";
 import {
   buildManifestSubset,
   defaultBranchingModel,
@@ -13,7 +11,7 @@ import {
   serializeBranchingModel,
   validateBranchingModelClient,
   type BranchingModel,
-} from "../lib/branchingModelYaml";
+} from "../../lib/branchingModelYaml";
 import {
   buildGpContentManifestSubset,
   defaultContainerfile,
@@ -24,20 +22,14 @@ import {
   serializeGpContent,
   validateGpContentClient,
   type GpContentModel,
-} from "../lib/gpContentYaml";
-import {
-  isStudioType,
-  STUDIO_COMPONENT_TYPES,
-  studioTypeConfig,
-  usesPGOnlyCanaryRegistry,
-} from "../lib/componentStudio";
+} from "../../lib/gpContentYaml";
+import { platformCatalogPath } from "../../lib/platformComponentPaths";
+import { platformTypeConfig } from "../../lib/platformComponentTypes";
 
-function statusBadge(status: string): string {
+function statusClass(status: string): string {
   switch (status) {
     case "draft":
       return "text-amber-400";
-    case "canary":
-      return "text-sky-400";
     case "published":
       return "text-emerald-400";
     default:
@@ -45,146 +37,7 @@ function statusBadge(status: string): string {
   }
 }
 
-export default function ComponentStudio() {
-  const { type: typeParam, name: nameParam, version: versionParam } = useParams();
-  const navigate = useNavigate();
-  const { can } = useAuth();
-
-  if (typeParam && nameParam && versionParam) {
-    return (
-      <StudioEditor
-        type={typeParam}
-        name={nameParam}
-        version={versionParam}
-        canEdit={can("publisher")}
-      />
-    );
-  }
-
-  return <StudioHome canEdit={can("publisher")} onOpen={(t, n, v) => navigate(`/studio/${t}/${n}/${encodeURIComponent(v)}`)} />;
-}
-
-function StudioHome({
-  canEdit,
-  onOpen,
-}: {
-  canEdit: boolean;
-  onOpen: (type: string, name: string, version: string) => void;
-}) {
-  const [compType, setCompType] = useState(STUDIO_COMPONENT_TYPES[0]?.type ?? "branching-model");
-  const [compName, setCompName] = useState("");
-  const [version, setVersion] = useState("1.0.0");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function onCreate(e: FormEvent) {
-    e.preventDefault();
-    if (!canEdit) return;
-    const name = compName.trim();
-    if (!name) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await api.createComponent({
-        type: compType,
-        name,
-        actor: getActor() || undefined,
-      }).catch((err: Error) => {
-        if (!err.message.includes("409") && !err.message.toLowerCase().includes("already exists")) {
-          throw err;
-        }
-      });
-      await api.createDraftComponentVersion(compType, name, {
-        version: version.trim(),
-        actor: getActor() || undefined,
-      });
-      onOpen(compType, name, version.trim());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "create failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const selected = studioTypeConfig(compType);
-
-  return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Component Studio</h1>
-        <p className="mt-1 text-zinc-400">
-          UI-first authoring platform components — draft в PostgreSQL, без git и shell-скриптов
-        </p>
-      </div>
-
-      {error && <p className="text-red-400">{error}</p>}
-
-      <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6 max-w-xl">
-        <h2 className="font-medium">Новый draft</h2>
-        {canEdit ? (
-          <form onSubmit={onCreate} className="mt-4 space-y-4">
-            <label className="block text-xs text-zinc-500">
-              Component type
-              <select
-                value={compType}
-                onChange={(e) => setCompType(e.target.value)}
-                className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
-              >
-                {STUDIO_COMPONENT_TYPES.map((t) => (
-                  <option key={t.type} value={t.type}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {selected && <p className="text-xs text-zinc-500">{selected.description}</p>}
-            <label className="block text-xs text-zinc-500">
-              Name
-              <input
-                value={compName}
-                onChange={(e) => setCompName(e.target.value)}
-                placeholder="trunk-based"
-                required
-                className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-mono"
-              />
-            </label>
-            <label className="block text-xs text-zinc-500">
-              Version
-              <input
-                value={version}
-                onChange={(e) => setVersion(e.target.value)}
-                required
-                className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-mono"
-              />
-            </label>
-            <button
-              type="submit"
-              disabled={busy}
-              className="rounded bg-sky-600 px-4 py-2 text-sm hover:bg-sky-500 disabled:opacity-50"
-            >
-              {busy ? "Создание…" : "Создать draft и открыть редактор"}
-            </button>
-          </form>
-        ) : (
-          <p className="mt-4 text-sm text-zinc-500">Требуется роль publisher</p>
-        )}
-      </section>
-
-      <section>
-        <h2 className="font-medium mb-3">Поддерживаемые типы</h2>
-        <ul className="space-y-2 text-sm text-zinc-400">
-          {STUDIO_COMPONENT_TYPES.map((t) => (
-            <li key={t.type}>
-              <span className="font-mono text-zinc-200">{t.type}</span> — {t.description}
-            </li>
-          ))}
-        </ul>
-      </section>
-    </div>
-  );
-}
-
-function StudioEditor({
+export default function PlatformComponentEditor({
   type,
   name,
   version,
@@ -195,7 +48,7 @@ function StudioEditor({
   version: string;
   canEdit: boolean;
 }) {
-  const config = studioTypeConfig(type);
+  const config = platformTypeConfig(type);
   const [detail, setDetail] = useState<ComponentVersionDetail | null>(null);
   const [branchingModel, setBranchingModel] = useState<BranchingModel | null>(null);
   const [gpContent, setGpContent] = useState<GpContentModel | null>(null);
@@ -218,7 +71,7 @@ function StudioEditor({
     setError(null);
     const d = await api.componentVersionDetail(type, name, version);
     setDetail(d);
-    if (!isStudioType(type) || !config) return;
+    if (!config) return;
 
     try {
       const list = await api.listComponentArtifacts(type, name, version);
@@ -344,7 +197,7 @@ function StudioEditor({
     }
   }
 
-  async function publishToCanary() {
+  async function publishToStable() {
     if (!config || readOnly) return;
     if (config.editor === "branching-model" && !branchingModel) return;
     if (config.editor === "gp-content" && !gpContent) return;
@@ -367,12 +220,8 @@ function StudioEditor({
         manifest,
         actor: getActor() || undefined,
       });
-      await api.publishComponentToCanary(type, name, version, getActor() || undefined);
-      setMessage(
-        usesPGOnlyCanaryRegistry(type)
-          ? `Опубликовано в canary (PG): ${type}/${name}@${version}`
-          : `Опубликовано в canary: ${type}/${name}@${version}`,
-      );
+      await api.promoteComponentVersion(type, name, version, getActor() || undefined);
+      setMessage(`Опубликовано: ${type}/${name}@${version}`);
       await load();
       setValidation(null);
     } catch (err) {
@@ -385,8 +234,8 @@ function StudioEditor({
   if (!config) {
     return (
       <div className="space-y-4">
-        <StudioBackLink />
-        <p className="text-red-400">Тип {type} пока не поддерживается в Component Studio</p>
+        <PlatformBackLink type={type} />
+        <p className="text-red-400">Тип {type} не поддерживается</p>
       </div>
     );
   }
@@ -395,15 +244,13 @@ function StudioEditor({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <StudioBackLink />
+          <PlatformBackLink type={type} />
           <h1 className="mt-2 text-2xl font-semibold font-mono">
             {type}/{name}@{version}
           </h1>
           <p className="mt-1 text-zinc-400">
-            Component Studio ·{" "}
-            {detail && (
-              <span className={statusBadge(detail.status)}>{detail.status}</span>
-            )}
+            Platform ·{" "}
+            {detail && <span className={statusClass(detail.status)}>{detail.status}</span>}
           </p>
         </div>
         {canEdit && isDraft && (
@@ -424,7 +271,10 @@ function StudioEditor({
       {!isDraft && detail && (
         <p className="rounded border border-amber-900/50 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
           Редактирование доступно только для draft.{" "}
-          <Link to={`/components/${type}/${name}/${encodeURIComponent(version)}`} className="text-sky-400 hover:underline">
+          <Link
+            to={`/components/${type}/${name}/${encodeURIComponent(version)}`}
+            className="text-sky-400 hover:underline"
+          >
             Открыть в registry →
           </Link>
         </p>
@@ -468,13 +318,10 @@ function StudioEditor({
           </div>
 
           {artifacts.length > 0 && (
-            <div className="text-xs text-zinc-500">
-              Draft artifacts: {artifacts.join(", ")}
-            </div>
+            <div className="text-xs text-zinc-500">Draft artifacts: {artifacts.join(", ")}</div>
           )}
 
           <LifecyclePanel
-            type={type}
             status={detail?.status ?? "draft"}
             hasContentRef={hasContentRef}
             validation={validation}
@@ -482,26 +329,15 @@ function StudioEditor({
             validating={validating}
             publishing={publishing}
             onValidate={() => void runValidate()}
-            onPublishCanary={() => void publishToCanary()}
+            onPublish={() => void publishToStable()}
           />
         </section>
       </div>
-
-      {detail?.status === "canary" && (
-        <PilotPromotePanel
-          type={type}
-          name={name}
-          version={version}
-          canEdit={canEdit}
-          onPromoted={() => void load()}
-        />
-      )}
     </div>
   );
 }
 
 function LifecyclePanel({
-  type,
   status,
   hasContentRef,
   validation,
@@ -509,9 +345,8 @@ function LifecyclePanel({
   validating,
   publishing,
   onValidate,
-  onPublishCanary,
+  onPublish,
 }: {
-  type: string;
   status: string;
   hasContentRef: boolean;
   validation: ValidateComponentPackageResult | null;
@@ -519,24 +354,14 @@ function LifecyclePanel({
   validating: boolean;
   publishing: boolean;
   onValidate: () => void;
-  onPublishCanary: () => void;
+  onPublish: () => void;
 }) {
   const validated = validation?.valid === true;
-  const pgOnly = usesPGOnlyCanaryRegistry(type);
   const steps = [
-    { id: "draft", label: "Draft (PG)", done: true },
+    { id: "draft", label: "Draft", done: true },
     { id: "validate", label: "Validate", done: validated },
-    {
-      id: "register",
-      label: pgOnly ? "Register (PG)" : "Nexus register",
-      done: hasContentRef,
-    },
-    { id: "canary", label: "Publish canary", done: status === "canary" || status === "published" },
-    {
-      id: "stable",
-      label: pgOnly ? "Promote (Nexus)" : "Promote stable",
-      done: status === "published",
-    },
+    { id: "register", label: "Register package", done: hasContentRef },
+    { id: "published", label: "Publish", done: status === "published" },
   ];
 
   return (
@@ -578,29 +403,23 @@ function LifecyclePanel({
           </button>
           <button
             type="button"
-            onClick={onPublishCanary}
+            onClick={onPublish}
             disabled={publishing || validating}
             className="rounded bg-sky-600 px-3 py-1.5 text-sm hover:bg-sky-500 disabled:opacity-50"
           >
-            {publishing ? "Публикация…" : "Publish to canary"}
+            {publishing ? "Публикация…" : "Publish"}
           </button>
         </div>
-      )}
-
-      {status === "canary" && (
-        <p className="text-xs text-sky-400">
-          Версия в canary — назначьте pilot projects и promote stable ниже.
-          {pgOnly && " Promote загрузит immutable package в Nexus."}
-        </p>
       )}
     </div>
   );
 }
 
-function StudioBackLink() {
+function PlatformBackLink({ type }: { type: string }) {
+  const to = platformCatalogPath(type) ?? "/platform/build-stacks";
   return (
-    <Link to="/studio" className="text-sm text-sky-400 hover:underline">
-      ← Component Studio
+    <Link to={to} className="text-sm text-sky-400 hover:underline">
+      ← Platform catalog
     </Link>
   );
 }

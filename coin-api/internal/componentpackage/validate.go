@@ -13,7 +13,7 @@ const (
 	ContentRefSchemaVersion = 2
 	PackageManifestVersion  = 1
 
-	// PGOnlyRegistryComponentType is the first component type with draft/canary in PG only (Nexus on promote).
+	// PGOnlyRegistryComponentType keeps manifest subset in PG until publish uploads Nexus package.
 	PGOnlyRegistryComponentType = "branching-model"
 )
 
@@ -43,11 +43,6 @@ type PackageManifest struct {
 	ComponentName string        `json:"componentName"`
 	Version       string        `json:"version"`
 	Files         []PackageFile `json:"files"`
-}
-
-// UsesPGOnlyCanaryRegistry reports whether register-package skips Nexus until promote.
-func UsesPGOnlyCanaryRegistry(typ string) bool {
-	return typ == PGOnlyRegistryComponentType
 }
 
 // IsContentRefV2Envelope reports whether raw JSON uses the v2 envelope (package optional).

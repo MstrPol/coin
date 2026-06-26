@@ -48,7 +48,7 @@ func (s *Service) RegisterComponentPackage(ctx context.Context, typ, name, versi
 		return RegisterComponentPackageResult{}, fmt.Errorf("package validation failed")
 	}
 
-	if componentpackage.UsesPGOnlyCanaryRegistry(typ) {
+	if typ == componentpackage.PGOnlyRegistryComponentType {
 		return s.registerComponentPackagePGOnly(ctx, typ, name, version, req.Manifest, bodies)
 	}
 	return s.registerComponentPackageNexus(ctx, typ, name, version, req.Manifest, bodies)
@@ -132,23 +132,25 @@ func (s *Service) uploadComponentPackageToNexus(ctx context.Context, typ, name, 
 	return packageURL, "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
-func (s *Service) promotePGOnlyRegistryToPublished(ctx context.Context, typ, name, version, actor string) (store.ComponentVersionRow, error) {
+func (s *Service) publishComponentFromDraft(ctx context.Context, typ, name, version, actor string) (store.ComponentVersionRow, error) {
 	detail, err := s.store.GetComponentVersionDetail(ctx, typ, name, version)
 	if err != nil {
 		return store.ComponentVersionRow{}, err
 	}
-	if detail.Status != "canary" {
-		return store.ComponentVersionRow{}, store.ErrComponentVersionNotCanary
+	if detail.Status != "draft" && detail.Status != "canary" {
+		return store.ComponentVersionRow{}, store.ErrComponentVersionNotDraft
 	}
-	if componentpackage.HasPackageURL(detail.ContentRef) {
-		return s.store.PromoteComponentToPublished(ctx, typ, name, version, actor)
+	if componentpackage.IsRegisteredForCanary(detail.ContentRef) || componentpackage.HasPackageURL(detail.ContentRef) {
+		if componentpackage.HasPackageURL(detail.ContentRef) {
+			return s.store.PromoteComponentToPublished(ctx, typ, name, version, actor)
+		}
 	}
 	bodies, err := s.store.ListComponentArtifactBodiesForVersion(ctx, typ, name, version)
 	if err != nil {
 		return store.ComponentVersionRow{}, err
 	}
 	if len(bodies) == 0 {
-		return store.ComponentVersionRow{}, fmt.Errorf("canary has no artifact bodies to publish")
+		return store.ComponentVersionRow{}, fmt.Errorf("draft has no artifact bodies to publish")
 	}
 	packageURL, packageSHA, err := s.uploadComponentPackageToNexus(ctx, typ, name, version, bodies)
 	if err != nil {

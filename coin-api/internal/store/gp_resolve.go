@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
@@ -92,9 +93,7 @@ func (s *Store) CreateDraftGPRelease(ctx context.Context, in PublishGPReleaseInp
 	if err != nil {
 		return GPReleaseRow{}, err
 	}
-	if err := validateGPReleaseComposition(s, ctx, prep, rules, func(string) ComponentResolveMode {
-		return ComponentResolveAdmin
-	}); err != nil {
+	if err := validateGPReleaseComposition(s, ctx, prep, rules, componentResolveModeForGPDraftEdit); err != nil {
 		return GPReleaseRow{}, err
 	}
 
@@ -223,6 +222,13 @@ func (s *Store) PromoteDraftToPublished(ctx context.Context, name, version, acto
 	}
 	if status != "draft" {
 		return GPReleaseRow{}, fmt.Errorf("release is not draft (status=%s)", status)
+	}
+
+	if blockers, err := s.validateGPReleasePromoteReady(ctx, name, version); err != nil {
+		if errors.Is(err, ErrGPCompositionHasDraftPins) {
+			return GPReleaseRow{}, fmt.Errorf("%w: %v", ErrGPCompositionHasDraftPins, blockers)
+		}
+		return GPReleaseRow{}, err
 	}
 
 	var exists int

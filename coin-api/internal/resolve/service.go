@@ -67,13 +67,10 @@ func (s *Service) Resolve(ctx context.Context, name, pinRaw string, opts Resolve
 		return Result{}, err
 	}
 
-	allowDraftGP := p.Kind == pin.KindExact && pin.IsSnapshotVersion(p.Base)
+	allowDraftGP := pin.IsSnapshotVersion(version)
 	componentMode := store.ComponentResolveStable
-	if channel == "canary" {
-		componentMode = store.ComponentResolveCanary
-	}
-	if allowDraftGP {
-		componentMode = store.ComponentResolveAdmin
+	if channel == "canary" || allowDraftGP {
+		componentMode = store.ComponentResolveDraft
 	}
 	release, err := s.store.GetGPReleaseForResolve(ctx, name, version, store.GPResolveOptions{
 		AllowDraftGP:  allowDraftGP,
@@ -120,7 +117,7 @@ func (s *Service) selectVersion(ctx context.Context, name string, p pin.Pin, opt
 		allowDraftGP := pin.IsSnapshotVersion(p.Base)
 		componentMode := store.ComponentResolveStable
 		if allowDraftGP {
-			componentMode = store.ComponentResolveAdmin
+			componentMode = store.ComponentResolveDraft
 		}
 		_, err := s.store.GetGPReleaseForResolve(ctx, name, p.Base, store.GPResolveOptions{
 			AllowDraftGP:  allowDraftGP,

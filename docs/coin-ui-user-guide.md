@@ -41,7 +41,7 @@ Key или OIDC access token хранится в `localStorage`.
 | Platform | Branching models | `/platform/branching-models` | reader+ |
 | Admin | Platform settings | `/platform-settings` | admin |
 | Admin | Audit | `/audit` | admin |
-| Footer | Studio | `/studio` | publisher+ |
+| Footer | — | Studio удалён; `/studio` → redirect на Platform |
 
 **Redirects:** `/branching-models` → `/platform/branching-models`, `/components` → `/platform/components`, `/releases` → `/gp`, `/catalog` → `/gp`, `/canary` → `/gp`, `/releases/:n/:v` → `/gp/:n/releases/:v`, `/releases/new-gp` → `/gp/new`, `/releases/publish` → `/gp/:name/releases/new-draft` (с `?name=`).
 
@@ -103,7 +103,7 @@ Entity-centric view одного GP:
 
 ### GP release detail (`/gp/:name/releases/:version`)
 
-Composition (agent, gp-content, branching-model). **Draft:** editable form + **Save composition**, Promote, Delete draft. **Published:** read-only таблица, без Save/Delete. gp-content → Studio или Platform build stacks.
+Composition (agent, gp-content, branching-model). **Draft:** editable form + **Save composition**, Promote (блокируется при draft pins), Delete draft. **Published:** read-only. Ссылки на Platform editor для gp-content / branching-model.
 
 ### Resolve preview
 
@@ -119,15 +119,15 @@ Override **auto | stable | canary** — только для preview (`forceChann
 
 - **Runtime** (`/platform/runtime`) — `agent`, `executor`
 - **Build stacks** (`/platform/build-stacks`) — `gp-content`
-- **Branching models** (`/platform/branching-models`) — lifecycle draft → canary → published
+- **Branching models** (`/platform/branching-models`) — lifecycle draft → published
 
 Legacy aggregate: `/platform/components` (redirect с `/components`). `/platform/jenkins-lib` → redirect на `/platform/runtime`.
 
 Detail: `/components/:type/:name` — версии, metadata/contentRef, GP usage, publish (publisher).
 
-**Build stack** для GP — вкладка hub `/gp/:name/build-stack` (gp-content версии, ссылки в Studio).
+**Platform editor:** `/platform/build-stacks/:name/:version/edit`, `/platform/branching-models/:name/:version/edit` — validate → register → promote.
 
-**Component Studio** — `/studio` (publisher, shortcut в footer sidebar). Authoring: validate → register (PG) → canary → promote (Nexus).
+**Build stack** для GP — вкладка hub `/gp/:name/build-stack` (gp-content версии, ссылки в Platform).
 
 ### Platform settings
 

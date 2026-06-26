@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# BML-4.3: canary GP resolve returns manifest.branching from PG (no Nexus package on canary component).
+# BML-4.3: canary GP resolve returns manifest.branching from draft pin (PG, no Nexus package).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -44,12 +44,12 @@ curl -fsS "${API}/ready" >/dev/null
 echo "==> ensure GP ${GP}@${GP_STABLE} exists"
 curl -fsS "${API}/v1/admin/golden-paths/${GP}/versions/${GP_STABLE}" "${AUTH[@]}" >/dev/null
 
-echo "==> branching-model ${MODEL}@${BM_VER} draft + canary (PG-only)"
+echo "==> branching-model ${MODEL}@${BM_VER} draft (PG-only manifest)"
 api_post "/v1/admin/components/${COMP_TYPE}/${MODEL}/versions/drafts" \
   "$(jq -n --arg v "${BM_VER}" --arg a "${ACTOR}" '{version: $v, actor: $a}')" >/dev/null 2>&1 || true
 
 status="$(curl -fsS "${API}/v1/admin/components/${COMP_TYPE}/${MODEL}/versions/${BM_VER}" "${AUTH[@]}" | jq -r '.status' 2>/dev/null || echo "")"
-if [[ "${status}" != "canary" && "${status}" != "published" ]]; then
+if [[ "${status}" != "draft" && "${status}" != "published" ]]; then
   MODEL_YAML="$(mktemp)"
   python3 - "${REPO_ROOT}/coin-branching-models/models/${MODEL}/model.yaml" "${MODEL_YAML}" <<'PY'
 import pathlib, sys, yaml
@@ -85,12 +85,9 @@ PY
 
   if curl -fsS "${API}/v1/admin/components/${COMP_TYPE}/${MODEL}/versions/${BM_VER}" "${AUTH[@]}" \
     | jq -e '.contentRef.package.url // empty | length > 0' >/dev/null; then
-    echo "FAIL: canary branching model must not have package.url" >&2
+    echo "FAIL: draft branching model must not have package.url" >&2
     exit 1
   fi
-
-  api_post "/v1/admin/components/${COMP_TYPE}/${MODEL}/versions/${BM_VER}/publish-canary" \
-    "$(jq -n --arg a "${ACTOR}" '{actor: $a}')" >/dev/null
 fi
 
 echo "==> publish GP ${GP}@${GP_CANARY} with canary branching-model@${BM_VER}"

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Component, ComponentGPUsage, ComponentVersion } from "../api/types";
-import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
+import { platformEditPath } from "../lib/platformComponentPaths";
 
 const COMP_TYPE = "branching-model";
 
@@ -36,18 +36,11 @@ function statusPill(status: string): string {
   }
 }
 
-function studioTarget(row: ModelRow): string | null {
-  return (
-    row.latestByStatus.draft ??
-    row.latestByStatus.canary ??
-    row.latestByStatus.published ??
-    row.versions[0]?.version ??
-    null
-  );
+function editPath(row: ModelRow, version: string): string | null {
+  return platformEditPath(COMP_TYPE, row.name, version);
 }
 
 export default function BranchingModelsPage() {
-  const { can } = useAuth();
   const [rows, setRows] = useState<ModelRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,17 +95,9 @@ export default function BranchingModelsPage() {
           <p className="text-xs uppercase tracking-wide text-zinc-500">Platform</p>
           <h1 className="text-2xl font-semibold">Branching models</h1>
           <p className="mt-1 text-zinc-400">
-            Каталог моделей ветвления · canary в PostgreSQL, Nexus на promote
+            Каталог моделей ветвления · draft → published
           </p>
         </div>
-        {can("publisher") && (
-          <Link
-            to="/studio"
-            className="rounded bg-sky-600 px-4 py-2 text-sm font-medium hover:bg-sky-500"
-          >
-            Component Studio
-          </Link>
-        )}
       </div>
 
       {error && <p className="text-red-400">{error}</p>}
@@ -123,7 +108,6 @@ export default function BranchingModelsPage() {
             <tr>
               <th className="px-4 py-3 font-medium">Model</th>
               <th className="px-4 py-3 font-medium">Draft</th>
-              <th className="px-4 py-3 font-medium">Canary</th>
               <th className="px-4 py-3 font-medium">Published</th>
               <th className="px-4 py-3 font-medium">GP profiles</th>
               <th className="px-4 py-3 font-medium">Actions</th>
@@ -132,45 +116,28 @@ export default function BranchingModelsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
+                <td colSpan={5} className="px-4 py-8 text-center text-zinc-500">
                   Загрузка…
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
-                  Нет branching models — создайте в{" "}
-                  <Link to="/studio" className="text-sky-400 hover:underline">
-                    Studio
-                  </Link>
+                <td colSpan={5} className="px-4 py-8 text-center text-zinc-500">
+                  Нет branching models — создайте draft через API или Platform editor
                 </td>
               </tr>
             ) : (
               rows.map((row) => {
-                const target = studioTarget(row);
                 const gpNames = gpNamesFor(row.gpUsage);
+                const draftVer = row.latestByStatus.draft;
+                const draftLink = draftVer ? editPath(row, draftVer) : null;
                 return (
                   <tr key={row.name} className="border-b border-zinc-800/60">
                     <td className="px-4 py-3 font-mono">{row.name}</td>
                     <td className="px-4 py-3 font-mono">
-                      {row.latestByStatus.draft ? (
-                        <Link
-                          to={`/studio/${COMP_TYPE}/${row.name}/${encodeURIComponent(row.latestByStatus.draft)}`}
-                          className="text-amber-400 hover:underline"
-                        >
-                          {row.latestByStatus.draft}
-                        </Link>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="px-4 py-3 font-mono">
-                      {row.latestByStatus.canary ? (
-                        <Link
-                          to={`/studio/${COMP_TYPE}/${row.name}/${encodeURIComponent(row.latestByStatus.canary)}`}
-                          className="text-sky-400 hover:underline"
-                        >
-                          {row.latestByStatus.canary}
+                      {draftLink ? (
+                        <Link to={draftLink} className="text-amber-400 hover:underline">
+                          {draftVer}
                         </Link>
                       ) : (
                         "—"
@@ -187,12 +154,9 @@ export default function BranchingModelsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 space-x-3">
-                      {target && (
-                        <Link
-                          to={`/studio/${COMP_TYPE}/${row.name}/${encodeURIComponent(target)}`}
-                          className="text-sky-400 hover:underline"
-                        >
-                          Studio
+                      {draftLink && (
+                        <Link to={draftLink} className="text-sky-400 hover:underline">
+                          Edit
                         </Link>
                       )}
                       <Link
@@ -201,14 +165,6 @@ export default function BranchingModelsPage() {
                       >
                         Detail
                       </Link>
-                      {row.latestByStatus.canary && can("publisher") && (
-                        <Link
-                          to={`/studio/${COMP_TYPE}/${row.name}/${encodeURIComponent(row.latestByStatus.canary)}`}
-                          className="text-emerald-400 hover:underline"
-                        >
-                          Promote
-                        </Link>
-                      )}
                     </td>
                   </tr>
                 );
@@ -219,9 +175,8 @@ export default function BranchingModelsPage() {
       </div>
 
       <p className="text-xs text-zinc-500">
-        Lifecycle: draft → validate → register (PG) → canary → promote (Nexus). Статусы:{" "}
+        Lifecycle: draft → validate → register → publish. Статусы:{" "}
         <span className={statusPill("draft")}>draft</span>,{" "}
-        <span className={statusPill("canary")}>canary</span>,{" "}
         <span className={statusPill("published")}>published</span>.
       </p>
     </div>

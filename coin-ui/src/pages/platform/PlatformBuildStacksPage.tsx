@@ -9,7 +9,7 @@ export default function PlatformBuildStacksPage() {
         types: ["gp-content"],
         emptyLabel: "Нет build stacks",
         showType: false,
-        studioType: "gp-content",
+        createType: "gp-content",
       }}
     />
   );

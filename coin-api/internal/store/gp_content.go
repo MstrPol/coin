@@ -130,7 +130,7 @@ func cacheRefTemplateFromContent(cref gpContentContentRef) string {
 }
 
 func (s *Store) seedGPArtifactsFromGPContent(ctx context.Context, releaseID int64, name, version string) error {
-	_, crefRaw, err := s.getGPContentRefs(ctx, name, version, ComponentResolveAdmin)
+	_, crefRaw, err := s.getGPContentRefs(ctx, name, version, ComponentResolveDraft)
 	if err != nil {
 		return err
 	}

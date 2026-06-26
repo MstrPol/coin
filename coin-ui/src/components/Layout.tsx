@@ -2,7 +2,6 @@ import { NavLink, Outlet } from "react-router-dom";
 import { highestRole } from "../lib/roles";
 import { visibleNavGroups } from "../lib/nav";
 import { useAuth } from "../context/AuthContext";
-import { hasMinRole } from "../lib/roles";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   isActive
@@ -13,7 +12,6 @@ export default function Layout() {
   const { logout, roles, subject } = useAuth();
   const role = highestRole(roles);
   const groups = visibleNavGroups(roles);
-  const showStudio = hasMinRole(roles, "publisher");
 
   return (
     <div className="min-h-screen flex">
@@ -48,18 +46,6 @@ export default function Layout() {
           ))}
         </nav>
 
-        {showStudio && (
-          <div className="border-t border-zinc-800 px-2 py-3">
-            <NavLink
-              to="/studio"
-              className={({ isActive }) =>
-                `block rounded-md px-2 py-1.5 text-sm ${linkClass({ isActive })}`
-              }
-            >
-              Studio
-            </NavLink>
-          </div>
-        )}
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">

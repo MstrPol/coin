@@ -5,17 +5,17 @@ import "testing"
 func TestAllowedComponentStatuses(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		mode     ComponentResolveMode
-		want     []string
-		check    string
-		allowed  bool
+		mode    ComponentResolveMode
+		want    []string
+		check   string
+		allowed bool
 	}{
 		{ComponentResolveStable, []string{"published"}, "published", true},
 		{ComponentResolveStable, nil, "canary", false},
 		{ComponentResolveStable, nil, "draft", false},
-		{ComponentResolveCanary, []string{"published", "canary"}, "canary", true},
-		{ComponentResolveCanary, nil, "draft", false},
-		{ComponentResolveAdmin, []string{"published", "canary", "draft"}, "draft", true},
+		{ComponentResolveDraft, []string{"published", "draft"}, "draft", true},
+		{ComponentResolveDraft, nil, "published", true},
+		{ComponentResolveDraft, nil, "canary", true},
 	}
 	for _, tc := range cases {
 		got := allowedComponentStatuses(tc.mode)
@@ -32,5 +32,15 @@ func TestAllowedComponentStatuses(t *testing.T) {
 		if componentStatusAllowed(tc.check, tc.mode) != tc.allowed {
 			t.Fatalf("mode %q status %q allowed=%v", tc.mode, tc.check, tc.allowed)
 		}
+	}
+}
+
+func TestComponentResolveModeForGPDraftEdit(t *testing.T) {
+	t.Parallel()
+	if componentResolveModeForGPDraftEdit("agent") != ComponentResolveStable {
+		t.Fatal("agent must be stable-only in GP draft")
+	}
+	if componentResolveModeForGPDraftEdit("gp-content") != ComponentResolveDraft {
+		t.Fatal("gp-content allows draft in GP draft")
 	}
 }

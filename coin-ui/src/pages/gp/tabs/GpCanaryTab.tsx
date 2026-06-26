@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
-import type { CanaryOverview, HealthSummary } from "../../../api/types";
+import type { CanaryOverview, GPReleaseDetail, HealthSummary } from "../../../api/types";
 import { useAuth } from "../../../context/AuthContext";
 import { api, getActor, setActor } from "../../../lib/api";
 
@@ -20,6 +20,7 @@ export default function GpCanaryTab() {
   const { can } = useAuth();
   const [overview, setOverview] = useState<CanaryOverview | null>(null);
   const [health, setHealth] = useState<HealthSummary | null>(null);
+  const [canaryRelease, setCanaryRelease] = useState<GPReleaseDetail | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [percent, setPercent] = useState(10);
   const [degradedPct, setDegradedPct] = useState(10);
@@ -45,8 +46,11 @@ export default function GpCanaryTab() {
         setCriticalPct(o.policy.criticalThresholdPct);
         if (o.catalog.latestCanary) {
           setHealth(await api.health(gpName, o.catalog.latestCanary, "canary").catch(() => null));
+          const release = await api.gpRelease(gpName, o.catalog.latestCanary).catch(() => null);
+          setCanaryRelease(release);
         } else {
           setHealth(null);
+          setCanaryRelease(null);
         }
       })
       .catch((err: Error) => setError(err.message))
@@ -97,6 +101,16 @@ export default function GpCanaryTab() {
       {health?.health === "critical" && (
         <div className="rounded border border-red-900/50 bg-red-950/30 px-4 py-3 text-red-300 text-sm">
           Canary line critical — рассмотрите откат ({overview?.catalog.latestCanary})
+        </div>
+      )}
+
+      {canaryRelease?.status === "draft" && (
+        <div className="rounded border border-amber-900/50 bg-amber-950/30 px-4 py-3 text-amber-200 text-sm">
+          <p className="font-medium text-amber-300">Canary line указывает на GP draft</p>
+          <p className="mt-1">
+            Resolve для canary-аудитории может включать draft pins — нестабильно по дизайну.
+            Опубликуйте GP и компоненты перед широким rollout.
+          </p>
         </div>
       )}
 

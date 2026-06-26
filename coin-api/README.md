@@ -85,14 +85,12 @@ Fleet scanner удалён (UI-02).
 
 | Endpoint | Назначение |
 |----------|------------|
-| `POST .../versions/drafts` | Создать draft (Component Studio) |
+| `POST .../versions/drafts` | Создать draft (Platform editor) |
 | `PATCH .../versions/{v}` | Редактировать draft (metadata, contentRef) |
 | `POST .../versions/{v}/validate-package` | Server-side validation draft package |
-| `POST .../versions/{v}/register-package` | Draft bodies (PG) → content_ref v2; `branching-model` — PG-only до promote, остальные types — Nexus |
-| `POST .../versions/{v}/promote` | `branching-model` — Nexus upload + published content_ref; остальные — смена status |
+| `POST .../versions/{v}/register-package` | Draft bodies (PG) → content_ref v2 (без Nexus `package.url`) |
+| `POST .../versions/{v}/promote` | draft → published (Nexus upload + immutable package) |
 | `PUT .../versions/{v}/artifacts/*` | Draft artifact bodies (PG, Q1) |
-| `POST .../versions/{v}/publish-canary` | draft → canary |
-| `POST .../versions/{v}/promote` | canary → published |
 | `POST .../versions` | Прямой publish → published (legacy CI scripts) |
 
 **content_ref v2** (Component Package Model): JSON Schema в `schemas/content-ref.v2.schema.json` и `schemas/package.manifest.schema.json`. При `PATCH`/создании draft v2-конверт валидируется в store; legacy `artifactKey` refs допускаются до миграции.
