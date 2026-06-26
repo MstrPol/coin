@@ -21,7 +21,6 @@ import type {
   ListResponse,
   MeResponse,
   PaginatedListResponse,
-  PlatformSettings,
   Project,
   PublishGPResult,
   RegisterComponentPackageResult,
@@ -418,12 +417,6 @@ export const api = {
     apiGet<CanaryContext>(
       `/v1/admin/golden-paths/${gpName}/projects/${encodeURIComponent(project)}/canary-context`,
     ),
-  platformSettings: () => apiGet<PlatformSettings>("/v1/admin/platform/settings"),
-  updatePlatformSettings: (body: {
-    nexusMavenBase: string;
-    nexusCredentialsId: string;
-    actor?: string;
-  }) => apiPut<{ status: string }>("/v1/admin/platform/settings", body),
   components: () => apiList<Component>("/v1/admin/components"),
   createComponent: (body: { type: string; name: string; actor?: string }) =>
     apiPost<{ status: string; type: string; name: string }>("/v1/admin/components", body),

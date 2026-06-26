@@ -8,13 +8,12 @@ Platform catalog for runtime components (agent, executor) in coin-ui.
 
 The coin-ui SHALL provide a Platform → Runtime catalog listing **agent stack profiles** only.
 
-The page MUST NOT display a platform lib pin banner, «Current platform lib pin» heading, link to edit lib in Platform settings, or `lib` / `executor` component rows.
+The page MUST NOT display a platform lib pin banner, «Current platform lib pin» heading, or `lib` / `executor` component rows.
 
 #### Scenario: No lib pin banner on runtime page
 
 - **WHEN** enabling team opens `/platform/runtime`
 - **THEN** the UI MUST NOT show text «Current platform lib pin» or any lib version pin block
-- **AND** MUST NOT fetch platform settings solely to display a lib pin
 
 #### Scenario: List agent stack profiles
 

@@ -47,7 +47,6 @@ cd coin-ui && make openapi-ui
 | GET | `/v1/admin/components/{type}/{name}/versions/{ver}` | X-API-Key | Version metadata |
 | GET | `/v1/admin/components/agent/{name}/next-version?runtime=` | X-API-Key | Legacy stack agents `{runtime}-r{N}`; `coin-agent` — semver через publish-agent |
 | POST | `/v1/admin/components/{type}/{name}/versions` | X-API-Key | Publish component |
-| GET/PUT | `/v1/admin/platform/settings` | X-API-Key | Nexus global settings |
 | GET | `/v1/admin/golden-paths/{name}/resolve-preview` | X-API-Key | Resolve debug |
 | GET | `/v1/admin/golden-paths/{name}/projects/{project}/canary-context` | X-API-Key | Canary audience |
 | GET | `/v1/admin/audit-log` | X-API-Key | Audit log list |

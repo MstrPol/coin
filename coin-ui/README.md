@@ -49,10 +49,9 @@ make coin-ui-up   # http://localhost:8091
 | | `/platform/branching-models/:name/:version/edit` | branching-model editor | publisher+ |
 | | `/platform/runtime/:name/:version/edit` | agent metadata catch-up | publisher+ |
 | | `/components/agent/:name` | redirect → `/platform/runtime/:name` | reader+ |
-| **Admin** | `/platform-settings` | Nexus settings | admin (edit publisher+) |
-| | `/audit` | Audit log | admin |
+| **Admin** | `/audit` | Audit log | admin |
 
-**Redirects:** `/branching-models` → `/platform/branching-models`, `/components` → `/platform/components`, `/releases` → `/gp`, `/catalog` → `/gp`, `/canary` → `/gp`, `/releases/:n/:v` → `/gp/:n/releases/:v`, `/releases/new-gp` → `/gp/new`, `/releases/publish` → `/gp/:name/releases/new-draft` (с `?name=`).
+**Redirects:** `/branching-models` → `/platform/branching-models`, `/components` → `/platform/components`, `/releases` → `/gp`, `/catalog` → `/gp`, `/canary` → `/gp`, `/releases/:n/:v` → `/gp/:n/releases/:v`, `/releases/new-gp` → `/gp/new`, `/releases/publish` → `/gp/:name/releases/new-draft` (с `?name=`), `/platform-settings` → `/audit`.
 
 Header: **API docs ↗** → `/api/docs/` (Swagger UI через proxy).
 

@@ -26,4 +26,4 @@ DELETE FROM gp_profiles;
 COMMIT;
 SQL
 
-echo "platform data wiped (остаётся только platform_settings)"
+echo "platform data wiped"

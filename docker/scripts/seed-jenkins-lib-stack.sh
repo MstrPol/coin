@@ -114,26 +114,6 @@ done
 GP_VER="${COIN_E2E_VERSION:-1.0.0}"
 BRANCHING_MODEL="trunk-based"
 
-echo "==> ensure platform Nexus settings"
-settings_body="$(jq -n '{
-    nexusMavenBase: "http://nexus:8081/repository/maven-public",
-    nexusCredentialsId: "nexus-credentials",
-    actor: "seed"
-  }')"
-api_put() {
-  local path="$1" body="$2"
-  local tmp code
-  tmp="$(mktemp)"
-  code="$(curl -sS -o "${tmp}" -w '%{http_code}' -X PUT "${API}${path}" "${AUTH[@]}" -d "${body}")"
-  if [[ "${code}" != "200" ]]; then
-    echo "PUT ${path} failed HTTP ${code}: $(cat "${tmp}")" >&2
-    rm -f "${tmp}"
-    exit 1
-  fi
-  rm -f "${tmp}"
-}
-api_put "/v1/admin/platform/settings" "${settings_body}"
-
 for stack in "${GP_CONTENT_STACKS[@]}"; do
   echo "==> create GP profile ${stack} (if missing)"
   api_post "/v1/admin/golden-paths/profiles" "$(jq -n --arg n "${stack}" '{name: $n, actor: "seed"}')" || true

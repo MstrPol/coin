@@ -62,7 +62,7 @@ Migrations run automatically on startup (goose).
 | Role | Admin API |
 |------|-----------|
 | `reader` | GET `/v1/admin/*` |
-| `publisher` | reader + POST publish GP/components + PUT platform settings |
+| `publisher` | reader + POST publish GP/components |
 | `admin` | same as publisher |
 
 ```bash
@@ -106,7 +106,7 @@ Fleet scanner удалён (UI-02).
 CI repos (`coin-executor`, `coin-gp-content`, `coin-lib`) отчитывают версии в API после publish артефакта.
 Runtime agent image: `agent/coin-agent` через `coin-executor/scripts/publish-agent.sh`.
 
-Глобальные настройки Nexus: `GET/PUT /v1/admin/platform/settings`.
+Nexus (manifest cache, component packages): env `NEXUS_URL`, `NEXUS_MAVEN_RELEASES`, `NEXUS_MAVEN_SNAPSHOTS` — не operator UI.
 
 ## Layout
 

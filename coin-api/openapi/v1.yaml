@@ -484,36 +484,6 @@ paths:
         "401":
           description: Unauthorized
 
-  /v1/admin/platform/settings:
-    get:
-      summary: Global platform settings (Nexus defaults)
-      security:
-        - adminKey: []
-      responses:
-        "200":
-          description: Platform settings
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PlatformSettings"
-        "401":
-          description: Unauthorized
-    put:
-      summary: Update platform settings
-      security:
-        - adminKey: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PlatformSettingsUpdate"
-      responses:
-        "200":
-          description: Updated
-        "401":
-          description: Unauthorized
-
   /v1/admin/golden-paths/{name}/resolve-preview:
     get:
       summary: Resolve preview (admin debug)
@@ -1714,18 +1684,6 @@ components:
           type: string
           format: date-time
 
-    PlatformSettings:
-      type: object
-      required: [nexusMavenBase, nexusCredentialsId, updatedAt]
-      properties:
-        nexusMavenBase:
-          type: string
-        nexusCredentialsId:
-          type: string
-        updatedAt:
-          type: string
-          format: date-time
-
     ComponentPin:
       type: object
       required: [type, name, version]
@@ -1735,17 +1693,6 @@ components:
         name:
           type: string
         version:
-          type: string
-
-    PlatformSettingsUpdate:
-      type: object
-      required: [nexusMavenBase, nexusCredentialsId]
-      properties:
-        nexusMavenBase:
-          type: string
-        nexusCredentialsId:
-          type: string
-        actor:
           type: string
 
     CanaryContext:

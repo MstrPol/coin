@@ -156,12 +156,6 @@ export type CanaryContext = {
   canaryVersion: string;
 };
 
-export type PlatformSettings = {
-  nexusMavenBase: string;
-  nexusCredentialsId: string;
-  updatedAt: string;
-};
-
 export type AuditLogEntry = {
   id: number;
   action: string;

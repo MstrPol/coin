@@ -3,7 +3,6 @@ import Layout from "./components/Layout";
 import RequireAuth from "./components/RequireAuth";
 import RequireRole from "./components/RequireRole";
 import ComponentDetail from "./pages/ComponentDetail";
-import PlatformSettings from "./pages/PlatformSettings";
 import AuditLog from "./pages/AuditLog";
 import BranchingModelsPage from "./pages/BranchingModelsPage";
 import BuildReports from "./pages/BuildReports";
@@ -72,7 +71,7 @@ export default function App() {
           <Route path="components" element={<Navigate to="/platform/components" replace />} />
           <Route path="components/:type/:name" element={<LegacyComponentDetailRedirect />} />
           <Route path="components/:type/:name/:version" element={<ComponentDetail />} />
-          <Route path="platform-settings" element={<PlatformSettings />} />
+          <Route path="platform-settings" element={<Navigate to="/audit" replace />} />
           <Route path="audit" element={<AuditLog />} />
           <Route path="platform/runtime" element={<PlatformRuntimePage />} />
           <Route path="platform/build-stacks" element={<PlatformBuildStacksPage />} />

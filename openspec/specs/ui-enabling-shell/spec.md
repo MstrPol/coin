@@ -51,22 +51,22 @@ The Platform sidebar group SHALL list runtime, build stacks, and branching model
 - **THEN** the UI MUST include Runtime, Build stacks, and Branching models
 - **AND** MUST NOT include a Jenkins library entry
 
-### Requirement: Platform settings without runtime lib pin
+### Requirement: Legacy platform settings redirect
 
-The Platform settings admin page SHALL configure Nexus integration only and MUST NOT expose lib pin editing.
+The coin-ui SHALL redirect former platform settings bookmarks.
 
-The page MUST render successfully when the platform settings API response omits a `runtime` field (coin-lib is outside control plane).
+#### Scenario: Redirect platform settings URL
 
-#### Scenario: Settings form fields
+- **WHEN** user navigates to `/platform-settings`
+- **THEN** the UI MUST redirect to `/audit`
 
-- **WHEN** admin opens `/platform-settings`
-- **THEN** the UI MUST show Nexus configuration fields
-- **AND** MUST NOT show platform lib pin fields or runtime section
+### Requirement: Admin navigation without platform settings
 
-#### Scenario: Settings without runtime in API response
+The Admin sidebar group SHALL NOT include a Platform settings entry.
 
-- **WHEN** admin opens `/platform-settings`
-- **AND** `GET /v1/admin/platform/settings` returns only `nexusMavenBase`, `nexusCredentialsId`, and `updatedAt`
-- **THEN** the UI MUST render the page without JavaScript errors
-- **AND** MUST NOT access or display `runtime.lib`
+#### Scenario: Admin nav items
+
+- **WHEN** admin views the Admin group in the sidebar
+- **THEN** the UI MUST include Audit (`/audit`)
+- **AND** MUST NOT include Platform settings or Nexus configuration
 

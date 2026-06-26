@@ -50,7 +50,6 @@ export const navGroups: NavGroup[] = [
     id: "admin",
     label: "Admin",
     items: [
-      { label: "Platform settings", to: "/platform-settings", minRole: "admin" },
       { label: "Audit", to: "/audit", minRole: "admin" },
     ],
   },

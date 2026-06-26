@@ -4,7 +4,7 @@
 
 ## Назначение
 
-Operator UI для Control Plane: fleet analytics, GP releases, политика версий, canary, resolve preview, component registry, platform settings.
+Operator UI для Control Plane: fleet analytics, GP releases, политика версий, canary, resolve preview, component registry, audit.
 
 ## Вход
 
@@ -39,11 +39,10 @@ Key или OIDC access token хранится в `localStorage`.
 | Platform | Runtime | `/platform/runtime` | reader+ |
 | Platform | Build stacks | `/platform/build-stacks` | reader+ |
 | Platform | Branching models | `/platform/branching-models` | reader+ |
-| Admin | Platform settings | `/platform-settings` | admin |
 | Admin | Audit | `/audit` | admin |
 | Footer | — | Studio удалён; `/studio` → redirect на Platform |
 
-**Redirects:** `/branching-models` → `/platform/branching-models`, `/components` → `/platform/components`, `/releases` → `/gp`, `/catalog` → `/gp`, `/canary` → `/gp`, `/releases/:n/:v` → `/gp/:n/releases/:v`, `/releases/new-gp` → `/gp/new`, `/releases/publish` → `/gp/:name/releases/new-draft` (с `?name=`).
+**Redirects:** `/branching-models` → `/platform/branching-models`, `/components` → `/platform/components`, `/releases` → `/gp`, `/catalog` → `/gp`, `/canary` → `/gp`, `/releases/:n/:v` → `/gp/:n/releases/:v`, `/releases/new-gp` → `/gp/new`, `/releases/publish` → `/gp/:name/releases/new-draft` (с `?name=`), `/platform-settings` → `/audit`.
 
 **Publish flows** — внутри GP hub (кнопки на hub / Releases tab), не в sidebar.
 
@@ -128,10 +127,6 @@ Legacy: `/platform/components`, `/components/agent/:name` → hub. `/platform/je
 **Editors:** gp-content / branching-model — `/platform/.../:name/:version/edit` (validate → register → promote). Agent — metadata catch-up `/platform/runtime/:name/:version/edit`, CI path через `publish-agent.sh` (draft register + promote).
 
 **Release detail:** `/platform/{family}/:name/releases/:version` — для agent показывается derived `executor/coin-executor@version`.
-
-### Platform settings
-
-Глобальные настройки Nexus (`nexus.mavenBase`, `nexus.credentialsId`). Agent stack выбирается в GP draft. coin-lib вне scope платформы — см. [ADR jenkins-lib-outside-platform](adr/jenkins-lib-outside-platform.md).
 
 ### Audit log
 

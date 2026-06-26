@@ -50,6 +50,7 @@ Platform types: `branching-model` (`model.yaml`), `gp-content` (`content.yaml` +
 ```mermaid
 flowchart LR
   subgraph registry["Platform registry (independent)"]
+    AG["agent/*"]
     GC["gp-content/*"]
     BM["branching-model/*"]
   end
@@ -58,14 +59,11 @@ flowchart LR
     D["Draft: agent + gpContent + branching pins"]
     R["Release: promote"]
   end
-  RT["platform_settings.runtime\nlib only"]
-  AG["agent/*"]
   AG --> D
   GC --> D
   BM --> D
   P --> D
   D --> R
-  RT --> Resolve
   R --> Resolve
 ```
 

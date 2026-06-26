@@ -103,7 +103,6 @@ func (s *Server) Router() http.Handler {
 				r.With(shortTimeout).Get("/golden-paths/{name}/versions/{version}/artifacts/{key}", s.getArtifact)
 				r.With(shortTimeout).Get("/golden-paths/{name}/resolve-preview", s.resolvePreview)
 				r.With(shortTimeout).Get("/golden-paths/{name}/projects/{project}/canary-context", s.canaryContext)
-				r.With(shortTimeout).Get("/platform/settings", s.getPlatformSettings)
 				r.With(shortTimeout).Get("/components", s.listComponents)
 				r.With(shortTimeout).Get("/components/agent/{name}/next-version", s.nextAgentVersion)
 				r.With(shortTimeout).Get("/components/gp-content/{name}/next-version", s.nextGPContentVersion)
@@ -135,7 +134,6 @@ func (s *Server) Router() http.Handler {
 				r.With(shortTimeout).Patch("/golden-paths/{name}/catalog", s.updateCatalog)
 				r.With(shortTimeout).Patch("/golden-paths/{name}/canary", s.updateCanary)
 				r.With(shortTimeout).Patch("/projects/{name}/canary-mode", s.updateProjectCanaryMode)
-				r.With(shortTimeout).Put("/platform/settings", s.updatePlatformSettings)
 				r.With(shortTimeout).Post("/golden-paths/profiles", s.createGPProfile)
 				r.With(shortTimeout).Put("/golden-paths/{name}/versions/{version}/artifacts/{key}", s.putArtifact)
 			})
@@ -942,44 +940,6 @@ func (s *Server) canaryContext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, ctx)
-}
-
-func (s *Server) getPlatformSettings(w http.ResponseWriter, r *http.Request) {
-	settings, err := s.admin.GetPlatformSettings(r.Context())
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "get platform settings failed"})
-		return
-	}
-	writeJSON(w, http.StatusOK, settings)
-}
-
-type platformSettingsBody struct {
-	NexusMavenBase     string `json:"nexusMavenBase"`
-	NexusCredentialsID string `json:"nexusCredentialsId"`
-	Actor              string `json:"actor"`
-}
-
-func (s *Server) updatePlatformSettings(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "read body failed"})
-		return
-	}
-	var req platformSettingsBody
-	if err := json.Unmarshal(body, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
-		return
-	}
-	next := store.PlatformSettings{
-		NexusMavenBase:     req.NexusMavenBase,
-		NexusCredentialsID: req.NexusCredentialsID,
-	}
-	if err := s.admin.UpdatePlatformSettings(r.Context(), next, req.Actor); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 
 func (s *Server) getComponentDetail(w http.ResponseWriter, r *http.Request) {

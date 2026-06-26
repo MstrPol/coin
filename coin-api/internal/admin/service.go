@@ -504,14 +504,6 @@ func (s *Service) ResolvePreview(ctx context.Context, name, pinRaw string, opts 
 	return out, nil
 }
 
-func (s *Service) GetPlatformSettings(ctx context.Context) (store.PlatformSettings, error) {
-	return s.store.GetPlatformSettings(ctx)
-}
-
-func (s *Service) UpdatePlatformSettings(ctx context.Context, row store.PlatformSettings, actor string) error {
-	return s.store.UpdatePlatformSettings(ctx, row, actor)
-}
-
 func (s *Service) GetComponentDetail(ctx context.Context, typ, name string) (store.ComponentDetail, error) {
 	return s.store.GetComponentDetail(ctx, typ, name)
 }
