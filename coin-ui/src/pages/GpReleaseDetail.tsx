@@ -8,14 +8,14 @@ import { api, getActor, PromoteBlockedError } from "../lib/api";
 import { useGpCompositionEditor } from "../lib/useGpCompositionEditor";
 import { GP_DRAFT_SLOT_ORDER } from "../lib/gpSlots";
 
-import { platformEditPath } from "../lib/platformComponentPaths";
+import { platformDetailPath, platformEditPath } from "../lib/platformComponentPaths";
 
 function componentLink(type: string, name: string, version: string): string | null {
-  if ((type === "gp-content" || type === "branching-model") && name && version) {
-    return platformEditPath(type, name, version);
-  }
-  if (type === "agent" && name) {
-    return `/platform/runtime`;
+  if (type === "gp-content" || type === "branching-model" || type === "agent") {
+    if (!name || !version) return null;
+    const draftEdit = platformEditPath(type, name, version);
+    const detail = platformDetailPath(type, name, version);
+    return draftEdit ?? detail;
   }
   return null;
 }

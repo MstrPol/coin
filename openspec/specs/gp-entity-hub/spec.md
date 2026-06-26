@@ -2,9 +2,7 @@
 
 ## Purpose
 TBD - created by archiving change coin-ui-gp-entity-hub. Update Purpose after archive.
-
 ## Requirements
-
 ### Requirement: GP hub entity page
 
 The coin-ui SHALL provide a GP hub at `/gp/{name}` as the primary place to manage one Golden Path profile.
@@ -34,7 +32,10 @@ The coin-ui SHALL provide a GP hub at `/gp/{name}` as the primary place to manag
 
 - **WHEN** enabling team opens release detail for GP `xxx` version `1.0.0`
 - **THEN** the UI MUST show the composition table for **that version** (agent, gp-content, branching-model pins)
-- **AND** gp-content row MUST link to Component Studio or Platform build stacks catalog — not to a profile-level build stack page
+- **AND** agent pin MUST link to `/platform/runtime/{agentName}/releases/{version}`
+- **AND** gp-content pin MUST link to `/platform/build-stacks/{name}/releases/{version}` or edit route for draft
+- **AND** branching-model pin MUST link to `/platform/branching-models/{name}/releases/{version}` or edit route for draft
+- **AND** MUST NOT link to flat catalog URLs or Component Studio
 
 #### Scenario: Draft release detail actions
 
@@ -96,3 +97,4 @@ GP release detail SHALL live under the GP hub URL hierarchy.
 
 - **WHEN** user opens `/releases/go-app/1.0.0`
 - **THEN** the UI MUST redirect to `/gp/go-app/releases/1.0.0`
+

@@ -140,6 +140,9 @@ func (s *Service) publishComponentFromDraft(ctx context.Context, typ, name, vers
 	if detail.Status != "draft" && detail.Status != "canary" {
 		return store.ComponentVersionRow{}, store.ErrComponentVersionNotDraft
 	}
+	if typ == "agent" {
+		return s.store.PromoteComponentToPublished(ctx, typ, name, version, actor)
+	}
 	if componentpackage.IsRegisteredForCanary(detail.ContentRef) || componentpackage.HasPackageURL(detail.ContentRef) {
 		if componentpackage.HasPackageURL(detail.ContentRef) {
 			return s.store.PromoteComponentToPublished(ctx, typ, name, version, actor)

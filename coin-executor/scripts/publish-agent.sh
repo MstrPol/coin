@@ -118,15 +118,28 @@ payload="$(jq -n \
 
 register_tmp="$(mktemp)"
 register_code="$(curl -sS -o "${register_tmp}" -w '%{http_code}' -X POST \
-  "${COIN_API_URL}/v1/admin/components/agent/coin-agent/versions" \
+  "${COIN_API_URL}/v1/admin/components/agent/coin-agent/versions/drafts" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: ${API_KEY}" \
   -d "${payload}")"
 if [[ "${register_code}" != "201" && "${register_code}" != "409" ]]; then
-  echo "coin-api register failed HTTP ${register_code}: $(cat "${register_tmp}")" >&2
+  echo "coin-api register draft failed HTTP ${register_code}: $(cat "${register_tmp}")" >&2
   rm -f "${register_tmp}"
   exit 1
 fi
 rm -f "${register_tmp}"
+
+promote_tmp="$(mktemp)"
+promote_code="$(curl -sS -o "${promote_tmp}" -w '%{http_code}' -X POST \
+  "${COIN_API_URL}/v1/admin/components/agent/coin-agent/versions/${VERSION}/promote" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ${API_KEY}" \
+  -d '{"actor":"publish-agent"}')"
+if [[ "${promote_code}" != "200" && "${promote_code}" != "409" ]]; then
+  echo "coin-api promote failed HTTP ${promote_code}: $(cat "${promote_tmp}")" >&2
+  rm -f "${promote_tmp}"
+  exit 1
+fi
+rm -f "${promote_tmp}"
 
 echo "==> done agent/coin-agent@${VERSION} image=${RUNTIME_REF} digest=${digest:-<none>}"

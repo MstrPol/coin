@@ -138,6 +138,13 @@ Managed Containerfile materialize в workspace: `.coin/Containerfile` (путь 
 
 Registry (runtime): `nexus:8082/coin-docker/coin-agent:{semver}`.
 
+**Publish flow (draft → published):**
+
+1. `publish-agent.sh` builds and pushes image to Nexus Docker.
+2. `POST /v1/admin/components/agent/coin-agent/versions/drafts` — register draft with metadata `{image, digest, goarch}`.
+3. `POST .../versions/{version}/promote` — CI auto-promote (idempotent `409` on retry).
+4. Platform UI (`/platform/runtime/coin-agent`) — manual catch-up: edit draft metadata, promote.
+
 Composition slot: `agent` → `coin-agent@version` (не stack-specific images).
 
 ---

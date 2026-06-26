@@ -1,9 +1,5 @@
-# platform-runtime-catalog Specification
+## MODIFIED Requirements
 
-## Purpose
-
-Platform catalog for runtime components (agent, executor) in coin-ui.
-## Requirements
 ### Requirement: Runtime catalog page
 
 The coin-ui SHALL provide a Platform → Runtime catalog listing **agent stack profiles** only.
@@ -48,14 +44,3 @@ The runtime catalog and hub SHALL support draft registration and promote while p
 - **WHEN** enabling team opens agent stack hub Releases tab
 - **THEN** the UI MUST list both `draft` and `published` versions for that profile
 - **AND** MUST offer «New draft» on the hub for additional versions
-
-### Requirement: Legacy jenkins-lib route redirect
-
-Former `/platform/jenkins-lib` bookmarks SHALL redirect to the runtime catalog.
-
-#### Scenario: Redirect jenkins-lib URL
-
-- **WHEN** user navigates to `/platform/jenkins-lib`
-- **THEN** the UI MUST redirect to `/platform/runtime`
-- **AND** the sidebar MUST NOT highlight a «Jenkins library» nav item (route is not listed in Platform nav)
-

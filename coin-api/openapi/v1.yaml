@@ -388,6 +388,46 @@ paths:
         "401":
           description: Unauthorized
 
+  /v1/admin/components/{type}/{name}/versions/drafts:
+    post:
+      summary: Register component version as draft
+      description: |
+        Creates a component version with `status = draft`.
+        For `agent`, only metadata (image, digest, architecture) is required — no Nexus package.
+        Idempotent for CI: duplicate version returns HTTP 409.
+      security:
+        - adminKey: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+          example: agent
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          example: coin-agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublishComponentVersion"
+      responses:
+        "201":
+          description: Draft created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComponentVersionPromoteResult"
+        "409":
+          description: Version already exists (idempotent for CI retries)
+        "401":
+          description: Unauthorized
+
   /v1/admin/golden-paths/{name}/versions:
     post:
       summary: Publish GP release (append-only)
@@ -730,7 +770,9 @@ paths:
     post:
       summary: Publish component version (draft → published)
       description: |
-        Validates registered package, uploads to Nexus when needed, sets status `published`.
+        Promotes a draft component version to `published`.
+        For `gp-content` and `branching-model`, validates registered package and uploads to Nexus when needed.
+        For `agent`, promotes using metadata only (no Nexus content_ref required).
         Legacy component status `canary` is accepted as input but new writes use draft→published only.
       security:
         - adminKey: []

@@ -1,9 +1,5 @@
-# platform-build-stacks Specification
+## MODIFIED Requirements
 
-## Purpose
-
-Platform catalog and GP release integration for gp-content build stacks.
-## Requirements
 ### Requirement: Build stacks catalog
 
 The coin-ui SHALL provide a Platform → Build stacks catalog listing **gp-content profiles** (not a flat version list).
@@ -50,4 +46,3 @@ When viewing a GP release, the UI SHALL surface the pinned gp-content from that 
 - **THEN** the UI MUST offer a link to `/platform/build-stacks/go-app/releases/1.0.0` or edit route for draft versions
 - **AND** MUST NOT link to `/studio`
 - **AND** MUST NOT link to a GP profile-level Build stack tab
-

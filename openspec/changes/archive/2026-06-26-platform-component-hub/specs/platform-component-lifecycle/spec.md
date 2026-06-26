@@ -1,9 +1,5 @@
-# platform-component-lifecycle Specification
+## MODIFIED Requirements
 
-## Purpose
-
-Platform-native two-state lifecycle for gp-content and branching-model; GP promote gate and canary resolve rules.
-## Requirements
 ### Requirement: Two-state component lifecycle
 
 Platform components `gp-content`, `branching-model`, and `agent` SHALL use a two-state lifecycle: `draft` and `published`.
@@ -75,19 +71,10 @@ Promoting a GP draft to `published` SHALL require every composition pin to refer
 - **WHEN** publisher promotes GP draft where agent, gp-content, and branching-model pins are all `published`
 - **THEN** coin-api MUST transition GP release to `published`
 
-### Requirement: Draft pin instability warning
+## REMOVED Requirements
 
-The coin-ui SHALL warn when a composition or canary line uses draft component pins that may change.
+### Requirement: Runtime components published only
 
-#### Scenario: Draft pin badge in GP composition
+**Reason**: Agent stack now uses the same draft → published lifecycle as other platform components; executor remains derived.
 
-- **WHEN** publisher views GP draft composition containing a pin with `status = draft`
-- **THEN** the UI MUST display the pin status badge `draft`
-- **AND** MUST show warning text that the pin may change before stable publish
-
-#### Scenario: Canary line with draft GP warning
-
-- **WHEN** enabling team assigns a GP draft containing draft component pins to the canary line
-- **THEN** the UI MUST show a confirmation warning that pilot projects may receive unstable manifests
-- **AND** MUST NOT require locking draft component versions
-
+**Migration**: Use `POST .../versions/drafts` for Jenkins agent register; promote via admin API or Platform hub UI. Existing `published` agent versions remain valid.

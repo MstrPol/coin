@@ -115,25 +115,23 @@ Override **auto | stable | canary** — только для preview (`forceChann
 
 ### Components (Platform)
 
-Каталоги по ролям в composition — **Platform** в sidebar:
+Каталоги по ролям в composition — **Platform** в sidebar. Каждое семейство: **профили** → **hub** (Overview + Releases), по образцу GP.
 
-- **Runtime** (`/platform/runtime`) — `agent`, `executor`
-- **Build stacks** (`/platform/build-stacks`) — `gp-content`
-- **Branching models** (`/platform/branching-models`) — lifecycle draft → published
+- **Runtime** (`/platform/runtime`) — agent stack profiles; hub `/platform/runtime/:name`
+- **Build stacks** (`/platform/build-stacks`) — gp-content profiles; hub `/platform/build-stacks/:name`
+- **Branching models** (`/platform/branching-models`) — branching-model profiles; hub `/platform/branching-models/:name`
 
-Legacy aggregate: `/platform/components` (redirect с `/components`). `/platform/jenkins-lib` → redirect на `/platform/runtime`.
+Primary actions: **New profile** на каталоге, **New draft** на hub.
 
-Detail: `/components/:type/:name` — версии, metadata/contentRef, GP usage, publish (publisher).
+Legacy: `/platform/components`, `/components/agent/:name` → hub. `/platform/jenkins-lib` → `/platform/runtime`.
 
-**Platform editor:** `/platform/build-stacks/:name/:version/edit`, `/platform/branching-models/:name/:version/edit` — validate → register → promote.
+**Editors:** gp-content / branching-model — `/platform/.../:name/:version/edit` (validate → register → promote). Agent — metadata catch-up `/platform/runtime/:name/:version/edit`, CI path через `publish-agent.sh` (draft register + promote).
 
-**Build stack** для GP — вкладка hub `/gp/:name/build-stack` (gp-content версии, ссылки в Platform).
+**Release detail:** `/platform/{family}/:name/releases/:version` — для agent показывается derived `executor/coin-executor@version`.
 
 ### Platform settings
 
 Глобальные настройки Nexus (`nexus.mavenBase`, `nexus.credentialsId`). Agent stack выбирается в GP draft. coin-lib вне scope платформы — см. [ADR jenkins-lib-outside-platform](adr/jenkins-lib-outside-platform.md).
-
-**Runtime** (`/platform/runtime`) — каталог agent и executor.
 
 ### Audit log
 

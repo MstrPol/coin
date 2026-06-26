@@ -1,4 +1,4 @@
-import { Link, Navigate, Route, Routes } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useParams } from "react-router-dom";
 import Layout from "./components/Layout";
 import RequireAuth from "./components/RequireAuth";
 import RequireRole from "./components/RequireRole";
@@ -19,6 +19,14 @@ import PlatformRuntimePage from "./pages/platform/PlatformRuntimePage";
 import PlatformBuildStacksPage from "./pages/platform/PlatformBuildStacksPage";
 import PlatformComponentEditorPage from "./pages/platform/PlatformComponentEditorPage";
 import PlatformComponentsPage from "./pages/platform/PlatformComponentsPage";
+import PlatformComponentHubLayout from "./pages/platform/PlatformComponentHubLayout";
+import PlatformOverviewTab from "./pages/platform/tabs/PlatformOverviewTab";
+import PlatformReleasesTab from "./pages/platform/tabs/PlatformReleasesTab";
+import PlatformNewDraftPage from "./pages/platform/PlatformNewDraftPage";
+import PlatformNewProfilePage from "./pages/platform/PlatformNewProfilePage";
+import PlatformComponentReleaseDetail from "./pages/platform/PlatformComponentReleaseDetail";
+import PlatformAgentMetadataEditorPage from "./pages/platform/PlatformAgentMetadataEditorPage";
+import PlatformFlatReleaseRedirect from "./pages/platform/PlatformFlatReleaseRedirect";
 import GpCatalogPage from "./pages/gp/GpCatalogPage";
 import GpHubLayout from "./pages/gp/GpHubLayout";
 import GpNewDraft from "./pages/gp/GpNewDraft";
@@ -62,18 +70,75 @@ export default function App() {
           <Route path="resolve" element={<ResolvePreview />} />
           <Route path="branching-models" element={<Navigate to="/platform/branching-models" replace />} />
           <Route path="components" element={<Navigate to="/platform/components" replace />} />
-          <Route path="components/:type/:name" element={<ComponentDetail />} />
+          <Route path="components/:type/:name" element={<LegacyComponentDetailRedirect />} />
           <Route path="components/:type/:name/:version" element={<ComponentDetail />} />
           <Route path="platform-settings" element={<PlatformSettings />} />
           <Route path="audit" element={<AuditLog />} />
           <Route path="platform/runtime" element={<PlatformRuntimePage />} />
           <Route path="platform/build-stacks" element={<PlatformBuildStacksPage />} />
           <Route path="platform/branching-models" element={<BranchingModelsPage />} />
+          <Route element={<RequireRole min="publisher" />}>
+            <Route path="platform/runtime/new" element={<PlatformNewProfilePage familyId="runtime" />} />
+            <Route
+              path="platform/build-stacks/new"
+              element={<PlatformNewProfilePage familyId="build-stacks" />}
+            />
+            <Route
+              path="platform/branching-models/new"
+              element={<PlatformNewProfilePage familyId="branching-models" />}
+            />
+          </Route>
+          <Route path="platform/runtime/:name" element={<PlatformComponentHubLayout familyId="runtime" />}>
+            <Route index element={<PlatformOverviewTab />} />
+            <Route path="releases" element={<PlatformReleasesTab />} />
+            <Route element={<RequireRole min="publisher" />}>
+              <Route path="releases/new-draft" element={<PlatformNewDraftPage />} />
+            </Route>
+            <Route path="releases/:version" element={<PlatformComponentReleaseDetail />} />
+          </Route>
+          <Route
+            path="platform/build-stacks/:name"
+            element={<PlatformComponentHubLayout familyId="build-stacks" />}
+          >
+            <Route index element={<PlatformOverviewTab />} />
+            <Route path="releases" element={<PlatformReleasesTab />} />
+            <Route element={<RequireRole min="publisher" />}>
+              <Route path="releases/new-draft" element={<PlatformNewDraftPage />} />
+            </Route>
+            <Route path="releases/:version" element={<PlatformComponentReleaseDetail />} />
+          </Route>
+          <Route
+            path="platform/branching-models/:name"
+            element={<PlatformComponentHubLayout familyId="branching-models" />}
+          >
+            <Route index element={<PlatformOverviewTab />} />
+            <Route path="releases" element={<PlatformReleasesTab />} />
+            <Route element={<RequireRole min="publisher" />}>
+              <Route path="releases/new-draft" element={<PlatformNewDraftPage />} />
+            </Route>
+            <Route path="releases/:version" element={<PlatformComponentReleaseDetail />} />
+          </Route>
+          <Route
+            path="platform/runtime/:name/:version"
+            element={<PlatformFlatReleaseRedirect familyId="runtime" />}
+          />
+          <Route
+            path="platform/build-stacks/:name/:version"
+            element={<PlatformFlatReleaseRedirect familyId="build-stacks" />}
+          />
+          <Route
+            path="platform/branching-models/:name/:version"
+            element={<PlatformFlatReleaseRedirect familyId="branching-models" />}
+          />
           <Route path="platform/jenkins-lib" element={<Navigate to="/platform/runtime" replace />} />
           <Route path="platform/components" element={<PlatformComponentsPage />} />
           <Route path="studio" element={<Navigate to="/platform/build-stacks" replace />} />
           <Route path="studio/*" element={<Navigate to="/platform/build-stacks" replace />} />
           <Route element={<RequireRole min="publisher" />}>
+            <Route
+              path="platform/runtime/:name/:version/edit"
+              element={<PlatformAgentMetadataEditorPage familyId="runtime" />}
+            />
             <Route
               path="platform/build-stacks/:name/:version/edit"
               element={<PlatformComponentEditorPage compType="gp-content" />}
@@ -92,6 +157,14 @@ export default function App() {
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
+}
+
+function LegacyComponentDetailRedirect() {
+  const { type = "", name = "" } = useParams();
+  if (type === "agent" && name) {
+    return <Navigate to={`/platform/runtime/${encodeURIComponent(name)}`} replace />;
+  }
+  return <ComponentDetail />;
 }
 
 function NotFound() {

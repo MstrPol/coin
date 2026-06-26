@@ -34,13 +34,21 @@ make coin-ui-up   # http://localhost:8091
 | | `/gp/new` | New GP profile (name + description) | publisher+ |
 | | `/gp/:name/releases/new-draft` | New draft snapshot (gp-content + branching-model) | publisher+ |
 | | `/resolve` | Resolve preview + canary debug | reader+ |
-| **Platform** | `/platform/runtime` | agent/executor catalog | reader+ |
-| | `/platform/build-stacks` | gp-content catalog | reader+ |
-| | `/platform/branching-models` | Branching models catalog | reader+ |
+| **Platform** | `/platform/runtime` | Agent stack profiles catalog | reader+ |
+| | `/platform/runtime/:name` | Agent hub (Overview, Releases) | reader+ |
+| | `/platform/runtime/new` | New agent profile | publisher+ |
+| | `/platform/runtime/:name/releases/:version` | Agent release detail + derived executor | reader+ |
+| | `/platform/build-stacks` | Build stack profiles catalog | reader+ |
+| | `/platform/build-stacks/:name` | Build stack hub | reader+ |
+| | `/platform/build-stacks/new` | New build stack profile | publisher+ |
+| | `/platform/branching-models` | Branching model profiles catalog | reader+ |
+| | `/platform/branching-models/:name` | Branching model hub | reader+ |
+| | `/platform/branching-models/new` | New branching model profile | publisher+ |
 | | `/platform/components` | Legacy aggregate (deprecated) | reader+ |
 | | `/platform/build-stacks/:name/:version/edit` | gp-content editor (validate → publish) | publisher+ |
 | | `/platform/branching-models/:name/:version/edit` | branching-model editor | publisher+ |
-| | `/components/:type/:name` | Component detail + publish | reader+ |
+| | `/platform/runtime/:name/:version/edit` | agent metadata catch-up | publisher+ |
+| | `/components/agent/:name` | redirect → `/platform/runtime/:name` | reader+ |
 | **Admin** | `/platform-settings` | Nexus settings | admin (edit publisher+) |
 | | `/audit` | Audit log | admin |
 

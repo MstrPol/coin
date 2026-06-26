@@ -24,6 +24,14 @@ var platformSlotKeys = map[string]bool{
 	"lib": true,
 }
 
+func DerivedExecutorPin(agentName, agentVersion string) (ComponentPin, bool) {
+	pin, err := executorPinForAgentStack(agentName, agentVersion)
+	if err != nil {
+		return ComponentPin{}, false
+	}
+	return pin, true
+}
+
 func executorPinForAgentStack(agentName, agentVersion string) (ComponentPin, error) {
 	if agentName == "" || agentVersion == "" {
 		return ComponentPin{}, fmt.Errorf("agent stack name and version are required")

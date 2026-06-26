@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useOutletContext } from "react-router-dom";
 import type { Role } from "../api/types";
 import { useAuth } from "../context/AuthContext";
 import { isAuthenticated } from "./RequireAuth";
@@ -9,6 +9,8 @@ type Props = {
 
 export default function RequireRole({ min }: Props) {
   const { can, roles } = useAuth();
+
+  const outletContext = useOutletContext();
 
   if (!isAuthenticated()) {
     return <Navigate to="/login" replace />;
@@ -30,5 +32,5 @@ export default function RequireRole({ min }: Props) {
     );
   }
 
-  return <Outlet />;
+  return <Outlet context={outletContext} />;
 }

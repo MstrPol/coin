@@ -34,7 +34,7 @@ func (s *Store) insertComponentVersion(ctx context.Context, in ComponentVersionI
 	if in.Type == "" || in.Name == "" || in.Version == "" {
 		return ComponentVersionRow{}, fmt.Errorf("type, name and version are required")
 	}
-	if err := validateContentRefOnWrite(in.ContentRef); err != nil {
+	if err := validateContentRefOnWriteForType(in.Type, in.ContentRef); err != nil {
 		return ComponentVersionRow{}, err
 	}
 	meta := in.Metadata

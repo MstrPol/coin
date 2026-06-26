@@ -1010,7 +1010,23 @@ func (s *Server) getComponentVersionDetail(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "get component version failed"})
 		return
 	}
-	writeJSON(w, http.StatusOK, detail)
+	resp := map[string]any{
+		"type":       detail.Type,
+		"name":       detail.Name,
+		"version":    detail.Version,
+		"status":     detail.Status,
+		"metadata":   json.RawMessage(detail.Metadata),
+		"createdAt":  detail.CreatedAt,
+	}
+	if len(detail.ContentRef) > 0 {
+		resp["contentRef"] = json.RawMessage(detail.ContentRef)
+	}
+	if detail.Type == "agent" {
+		if pin, ok := store.DerivedExecutorPin(detail.Name, detail.Version); ok {
+			resp["derivedExecutorPin"] = pin
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s *Server) blastRadius(w http.ResponseWriter, r *http.Request) {
