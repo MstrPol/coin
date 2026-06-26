@@ -11,11 +11,26 @@ pipeline {
         NEXUS_URL = 'http://nexus:8081'
         NEXUS_MAVEN_RELEASES = 'maven-releases'
         NEXUS_MAVEN_SNAPSHOTS = 'maven-snapshots'
+        LIB_NAME = 'coin-lib'
     }
 
     stages {
+        stage('Package') {
+            steps {
+                script {
+                    sh '''
+                        mkdir -p dist
+                        rm -f dist/coin-lib-${LIB_VERSION}.zip
+                        zip -qr dist/coin-lib-${LIB_VERSION}.zip vars src
+                    '''
+                }
+                stash includes: "dist/coin-lib-${params.LIB_VERSION}.zip", name: 'lib-zip'
+            }
+        }
+        
         stage('Publish lib') {
             steps {
+                unstash 'lib-zip'
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'nexus-admin',
@@ -23,9 +38,43 @@ pipeline {
                         passwordVariable: 'NEXUS_PASSWORD',
                     ),
                 ]) {
-                    sh './scripts/publish-lib.sh "${LIB_VERSION}"'
+                    publishLib(params.LIB_VERSION, env.LIB_NAME)
                 }
             }
         }
     }
+}
+
+// ---------------------------------------------------------
+// Вспомогательные функции (объявлены в конце файла)
+// ---------------------------------------------------------
+
+def publishLib(String version, String name) {
+    def zipPath = "dist/${name}-${version}.zip"
+    def repo = version.endsWith('-SNAPSHOT') ? env.NEXUS_MAVEN_SNAPSHOTS : env.NEXUS_MAVEN_RELEASES
+    def nexusTarget = "${env.NEXUS_URL}/repository/${repo}/coin/lib/${name}/${version}/${name}-${version}.zip"
+    
+    def nexusAuth = "${env.NEXUS_USER}:${env.NEXUS_PASSWORD}"
+    
+    def checkCode = sh(script: "curl -s -o /dev/null -w '%{http_code}' -u '${nexusAuth}' -I '${nexusTarget}' || true", returnStdout: true).trim()
+    
+    if (checkCode == '200') {
+        echo "==> already in Nexus, skip upload: ${nexusTarget}"
+    } else {
+        echo "==> upload ${zipPath} -> ${nexusTarget}"
+        def uploadCode = sh(
+            script: "curl -sS -u '${nexusAuth}' -o upload.out -w '%{http_code}' --upload-file '${zipPath}' '${nexusTarget}'",
+            returnStdout: true
+        ).trim()
+        
+        if (uploadCode != '201' && uploadCode != '200' && uploadCode != '204') {
+            def body = readFile('upload.out').trim()
+            if (uploadCode == '400' && body.contains('already exists')) {
+                echo "==> already in Nexus (immutable repo), continue: ${nexusTarget}"
+            } else {
+                error("nexus upload failed HTTP ${uploadCode}: ${body}")
+            }
+        }
+    }
+    echo "==> done lib/${name}@${version} -> ${nexusTarget}"
 }

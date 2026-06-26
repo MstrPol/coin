@@ -1,80 +1,110 @@
 // Platform CI: bump semver → test/build binary → Nexus maven2 → register in coin-api.
 
+pipeline {
+    agent any
+
+    tools {
+        go 'golang-1.22'
+    }
+
+    parameters {
+        choice(
+            name: 'BUMP',
+            choices: ['patch', 'minor', 'major'],
+            description: 'Semver bump от latest published в coin-api',
+        )
+        string(name: 'GOPROXY', defaultValue: 'https://proxy.golang.org,direct', description: 'URL to Go Proxy/Nexus')
+        string(name: 'GO_AUTH_CRED_ID', defaultValue: 'go-auth-token', description: 'Credentials ID for private Go modules (.netrc format)')
+    }
+
+    environment {
+        COIN_API_URL = 'http://coin-api:8090'
+        NEXUS_URL = 'http://nexus:8081'
+        NEXUS_MAVEN_RELEASES = 'maven-releases'
+        NEXUS_MAVEN_SNAPSHOTS = 'maven-snapshots'
+    }
+
+    stages {
+        stage('Resolve version') {
+            steps {
+                script {
+                    def alloc = nextExecutorVersion(params.BUMP)
+                    env.COIN_EXECUTOR_VERSION = alloc.nextVersion
+                    if (alloc.isFirst) {
+                        echo "==> executor/coin-executor: первая регистрация → ${alloc.nextVersion}"
+                    } else {
+                        echo "==> executor/coin-executor: ${alloc.currentVersion} + ${params.BUMP} → ${alloc.nextVersion}"
+                    }
+                }
+            }
+        }
+
+        stage('Test & Build') {
+            steps {
+                script {
+                    // Используем настройки авторизации и отключения SSL
+                    withEnv([
+                        "GOPROXY=${params.GOPROXY}", 
+                        "GOINSECURE=*", 
+                        "GIT_SSL_NO_VERIFY=true"
+                    ]) {
+                        withCredentials([string(credentialsId: params.GO_AUTH_CRED_ID, variable: 'GO_AUTH')]) {
+                            sh '''
+                                set -eu
+                                if [ -n "$GO_AUTH" ]; then
+                                    echo "$GO_AUTH" > ~/.netrc
+                                fi
+                                
+                                echo "Running tests..."
+                                go test ./...
+                                
+                                case "$(uname -m)" in
+                                    arm64|aarch64) GOARCH=arm64 ;;
+                                    x86_64|amd64) GOARCH=amd64 ;;
+                                    *) echo "unsupported: $(uname -m)" >&2; exit 1 ;;
+                                esac
+                                
+                                echo "Building for ${GOARCH}..."
+                                GOOS=linux CGO_ENABLED=0 GOARCH="${GOARCH}" go build -buildvcs=false \
+                                    -ldflags "-X main.Version=${COIN_EXECUTOR_VERSION}" \
+                                    -o coin-executor ./cmd/coin-executor
+                                    
+                                echo "${GOARCH}" > .goarch
+                            '''
+                        }
+                    }
+                }
+                stash includes: 'coin-executor,.goarch', name: 'executor-binary'
+            }
+        }
+
+        stage('Publish') {
+            steps {
+                unstash 'executor-binary'
+                script {
+                    env.GOARCH = readFile('.goarch').trim()
+                }
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'nexus-admin',
+                        usernameVariable: 'NEXUS_USER',
+                        passwordVariable: 'NEXUS_PASSWORD',
+                    ),
+                    string(credentialsId: 'coin-publisher-api-key', variable: 'COIN_API_KEY'),
+                ]) {
+                    publishExecutor(env.COIN_EXECUTOR_VERSION, env.GOARCH)
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------
+// Вспомогательные функции (объявлены в конце файла)
+// ---------------------------------------------------------
+
 def coinApiUrl() {
     return env.COIN_API_URL ?: 'http://coin-api:8090'
-}
-
-@NonCPS
-def parseLatestComponentVersion(String json, String runtimePrefix = '') {
-    def parsed = new groovy.json.JsonSlurper().parseText(json)
-    def items = parsed.items ?: []
-    for (item in items) {
-        def version = item.version?.toString() ?: ''
-        if (!version) {
-            continue
-        }
-        if (!runtimePrefix || version.startsWith("${runtimePrefix}-")) {
-            return version
-        }
-    }
-    return ''
-}
-
-@NonCPS
-def parseComponentMetadataImage(String json) {
-    def parsed = new groovy.json.JsonSlurper().parseText(json)
-    def image = parsed.metadata?.image
-    return image ? image.toString() : ''
-}
-
-def componentImage(typ, name, String runtimePrefix = '') {
-    def apiUrl = coinApiUrl()
-    withCredentials([string(credentialsId: 'coin-publisher-api-key', variable: 'COIN_API_KEY')]) {
-        def listStatus = sh(
-            script: """
-                set +e
-                code=\$(curl -s -o versions.json -w '%{http_code}' \\
-                  -H "X-API-Key: \${COIN_API_KEY}" \\
-                  '${apiUrl}/v1/admin/components/${typ}/${name}/versions')
-                echo "\${code}"
-            """,
-            returnStdout: true,
-        ).trim()
-        if (listStatus == '404') {
-            def hint = (typ == 'agent' && name == 'coin-agent')
-                ? ' (выполните: cd docker && make publish-agent)'
-                : ''
-            error("coin-api: компонент ${typ}/${name} не зарегистрирован${hint}")
-        }
-        if (listStatus != '200') {
-            error("coin-api: ${typ}/${name}/versions HTTP ${listStatus}")
-        }
-        def latest = parseLatestComponentVersion(readFile('versions.json'), runtimePrefix)
-        if (!latest) {
-            def hint = (typ == 'agent' && name == 'coin-agent')
-                ? ' (соберите: cd docker && make publish-agent)'
-                : ''
-            error("coin-api: нет опубликованных версий ${typ}/${name}${hint}")
-        }
-        def detailStatus = sh(
-            script: """
-                set +e
-                code=\$(curl -s -o version-detail.json -w '%{http_code}' \\
-                  -H "X-API-Key: \${COIN_API_KEY}" \\
-                  '${apiUrl}/v1/admin/components/${typ}/${name}/versions/${latest}')
-                echo "\${code}"
-            """,
-            returnStdout: true,
-        ).trim()
-        if (detailStatus != '200') {
-            error("coin-api: ${typ}/${name}/versions/${latest} HTTP ${detailStatus}")
-        }
-        def image = parseComponentMetadataImage(readFile('version-detail.json'))
-        if (!image) {
-            error("coin-api: metadata.image не задан для ${typ}/${name}@${latest}")
-        }
-        return image
-    }
 }
 
 @NonCPS
@@ -107,82 +137,70 @@ def nextExecutorVersion(bump) {
     }
 }
 
-pipeline {
-    agent none
+def publishExecutor(String version, String goarch) {
+    def binaryPath = 'coin-executor'
+    def repo = (version.contains('SNAPSHOT') || version.contains('-dev')) ? env.NEXUS_MAVEN_SNAPSHOTS : env.NEXUS_MAVEN_RELEASES
+    def nexusTarget = "${env.NEXUS_URL}/repository/${repo}/coin/executor/coin-executor/${version}/coin-executor-${version}-${goarch}"
+    def apiUrl = coinApiUrl()
 
-    parameters {
-        choice(
-            name: 'BUMP',
-            choices: ['patch', 'minor', 'major'],
-            description: 'Semver bump от latest published в coin-api',
-        )
-    }
+    // 1. Считаем SHA256
+    def shaOut = sh(script: "sha256sum ${binaryPath} | awk '{print \$1}'", returnStdout: true).trim()
+    def sha256 = "sha256:${shaOut}"
 
-    environment {
-        COIN_API_URL = 'http://coin-api:8090'
-        NEXUS_URL = 'http://nexus:8081'
-        NEXUS_MAVEN_RELEASES = 'maven-releases'
-        NEXUS_MAVEN_SNAPSHOTS = 'maven-snapshots'
-    }
-
-    stages {
-        stage('Resolve version') {
-            agent { label 'built-in' }
-            steps {
-                script {
-                    def alloc = nextExecutorVersion(params.BUMP)
-                    env.COIN_EXECUTOR_VERSION = alloc.nextVersion
-                    if (alloc.isFirst) {
-                        echo "==> executor/coin-executor: первая регистрация → ${alloc.nextVersion}"
-                    } else {
-                        echo "==> executor/coin-executor: ${alloc.currentVersion} + ${params.BUMP} → ${alloc.nextVersion}"
-                    }
-                }
-            }
-        }
-
-        stage('Test & Build') {
-            agent { label 'built-in' }
-            steps {
-                checkout scm
-                sh '''
-                    set -eu
-                    docker run --rm -v "$PWD:/src" -w /src golang:1.22-bookworm go test ./...
-                    case "$(uname -m)" in
-                        arm64|aarch64) GOARCH=arm64 ;;
-                        x86_64|amd64) GOARCH=amd64 ;;
-                        *) echo "unsupported: $(uname -m)" >&2; exit 1 ;;
-                    esac
-                    docker run --rm -v "$PWD:/src" -w /src \
-                      -e COIN_EXECUTOR_VERSION="${COIN_EXECUTOR_VERSION}" \
-                      -e GOARCH="${GOARCH}" golang:1.22-bookworm \
-                      sh -c 'GOOS=linux CGO_ENABLED=0 GOARCH="${GOARCH}" go build -buildvcs=false \
-                        -ldflags "-X main.Version=${COIN_EXECUTOR_VERSION}" \
-                        -o coin-executor ./cmd/coin-executor'
-                    echo "${GOARCH}" > .goarch
-                '''
-                stash includes: 'coin-executor,.goarch', name: 'executor-binary'
-            }
-        }
-
-        stage('Publish') {
-            agent { label 'built-in' }
-            steps {
-                unstash 'executor-binary'
-                script {
-                    env.GOARCH = readFile('.goarch').trim()
-                }
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'nexus-admin',
-                        usernameVariable: 'NEXUS_USER',
-                        passwordVariable: 'NEXUS_PASSWORD',
-                    ),
-                    string(credentialsId: 'coin-publisher-api-key', variable: 'COIN_API_KEY'),
-                ]) {
-                    sh './scripts/publish-executor.sh "${COIN_EXECUTOR_VERSION}" "${GOARCH}"'
-                }
+    // 2. Публикуем в Nexus
+    def nexusAuth = "${env.NEXUS_USER}:${env.NEXUS_PASSWORD}"
+    def checkCode = sh(script: "curl -s -o /dev/null -w '%{http_code}' -u '${nexusAuth}' -I '${nexusTarget}' || true", returnStdout: true).trim()
+    
+    if (checkCode == '200') {
+        echo "==> already in Nexus, skip upload: ${nexusTarget}"
+    } else {
+        echo "==> upload ${binaryPath} -> ${nexusTarget}"
+        def uploadCode = sh(
+            script: "curl -sS -u '${nexusAuth}' -o upload.out -w '%{http_code}' -H 'Content-Type: application/octet-stream' --upload-file '${binaryPath}' '${nexusTarget}'",
+            returnStdout: true
+        ).trim()
+        
+        if (uploadCode != '201' && uploadCode != '200' && uploadCode != '204') {
+            def body = readFile('upload.out').trim()
+            if (uploadCode == '400' && body.contains('already exists')) {
+                echo "==> already in Nexus (immutable repo), continue: ${nexusTarget}"
+            } else {
+                error("nexus upload failed HTTP ${uploadCode}: ${body}")
             }
         }
     }
+
+    // 3. Регистрируем в coin-api
+    echo "==> register executor/coin-executor@${version}"
+    def payload = """
+    {
+        "version": "${version}",
+        "metadata": {
+            "url": "${nexusTarget}",
+            "goarch": "${goarch}",
+            "sha256": "${sha256}"
+        },
+        "actor": "jenkins-executor"
+    }
+    """
+    writeFile file: 'payload.json', text: payload
+    
+    def regCode = sh(
+        script: """
+            curl -sS -o reg.out -w '%{http_code}' -X POST \\
+            '${apiUrl}/v1/admin/components/executor/coin-executor/versions' \\
+            -H "Content-Type: application/json" \\
+            -H "X-API-Key: ${env.COIN_API_KEY}" \\
+            -d @payload.json
+        """,
+        returnStdout: true
+    ).trim()
+    
+    if (regCode != '201' && regCode != '409') {
+        error("coin-api register failed HTTP ${regCode}: " + readFile('reg.out'))
+    }
+    if (regCode == '409') {
+        echo "==> version already registered in coin-api"
+    }
+    echo "==> done executor/coin-executor@${version} (${goarch})"
 }
