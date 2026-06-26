@@ -1,12 +1,39 @@
+# syntax=docker/dockerfile:1.8
 # Universal Coin Jenkins agent: inbound-agent + coin-executor + BuildKit + pack/podman.
-# Требует предсобранный бинарник coin-executor в контексте сборки (см. publish-agent.sh).
+ARG REGISTRY=""
 ARG JENKINS_INBOUND_AGENT_TAG=3327.v868139a_d00e0-8
 ARG BUILDKIT_VERSION=v0.17.3
 ARG PACK_VERSION=0.36.2
 
-FROM moby/buildkit:${BUILDKIT_VERSION} AS buildkit-bin
+FROM ${REGISTRY}golang:1.22-bookworm AS executor-builder
 
-FROM jenkins/inbound-agent:${JENKINS_INBOUND_AGENT_TAG}
+ARG GOPROXY="https://proxy.golang.org,direct"
+ARG GOPRIVATE=""
+ARG GOINSECURE="*"
+ARG GIT_SSL_NO_VERIFY=true
+
+ENV GOINSECURE=${GOINSECURE} \
+    GIT_SSL_NO_VERIFY=${GIT_SSL_NO_VERIFY}
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=secret,id=go_auth \
+    if [ -f /run/secrets/go_auth ]; then cat /run/secrets/go_auth > ~/.netrc; fi && \
+    go mod download
+
+COPY . .
+ARG VERSION=0.1.0-dev
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    VERSION="$(tr -d '[:space:]' < VERSION 2>/dev/null || echo "${VERSION}")" && \
+    CGO_ENABLED=0 GOOS=linux go build -buildvcs=false \
+    -ldflags "-X main.Version=${VERSION}" \
+    -o /coin-executor ./cmd/coin-executor
+
+FROM ${REGISTRY}moby/buildkit:${BUILDKIT_VERSION} AS buildkit-bin
+
+FROM ${REGISTRY}jenkins/inbound-agent:${JENKINS_INBOUND_AGENT_TAG}
 
 USER root
 RUN apt-get update \
@@ -26,7 +53,7 @@ COPY buildkitd.toml /etc/buildkit/buildkitd.toml
 COPY podman-containers.conf /etc/containers/containers.conf
 COPY podman-storage.conf /etc/containers/storage.conf
 COPY podman-registries.conf /etc/containers/registries.conf
-COPY coin-executor /usr/local/bin/coin-executor
+COPY --from=executor-builder /coin-executor /usr/local/bin/coin-executor
 RUN chmod +x /usr/local/bin/coin-executor /usr/local/bin/buildkitd /usr/local/bin/buildctl /usr/local/bin/runc
 
 # Buildpack builder baked as tar (loaded into podman at bootstrap; avoids registry pull in pod).

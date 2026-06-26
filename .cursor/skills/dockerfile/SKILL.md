@@ -34,7 +34,13 @@ description: >-
 1. Определи тип: **agent image** vs **app runtime-only**.
 2. Прочитай соседний Dockerfile того же стека.
 3. Для app runtime: убедись, что `build.sh` создаёт артефакты до `COPY` (`dist/`, `.venv/`, `*.jar`).
-4. Проверь: `hadolint`, `docker build`.
+4. Проверь: `hadolint`, сборку через `buildctl` или локально через `podman build`.
+
+## Запрет Docker Daemon (BuildKit & Podman)
+
+В проекте Coin **строго запрещено** использование классического Docker Daemon (команды `docker build`, `docker run` в CI-окружениях):
+1. **Сборка** происходит исключительно через изолированные воркеры BuildKit (`buildctl`). Поэтому в начале каждого Dockerfile обязательно указывать актуальный синтаксис `# syntax=docker/dockerfile:1.8`.
+2. **Запуск** контейнеров в рамках CI (тесты, временные сервисы) осуществляется **только** через `podman` или `podman-compose`.
 
 ## Обязательные правила (кратко)
 
@@ -76,6 +82,7 @@ description: >-
 
 - Не `ENV`/`ARG` для токенов; не секреты в build context.
 - Build-time: `RUN --mount=type=secret,id=...`.
+- Авторизация для пакетных менеджеров (npm, go, pip, maven): всегда используйте секреты BuildKit (`--mount=type=secret,id=auth_token`) для получения токенов (без сохранения в слоях) и `ARG` только для публичных URL реестров (например, `NPM_REGISTRY`, `GOPROXY`).
 - Runtime: orchestrator (K8s Secrets, mounted files).
 
 ### Безопасность и процесс
@@ -115,7 +122,9 @@ LABEL org.opencontainers.image.version="${COIN_VERSION}"
 ## Шаблон: Jenkins agent stack-образ (`coin-jenkins-agents`)
 
 ```dockerfile
-FROM python:3.13-slim-bookworm
+# syntax=docker/dockerfile:1.8
+ARG REGISTRY=""
+FROM ${REGISTRY}python:3.13-slim-bookworm
 
 ARG UV_VERSION=0.6.14
 ENV UV_LINK_MODE=copy \
@@ -136,10 +145,12 @@ USER ci
 ## Шаблон: managed runtime-only (python-uv-app)
 
 ```dockerfile
+# syntax=docker/dockerfile:1.8
 # Coin managed — не копировать в репозитории сервисов.
 # Артефакты (.venv, src) создаёт build.sh в agent до docker build.
 
-FROM python:{{PYTHON_VERSION}}-slim-bookworm
+ARG REGISTRY=""
+FROM ${REGISTRY}python:{{PYTHON_VERSION}}-slim-bookworm
 WORKDIR /app
 ARG COIN_VERSION=0.0.0-local
 RUN groupadd --gid 1000 app && useradd --uid 1000 --gid app --create-home app
