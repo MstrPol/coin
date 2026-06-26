@@ -13,9 +13,9 @@ GP draft and release composition SHALL contain exactly three operator-selected c
 2. **`branching-model`** — versioning and publish policy
 3. **`gp-content`** — build stack (Containerfile, schema, pipeline)
 
-Platform `lib` SHALL NOT appear in the GP composition map; resolve injects `lib` from `platform_settings.runtime`.
-
 Standalone `executor` SHALL NOT appear in the GP composition map; resolve materializes executor from the selected agent stack.
+
+coin-api SHALL NOT inject Jenkins Shared Library (`lib`) from platform settings or any other control-plane source during resolve.
 
 #### Scenario: Create draft with three catalog pins
 
@@ -32,6 +32,12 @@ Standalone `executor` SHALL NOT appear in the GP composition map; resolve materi
 
 - **WHEN** publisher attempts to create a draft including `executor` as a separate composition key
 - **THEN** coin-api MUST reject the request with a validation error
+
+#### Scenario: Resolve without lib injection
+
+- **WHEN** resolve runs for a published GP release with three-pin composition
+- **THEN** coin-api MUST materialize executor from the pinned agent stack
+- **AND** MUST NOT add `lib` to the resolved manifest
 
 ### Requirement: gp-content pinned per GP version not profile
 
