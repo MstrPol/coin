@@ -134,13 +134,6 @@ export default function PlatformProfileCatalogPage({
           </tbody>
         </table>
       </div>
-
-      <p className="text-xs text-zinc-600">
-        Legacy:{" "}
-        <Link to="/platform/components" className="text-zinc-500 hover:underline">
-          all components
-        </Link>
-      </p>
     </div>
   );
 }

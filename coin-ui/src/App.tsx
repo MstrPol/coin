@@ -17,7 +17,6 @@ import ResolvePreview from "./pages/ResolvePreview";
 import PlatformRuntimePage from "./pages/platform/PlatformRuntimePage";
 import PlatformBuildStacksPage from "./pages/platform/PlatformBuildStacksPage";
 import PlatformComponentEditorPage from "./pages/platform/PlatformComponentEditorPage";
-import PlatformComponentsPage from "./pages/platform/PlatformComponentsPage";
 import PlatformComponentHubLayout from "./pages/platform/PlatformComponentHubLayout";
 import PlatformOverviewTab from "./pages/platform/tabs/PlatformOverviewTab";
 import PlatformReleasesTab from "./pages/platform/tabs/PlatformReleasesTab";
@@ -26,6 +25,7 @@ import PlatformNewProfilePage from "./pages/platform/PlatformNewProfilePage";
 import PlatformComponentReleaseDetail from "./pages/platform/PlatformComponentReleaseDetail";
 import PlatformAgentMetadataEditorPage from "./pages/platform/PlatformAgentMetadataEditorPage";
 import PlatformFlatReleaseRedirect from "./pages/platform/PlatformFlatReleaseRedirect";
+import { platformHubPath } from "./lib/platformComponentPaths";
 import GpCatalogPage from "./pages/gp/GpCatalogPage";
 import GpHubLayout from "./pages/gp/GpHubLayout";
 import GpNewDraft from "./pages/gp/GpNewDraft";
@@ -68,7 +68,7 @@ export default function App() {
           <Route path="canary" element={<LegacyCanaryRedirect />} />
           <Route path="resolve" element={<ResolvePreview />} />
           <Route path="branching-models" element={<Navigate to="/platform/branching-models" replace />} />
-          <Route path="components" element={<Navigate to="/platform/components" replace />} />
+          <Route path="components" element={<Navigate to="/platform/runtime" replace />} />
           <Route path="components/:type/:name" element={<LegacyComponentDetailRedirect />} />
           <Route path="components/:type/:name/:version" element={<ComponentDetail />} />
           <Route path="platform-settings" element={<Navigate to="/audit" replace />} />
@@ -130,7 +130,7 @@ export default function App() {
             element={<PlatformFlatReleaseRedirect familyId="branching-models" />}
           />
           <Route path="platform/jenkins-lib" element={<Navigate to="/platform/runtime" replace />} />
-          <Route path="platform/components" element={<PlatformComponentsPage />} />
+          <Route path="platform/components" element={<Navigate to="/platform/runtime" replace />} />
           <Route path="studio" element={<Navigate to="/platform/build-stacks" replace />} />
           <Route path="studio/*" element={<Navigate to="/platform/build-stacks" replace />} />
           <Route element={<RequireRole min="publisher" />}>
@@ -160,8 +160,9 @@ export default function App() {
 
 function LegacyComponentDetailRedirect() {
   const { type = "", name = "" } = useParams();
-  if (type === "agent" && name) {
-    return <Navigate to={`/platform/runtime/${encodeURIComponent(name)}`} replace />;
+  const hub = platformHubPath(type, name);
+  if (hub) {
+    return <Navigate to={hub} replace />;
   }
   return <ComponentDetail />;
 }

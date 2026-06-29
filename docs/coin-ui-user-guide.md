@@ -42,7 +42,7 @@ Key или OIDC access token хранится в `localStorage`.
 | Admin | Audit | `/audit` | admin |
 | Footer | — | Studio удалён; `/studio` → redirect на Platform |
 
-**Redirects:** `/branching-models` → `/platform/branching-models`, `/components` → `/platform/components`, `/releases` → `/gp`, `/catalog` → `/gp`, `/canary` → `/gp`, `/releases/:n/:v` → `/gp/:n/releases/:v`, `/releases/new-gp` → `/gp/new`, `/releases/publish` → `/gp/:name/releases/new-draft` (с `?name=`), `/platform-settings` → `/audit`.
+**Redirects:** `/branching-models` → `/platform/branching-models`, `/components` → `/platform/runtime`, `/platform/components` → `/platform/runtime`, `/releases` → `/gp`, `/catalog` → `/gp`, `/canary` → `/gp`, `/releases/:n/:v` → `/gp/:n/releases/:v`, `/releases/new-gp` → `/gp/new`, `/releases/publish` → `/gp/:name/releases/new-draft` (с `?name=`), `/platform-settings` → `/audit`.
 
 **Publish flows** — внутри GP hub (кнопки на hub / Releases tab), не в sidebar.
 
@@ -122,7 +122,7 @@ Override **auto | stable | canary** — только для preview (`forceChann
 
 Primary actions: **New profile** на каталоге, **New draft** на hub.
 
-Legacy: `/platform/components`, `/components/agent/:name` → hub. `/platform/jenkins-lib` → `/platform/runtime`.
+Legacy: `/components/:type/:name` → family hub (`agent` → runtime, `gp-content` → build-stacks, `branching-model` → branching-models). `/platform/jenkins-lib` → `/platform/runtime`.
 
 **Editors:** gp-content / branching-model — `/platform/.../:name/:version/edit` (validate → register → promote). Branching-model editor: schema v2 rule cards, live YAML preview, `POST /v1/admin/branching-models/preview`. Agent — metadata catch-up `/platform/runtime/:name/:version/edit`, CI path через `publish-agent.sh` (draft register + promote).
 

@@ -44,14 +44,13 @@ make coin-ui-up   # http://localhost:8091
 | | `/platform/branching-models` | Branching model profiles catalog | reader+ |
 | | `/platform/branching-models/:name` | Branching model hub | reader+ |
 | | `/platform/branching-models/new` | New branching model profile | publisher+ |
-| | `/platform/components` | Legacy aggregate (deprecated) | reader+ |
 | | `/platform/build-stacks/:name/:version/edit` | gp-content editor (validate → publish) | publisher+ |
 | | `/platform/branching-models/:name/:version/edit` | branching-model editor | publisher+ |
 | | `/platform/runtime/:name/:version/edit` | agent metadata catch-up | publisher+ |
-| | `/components/agent/:name` | redirect → `/platform/runtime/:name` | reader+ |
+| | `/components/:type/:name` | redirect → family hub | reader+ |
 | **Admin** | `/audit` | Audit log | admin |
 
-**Redirects:** `/branching-models` → `/platform/branching-models`, `/components` → `/platform/components`, `/releases` → `/gp`, `/catalog` → `/gp`, `/canary` → `/gp`, `/releases/:n/:v` → `/gp/:n/releases/:v`, `/releases/new-gp` → `/gp/new`, `/releases/publish` → `/gp/:name/releases/new-draft` (с `?name=`), `/platform-settings` → `/audit`.
+**Redirects:** `/branching-models` → `/platform/branching-models`, `/components` → `/platform/runtime`, `/platform/components` → `/platform/runtime`, `/releases` → `/gp`, `/catalog` → `/gp`, `/canary` → `/gp`, `/releases/:n/:v` → `/gp/:n/releases/:v`, `/releases/new-gp` → `/gp/new`, `/releases/publish` → `/gp/:name/releases/new-draft` (с `?name=`), `/platform-settings` → `/audit`.
 
 Header: **API docs ↗** → `/api/docs/` (Swagger UI через proxy).
 
