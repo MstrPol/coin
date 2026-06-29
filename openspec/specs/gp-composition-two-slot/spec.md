@@ -1,10 +1,9 @@
 # gp-composition-two-slot Specification
 
 ## Purpose
-TBD - created by archiving change gp-profile-metadata-model. Capability id retained for delta traceability; composition is three-pin (agent, branching-model, gp-content).
 
+GP release composition: three operator pins (`agent`, `gp-content`, `branching-model`). Capability id `gp-composition-two-slot` retained for delta traceability. Narrative docs cross-link `docs/adr/coin-ci-runtime.md`.
 ## Requirements
-
 ### Requirement: Three-pin GP draft composition
 
 GP draft and release composition SHALL contain exactly three operator-selected component pins from the platform registry:
@@ -131,3 +130,14 @@ coin-api SHALL allow canary channel resolve when `catalog_policy.latest_canary` 
 
 - **WHEN** product CI resolves GP on stable channel
 - **THEN** coin-api MUST NOT resolve GP releases with `status = draft`
+
+### Requirement: Composition documentation cross-links
+
+GP composition documentation in `docs/architecture.md` and `docs/control-plane.md` SHALL remain consistent with the three-pin composition requirements in this specification and SHALL cross-link `docs/adr/coin-ci-runtime.md`.
+
+#### Scenario: Architecture references composition spec
+
+- **WHEN** `docs/architecture.md` describes GP composition slots
+- **THEN** it MUST list exactly `agent`, `gp-content`, and `branching-model`
+- **AND** MUST link to `docs/adr/coin-ci-runtime.md` for runtime slot materialization
+

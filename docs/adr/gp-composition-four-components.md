@@ -1,6 +1,9 @@
 # ADR: GP composition — четыре компонента
 
-**Статус:** accepted  
+> **Статус: superseded** (2026-06-10)  
+> Заменено: three-pin GP composition (`agent`, `gp-content`, `branching-model`) — [coin-ci-runtime](coin-ci-runtime.md), OpenSpec `gp-composition-two-slot`.
+
+**Статус (исторический):** accepted  
 **Дата:** 2026-06-10
 
 ## Контекст

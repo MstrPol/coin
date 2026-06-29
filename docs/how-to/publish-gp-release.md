@@ -9,20 +9,23 @@
 - Компоненты опубликованы в DB (`component_versions`)
 - `COIN_ADMIN_API_KEY` или `AUTH_DISABLED=true` (local)
 
-## Composition (4 slots)
+## Composition (3 pins)
 
 Для `go-app` (и аналогов `go-app-bp`, `go-app-df`):
 
 | Key | Component type | Пример |
 |-----|----------------|--------|
 | `agent` | `agent` | `coin-agent@1.0.0` |
-| `executor` | `executor` | `coin-executor@0.1.0` |
-| `lib` | `lib` | `coin-lib@1.0.0` |
-| `gp-content` | `gp-content` | `gp-content/go-app@1.0.2` |
+| `gp-content` | `gp-content` | `go-app@1.0.2` |
+| `branching-model` | `branching-model` | `trunk-based@1.0.0` |
 
-**Superseded:** slots `pipeline`, `validate`, `dockerfile`, stack agent `go@{ver}`.
+`executor` materialized из agent stack (не отдельный composition key). `coin-lib` — вне GP composition (Jenkins `@Library`).
 
-Manifest собирается из composition: `build`, `pipeline.stages` (typed), `validateSchema`, `runtime.image`.
+**Superseded:** 4-slot с `executor` + `lib` в composition; slots `pipeline`, `validate`, `dockerfile`, stack agent `go@{ver}`.
+
+Manifest собирается из composition: `build`, `pipeline.stages` (typed), `validateSchema`, `branching`, `runtime.image`.
+
+См. [adr/coin-ci-runtime.md](../adr/coin-ci-runtime.md).
 
 ## Local seed (рекомендуется)
 

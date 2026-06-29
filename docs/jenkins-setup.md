@@ -27,8 +27,10 @@ coinPipeline()
 
 | `publish` | Stage `publish` |
 |-----------|-----------------|
-| `false` (default) | skip (кроме `when: tag` в manifest) |
-| `true` | выполняется |
+| `false` (default) | skip (coin-lib) |
+| `true` | выполняется; eligibility — `manifest.branching` + `COIN_PUBLISH_REQUEST` |
+
+См. [how-to/branching-models.md](how-to/branching-models.md), [adr/coin-ci-runtime.md](adr/coin-ci-runtime.md).
 
 ## Kubernetes cloud
 

@@ -89,19 +89,28 @@ ADR: [adr/gp-component-package-model.md](adr/gp-component-package-model.md) (ame
     "url": "http://nexus:8081/repository/maven-releases/coin/gp/content/go-app/1.0.2/config.v2.schema.json",
     "sha256": "sha256:…"
   },
+  "branching": {
+    "name": "trunk-based",
+    "version": "1.0.0",
+    "branches": [
+      { "name": "main", "pattern": "main", "versioning": { "template": "0.0.0-SNAPSHOT" }, "publish": true }
+    ]
+  },
   "pipeline": {
     "stages": [
       { "id": "validate", "name": "Validate" },
       { "id": "test", "name": "Test" },
       { "id": "build", "name": "Build" },
-      { "id": "publish", "name": "Publish", "when": "tag" }
+      { "id": "publish", "name": "Publish" }
     ]
   },
   "credentials": { "docker": "nexus-docker" }
 }
 ```
 
-**Superseded в manifest:** `dockerfileTemplate`, `pipeline.stages[].script`, `manifest.jnlp`, orchestration bundle URL.
+Stage `publish`: coin-lib skip при `params.publish=false`; eligibility — `manifest.branching` + `COIN_PUBLISH_REQUEST`. См. [adr/gp-branching-model.md](adr/gp-branching-model.md).
+
+**Superseded в manifest:** `dockerfileTemplate`, `pipeline.stages[].script`, `manifest.jnlp`, orchestration bundle URL, `pipeline.stages[].when` как primary publish gate.
 
 OpenAPI: [`coin-api/openapi/v1.yaml`](../coin-api/openapi/v1.yaml).  
 Schema: [`coin-api/manifest.schema.json`](../coin-api/manifest.schema.json).
@@ -140,7 +149,7 @@ sequenceDiagram
   POD->>EX: report → API
 ```
 
-Build dispatch по `manifest.build.engine` — см. [agent-build-model.md](agent-build-model.md).
+Build dispatch по `manifest.build.engine` — см. [adr/coin-ci-runtime.md](adr/coin-ci-runtime.md).
 
 ## Миграция с v1
 

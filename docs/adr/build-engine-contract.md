@@ -4,9 +4,12 @@
 
 accepted
 
-## Контекст
+> **Operational SoT:** текущая CI runtime-модель (agent, bootstrap, engines, publish) — [coin-ci-runtime](coin-ci-runtime.md).  
+> Этот ADR фиксирует **решение** о введении `build.engine` и hard cut; секция «Контекст» описывает **pre-hard-cut** состояние.
 
-Текущая Jenkins runtime model использует динамический pod с stack image, где установлен языковой toolchain. Для `go-app` это приводит к `go build` внутри agent и последующему `docker build`.
+## Контекст (pre-hard-cut, 2026-06)
+
+До hard cut Jenkins runtime model использовала динамический pod с stack image, где установлен языковой toolchain. Для `go-app` это приводило к `go build` внутри agent и последующему `docker build`.
 
 Проблемы:
 

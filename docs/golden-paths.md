@@ -128,7 +128,7 @@ coin-gp-content/stacks/
 
 Один container — `manifest.runtime.image` (`coin-agent`), не отдельный stack agent.
 
-См. [agent-build-model.md](agent-build-model.md).
+См. [adr/coin-ci-runtime.md](adr/coin-ci-runtime.md).
 
 ## Pipeline stages
 
@@ -145,8 +145,9 @@ pipeline:
       name: Build
     - id: publish
       name: Publish
-      when: tag
 ```
+
+Publish eligibility: Jenkins `params.publish` + `manifest.branching` (не `when: tag` в gp-content v2). Reference `content.yaml` может содержать legacy `when: tag` до change `gp-content-schema-v2`.
 
 Orchestration — `coin-lib` + `coin-executor`, не Groovy/shell из Nexus.
 

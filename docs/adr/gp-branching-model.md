@@ -1,9 +1,12 @@
-# ADR: GP Branching Model (5-slot composition)
+# ADR: GP Branching Model
+
+> **Текущая GP composition:** three pins (`agent`, `gp-content`, `branching-model`) — [coin-ci-runtime](coin-ci-runtime.md).  
+> Исторические упоминания 4/5-slot в этом ADR — эволюция до three-pin + branching.
 
 **Статус:** accepted (GBM-0.1, 2026-06-23)  
-**Контекст:** [gp-branching-model](../../openspec/changes/gp-branching-model/)  
+**Контекст:** [gp-branching-model](../../openspec/changes/archive/2026-06-24-gp-branching-model/)  
 **Prerequisite:** [gp-component-package-model](gp-component-package-model.md) (archived ✅)  
-**Связанные ADR:** [control-plane-v2.md](control-plane-v2.md), [build-engine-contract.md](build-engine-contract.md)
+**Связанные ADR:** [coin-ci-runtime.md](coin-ci-runtime.md), [control-plane-v2.md](control-plane-v2.md), [build-engine-contract.md](build-engine-contract.md)
 
 ## Контекст
 

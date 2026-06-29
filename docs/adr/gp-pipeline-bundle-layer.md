@@ -1,6 +1,9 @@
 # ADR: Pipeline bundle layer
 
-**Статус:** accepted  
+> **Статус: superseded** (2026-06-10)  
+> Заменено: pinned **coin-lib** Shared Library + **gp-content** — [jenkins-lib-http-nexus](jenkins-lib-http-nexus.md), [coin-ci-runtime](coin-ci-runtime.md).
+
+**Статус (исторический):** accepted  
 **Дата:** 2026-06-10
 
 ## Контекст

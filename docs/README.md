@@ -29,8 +29,9 @@
 |----------|------------|
 | [architecture.md](architecture.md) | Обзор компонентов v2 |
 | [control-plane.md](control-plane.md) | API, executor, manifest, три слоя SoT |
-| [agent-build-model.md](agent-build-model.md) | **Build engines** (buildkit / buildpack / dockerfile), coin-agent |
-| [golden-paths.md](golden-paths.md) | GP profiles, 4-slot composition, samples |
+| [agent-build-model.md](agent-build-model.md) | **Build engines** runbook (E2E, troubleshooting) |
+| [adr/coin-ci-runtime.md](adr/coin-ci-runtime.md) | **CI runtime** canonical ADR |
+| [golden-paths.md](golden-paths.md) | GP profiles, three-pin composition, samples |
 | [responsibilities.md](responsibilities.md) | Platform vs команда |
 | [planning.md](planning.md) | **OpenSpec + Beads** — workflow, активные changes |
 
@@ -74,9 +75,10 @@
 
 | ADR | Тема |
 |-----|------|
-| [build-engine-contract](adr/build-engine-contract.md) | `build.engine`, typed stages, coin-agent |
+| [coin-ci-runtime](adr/coin-ci-runtime.md) | **CI runtime** (agent, bootstrap, engines, publish) |
+| [build-engine-contract](adr/build-engine-contract.md) | `build.engine` hard cut decision |
 | [gp-component-package-model](adr/gp-component-package-model.md) | UI-first components, package model |
-| [gp-branching-model](adr/gp-branching-model.md) | 5-slot composition, manifest.branching |
+| [gp-branching-model](adr/gp-branching-model.md) | branching-model component, publish policy |
 | [jenkins-lib-http-nexus](adr/jenkins-lib-http-nexus.md) | coin-lib scope |
 | [control-plane-v2](adr/control-plane-v2.md) | manifest v2 |
 
