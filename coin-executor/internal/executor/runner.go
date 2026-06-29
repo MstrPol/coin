@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"coin.local/coin-executor/internal/branching"
+	"coin.local/coin-executor/pkg/branching"
 	"coin.local/coin-executor/internal/build"
 	"coin.local/coin-executor/internal/config"
 	"coin.local/coin-executor/internal/deliverables"
@@ -38,9 +38,8 @@ func (r Runner) Run(cfg *config.Config, m *manifest.Manifest, opts RunOptions) e
 			continue
 		}
 		if key == "publish" {
-			if skip, reason := shouldSkipPublish(r.Workspace, m); skip {
-				fmt.Printf("==> skip stage publish (%s)\n", reason)
-				continue
+			if err := enforcePublishPolicy(r.Workspace, m); err != nil {
+				return err
 			}
 		} else if opts.Stage == "" && !shouldRunStage(stage) {
 			fmt.Printf("==> skip stage %s (when=%s)\n", key, stage.When)
@@ -273,17 +272,21 @@ func imageRefForProject(cfg *config.Config, m *manifest.Manifest, workDir string
 	return fmt.Sprintf("%s/%s:%s", strings.TrimRight(registry, "/"), cfg.Project.Name, tag)
 }
 
-func shouldSkipPublish(workDir string, m *manifest.Manifest) (bool, string) {
+func enforcePublishPolicy(workDir string, m *manifest.Manifest) error {
 	model := branching.FromManifest(m)
-	if model != nil {
-		g, err := branching.GitFromEnv(workDir)
-		if err != nil {
-			return true, fmt.Sprintf("branching git: %v", err)
-		}
-		ok, reason := branching.ShouldPublish(model, g)
-		if !ok {
-			return true, reason
-		}
+	if model == nil {
+		return nil
+	}
+	g, err := branching.GitFromEnv(workDir)
+	if err != nil {
+		return fmt.Errorf("branching git: %w", err)
+	}
+	return branching.CheckPublishAllowed(model, g)
+}
+
+func shouldSkipPublish(workDir string, m *manifest.Manifest) (bool, string) {
+	// Legacy: without branching section, honor pipeline when=tag.
+	if branching.FromManifest(m) != nil {
 		return false, ""
 	}
 	// Legacy manifests without branching: pipeline stage when=tag.

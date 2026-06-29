@@ -1,18 +1,15 @@
-schemaVersion: 1
+schemaVersion: 2
 name: semver-tag
-trunk:
-  branch: main
-branchTypes:
-  - feature
-  - bugfix
-  - release
-versioning:
-  tagPrefix: v
-  qualifiers:
-    snapshot:
-      enabled: false
-    rc:
-      enabled: false
-      releaseBranchesOnly: false
-publish:
-  when: tag
+
+branches:
+  - name: main
+    pattern: ^main$|^master$
+    versioning:
+      template: "v{base}"
+    publish: true
+
+  - name: feature
+    pattern: ^feature/.+$
+    versioning:
+      template: "v{base}"
+    publish: false

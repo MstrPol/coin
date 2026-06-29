@@ -6,24 +6,19 @@ import (
 
 func TestValidateDraftPackage_branchingModel(t *testing.T) {
 	t.Parallel()
-	validYAML := `schemaVersion: 1
+	validYAML := `schemaVersion: 2
 name: trunk-based
-trunk:
-  branch: main
-branchTypes:
-  - feature
-  - bugfix
-  - release
-versioning:
-  tagPrefix: v
-  qualifiers:
-    snapshot:
-      enabled: true
-    rc:
-      enabled: true
-      releaseBranchesOnly: true
-publish:
-  when: tag
+branches:
+  - name: main
+    pattern: ^main$|^master$
+    versioning:
+      template: "v{base}-main-snapshot-{n}"
+    publish: false
+  - name: release
+    pattern: ^release/(?P<jira>[A-Z][A-Z0-9]*-\d+)(?:-.+)?$
+    versioning:
+      template: "v{base}-{jira}-rc-{n}"
+    publish: true
 `
 	res := ValidateDraftPackage("branching-model", "trunk-based", "1.0.0", []DraftArtifact{
 		{Path: "model.yaml", Body: []byte(validYAML), SHA256: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
@@ -42,6 +37,18 @@ publish:
 	})
 	if res.Valid {
 		t.Fatal("expected invalid yaml/model")
+	}
+
+	v1YAML := `schemaVersion: 1
+name: trunk-based
+trunk:
+  branch: main
+`
+	res = ValidateDraftPackage("branching-model", "trunk-based", "1.0.0", []DraftArtifact{
+		{Path: "model.yaml", Body: []byte(v1YAML), SHA256: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+	})
+	if res.Valid {
+		t.Fatal("expected v1 schema rejection")
 	}
 }
 

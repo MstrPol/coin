@@ -2,6 +2,7 @@ package componentpackage
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -24,28 +25,18 @@ type ValidateDraftResult struct {
 }
 
 type branchingModelDoc struct {
-	SchemaVersion int      `yaml:"schemaVersion"`
-	Name          string   `yaml:"name"`
-	Trunk         struct {
-		Branch string `yaml:"branch"`
-	} `yaml:"trunk"`
-	BranchTypes []string `yaml:"branchTypes"`
-	Versioning  struct {
-		TagPrefix   string `yaml:"tagPrefix"`
-		Qualifiers  struct {
-			Snapshot struct {
-				Enabled bool `yaml:"enabled"`
-			} `yaml:"snapshot"`
-			RC struct {
-				Enabled               bool `yaml:"enabled"`
-				ReleaseBranchesOnly   bool `yaml:"releaseBranchesOnly"`
-			} `yaml:"rc"`
-		} `yaml:"qualifiers"`
+	SchemaVersion int                 `yaml:"schemaVersion"`
+	Name          string              `yaml:"name"`
+	Branches      []branchingRuleDoc  `yaml:"branches"`
+}
+
+type branchingRuleDoc struct {
+	Name       string `yaml:"name"`
+	Pattern    string `yaml:"pattern"`
+	Versioning struct {
+		Template string `yaml:"template"`
 	} `yaml:"versioning"`
-	Publish struct {
-		When   string `yaml:"when"`
-		Branch string `yaml:"branch"`
-	} `yaml:"publish"`
+	Publish bool `yaml:"publish"`
 }
 
 // ValidateDraftPackage runs server-side validation for Component Studio publish flow.
@@ -108,8 +99,11 @@ func validateBranchingModelArtifact(bodies []DraftArtifact, componentName string
 	if err := yaml.Unmarshal(modelRaw, &doc); err != nil {
 		return []ValidationIssue{{Field: "model.yaml", Message: fmt.Sprintf("invalid yaml: %v", err)}}
 	}
-	if doc.SchemaVersion != 1 {
-		issues = append(issues, ValidationIssue{Field: "model.yaml.schemaVersion", Message: "schemaVersion must be 1"})
+	if doc.SchemaVersion != 2 {
+		issues = append(issues, ValidationIssue{
+			Field:   "model.yaml.schemaVersion",
+			Message: "schemaVersion must be 2 (v1 is not supported)",
+		})
 	}
 	if strings.TrimSpace(doc.Name) == "" {
 		issues = append(issues, ValidationIssue{Field: "model.yaml.name", Message: "name is required"})
@@ -119,32 +113,28 @@ func validateBranchingModelArtifact(bodies []DraftArtifact, componentName string
 			Message: fmt.Sprintf("name %q must match component name %q", doc.Name, componentName),
 		})
 	}
-	if strings.TrimSpace(doc.Trunk.Branch) == "" {
-		issues = append(issues, ValidationIssue{Field: "model.yaml.trunk.branch", Message: "trunk branch is required"})
+	if len(doc.Branches) == 0 {
+		issues = append(issues, ValidationIssue{Field: "model.yaml.branches", Message: "at least one branch rule is required"})
 	}
-	if len(doc.BranchTypes) == 0 {
-		issues = append(issues, ValidationIssue{Field: "model.yaml.branchTypes", Message: "at least one branch type is required"})
-	} else {
-		hasRelease := false
-		for _, t := range doc.BranchTypes {
-			if t == "release" {
-				hasRelease = true
-			}
+	for i, br := range doc.Branches {
+		prefix := fmt.Sprintf("model.yaml.branches[%d]", i)
+		if strings.TrimSpace(br.Name) == "" {
+			issues = append(issues, ValidationIssue{Field: prefix + ".name", Message: "name is required"})
 		}
-		if !hasRelease {
-			issues = append(issues, ValidationIssue{Field: "model.yaml.branchTypes", Message: "branchTypes must include release"})
+		if strings.TrimSpace(br.Pattern) == "" {
+			issues = append(issues, ValidationIssue{Field: prefix + ".pattern", Message: "pattern is required"})
+		} else if _, err := regexp.Compile(br.Pattern); err != nil {
+			issues = append(issues, ValidationIssue{
+				Field:   prefix + ".pattern",
+				Message: fmt.Sprintf("invalid RE2 pattern: %v", err),
+			})
 		}
-	}
-	switch doc.Publish.When {
-	case "tag", "branch", "always", "never":
-		if doc.Publish.When == "branch" && strings.TrimSpace(doc.Publish.Branch) == "" {
-			issues = append(issues, ValidationIssue{Field: "model.yaml.publish.branch", Message: "branch is required when publish.when is branch"})
+		if strings.TrimSpace(br.Versioning.Template) == "" {
+			issues = append(issues, ValidationIssue{
+				Field:   prefix + ".versioning.template",
+				Message: "versioning.template is required",
+			})
 		}
-	default:
-		issues = append(issues, ValidationIssue{
-			Field:   "model.yaml.publish.when",
-			Message: "publish.when must be tag, branch, always or never",
-		})
 	}
 	return issues
 }

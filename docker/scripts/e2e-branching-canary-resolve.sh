@@ -55,7 +55,9 @@ if [[ "${status}" != "draft" && "${status}" != "published" ]]; then
 import pathlib, sys, yaml
 src, dst = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 doc = yaml.safe_load(src.read_text())
-doc["publish"] = {"when": "always"}
+for br in doc.get("branches", []):
+    if br.get("name") == "feature":
+        br["publish"] = True
 dst.write_text(yaml.dump(doc, sort_keys=False))
 PY
 
@@ -67,14 +69,13 @@ PY
   MANIFEST_SUBSET="$(python3 - "${REPO_ROOT}/coin-branching-models/models/${MODEL}/model.yaml" <<'PY'
 import json, pathlib, sys, yaml
 doc = yaml.safe_load(pathlib.Path(sys.argv[1]).read_text())
-doc["publish"] = {"when": "always"}
+for br in doc.get("branches", []):
+    if br.get("name") == "feature":
+        br["publish"] = True
 print(json.dumps({
     "branching": {
         "name": doc["name"],
-        "trunk": doc["trunk"],
-        "branchTypes": doc["branchTypes"],
-        "versioning": doc["versioning"],
-        "publish": doc["publish"],
+        "branches": doc["branches"],
     }
 }))
 PY
@@ -107,7 +108,7 @@ echo "==> resolve canary pin (forceChannel=canary)"
 preview="$(curl -fsS "${API}/v1/admin/golden-paths/${GP}/resolve-preview?pin=*&forceChannel=canary" \
   -H "X-API-Key: ${KEY}")"
 channel="$(echo "${preview}" | jq -r '.channel')"
-when="$(echo "${preview}" | jq -r '.manifest.branching.publish.when')"
+feature_publish="$(echo "${preview}" | jq -r '.manifest.branching.branches[] | select(.name=="feature") | .publish')"
 bm_name="$(echo "${preview}" | jq -r '.manifest.branching.name')"
 bm_ver="$(echo "${preview}" | jq -r '.manifest.branching.version // empty')"
 
@@ -115,8 +116,8 @@ if [[ "${channel}" != "canary" ]]; then
   echo "FAIL: expected channel canary, got ${channel}" >&2
   exit 1
 fi
-if [[ "${when}" != "always" ]]; then
-  echo "FAIL: expected branching.publish.when=always from canary PG ref, got ${when}" >&2
+if [[ "${feature_publish}" != "true" ]]; then
+  echo "FAIL: expected canary feature.publish=true from PG ref, got ${feature_publish}" >&2
   echo "${preview}" | jq '.manifest.branching' >&2
   exit 1
 fi
@@ -125,12 +126,12 @@ if [[ "${bm_name}" != "${MODEL}" ]]; then
   exit 1
 fi
 
-echo "==> stable resolve unchanged (publish.when=tag)"
-stable_when="$(curl -fsS "${API}/v1/golden-paths/${GP}/versions/${GP_STABLE}/manifest" \
-  -H "Authorization: Bearer ${TOKEN}" | jq -r '.branching.publish.when')"
-if [[ "${stable_when}" != "tag" ]]; then
-  echo "FAIL: stable branching should remain tag policy" >&2
+echo "==> stable resolve unchanged (feature.publish=false)"
+stable_feature="$(curl -fsS "${API}/v1/golden-paths/${GP}/versions/${GP_STABLE}/manifest" \
+  -H "Authorization: Bearer ${TOKEN}" | jq -r '.branching.branches[] | select(.name=="feature") | .publish')"
+if [[ "${stable_feature}" != "false" ]]; then
+  echo "FAIL: stable branching feature.publish should remain false" >&2
   exit 1
 fi
 
-echo "OK: canary resolve manifest.branching from PG (${bm_name}@${BM_VER:-canary}, when=${when})"
+echo "OK: canary resolve manifest.branching from PG (${bm_name}@${BM_VER:-canary}, feature.publish=${feature_publish})"

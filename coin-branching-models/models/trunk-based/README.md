@@ -1,10 +1,18 @@
-# trunk-based
+# trunk-based (schema v2)
 
-Модель ветвления для сервисных Golden Path (`go-app`, `go-app-bp`, `go-app-df`).
+Сервисные Golden Path: `go-app`, `go-app-bp`, `go-app-df`.
 
-- **Trunk:** `main` — единственная долгоживущая ветка интеграции.
-- **Ветки:** `feature/*`, `bugfix/*`, `release/*` (Jira ID в имени).
-- **Версия:** RC-теги `v*-rc-*` на `release/*`; snapshot на feature при включённом qualifier.
-- **Publish:** только при RC-теге (`publish.when: tag`).
+## Правила
 
-См. [docs/branching.md](../../docs/branching.md) и [docs/adr/gp-branching-model.md](../../docs/adr/gp-branching-model.md).
+| # | name | branch example | template | publish |
+|---|------|----------------|----------|---------|
+| 1 | main | `main` | `v{base}-main-snapshot-{n}` | false |
+| 2 | feature | `feature/PROJ-101` | `v{base}-{jira}-snapshot-{n}` | false |
+| 3 | bugfix | `bugfix/PROJ-101` | `v{base}-{jira}-snapshot-{n}` | false |
+| 4 | release | `release/PROJ-404` | `v{base}-{jira}-rc-{n}` | true |
+
+Первое совпавшее правило выигрывает. Regex — Go RE2, named groups `(?P<jira>...)`.
+
+Publish: Jenkins `params.publish=true` → `COIN_PUBLISH_REQUEST=true`; ветка с `publish: false` → **FAIL** stage publish.
+
+См. [docs/how-to/branching-models.md](../../docs/how-to/branching-models.md).

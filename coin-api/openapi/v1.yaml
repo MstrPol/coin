@@ -519,6 +519,29 @@ paths:
         "401":
           description: Unauthorized
 
+  /v1/admin/branching-models/preview:
+    post:
+      summary: Preview branching model scenarios (executor SoT)
+      security:
+        - adminKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BranchingModelPreviewRequest"
+      responses:
+        "200":
+          description: Preview evaluation results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BranchingModelPreviewResult"
+        "400":
+          description: Invalid model or scenarios
+        "401":
+          description: Unauthorized
+
   /v1/admin/golden-paths/{name}/projects/{project}/canary-context:
     get:
       summary: Canary audience context for project
@@ -1078,24 +1101,18 @@ components:
               type: string
         branching:
           type: object
-          description: Branching model rules from composition branching-model slot
-          required: [name, version]
+          description: Branching model rules from composition branching-model slot (schema v2)
+          required: [name, version, branches]
           properties:
             name:
               type: string
             version:
               type: string
-            trunk:
-              type: object
-            branchTypes:
+            branches:
               type: array
               items:
-                type: string
-            versioning:
-              type: object
-            publish:
-              type: object
-          additionalProperties: true
+                $ref: "#/components/schemas/BranchingModelBranchRule"
+          additionalProperties: false
         build:
           $ref: "#/components/schemas/ManifestBuild"
         pipeline:
@@ -1958,6 +1975,86 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    BranchingModelBranchRule:
+      type: object
+      required: [name, pattern, versioning, publish]
+      properties:
+        name:
+          type: string
+        pattern:
+          type: string
+        versioning:
+          type: object
+          required: [template]
+          properties:
+            template:
+              type: string
+        publish:
+          type: boolean
+
+    BranchingModelPreviewRequest:
+      type: object
+      required: [model, scenarios]
+      properties:
+        model:
+          type: object
+          required: [name, branches]
+          properties:
+            name:
+              type: string
+            branches:
+              type: array
+              items:
+                $ref: "#/components/schemas/BranchingModelBranchRule"
+        scenarios:
+          type: array
+          items:
+            type: object
+            required: [id, branch]
+            properties:
+              id:
+                type: string
+              branch:
+                type: string
+              tagName:
+                type: string
+              tags:
+                type: array
+                items:
+                  type: string
+              requestPublish:
+                type: boolean
+
+    BranchingModelPreviewResult:
+      type: object
+      required: [patternHint, results]
+      properties:
+        patternHint:
+          type: string
+        results:
+          type: array
+          items:
+            type: object
+            required: [id, branchValid, publishOutcome]
+            properties:
+              id:
+                type: string
+              matchedRule:
+                type: string
+              branchValid:
+                type: boolean
+              branchError:
+                type: string
+              coinVersion:
+                type: string
+              versionError:
+                type: string
+              publishOutcome:
+                type: string
+                enum: [not-requested, allowed, denied]
+              publishReason:
+                type: string
 
     AdminPrincipal:
       type: object

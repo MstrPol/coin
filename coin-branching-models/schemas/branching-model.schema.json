@@ -1,102 +1,50 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://coin.local/schemas/branching-model.schema.json",
-  "title": "Branching model (model.yaml)",
+  "title": "Branching model (model.yaml) v2",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schemaVersion",
-    "name",
-    "trunk",
-    "branchTypes",
-    "versioning",
-    "publish"
-  ],
+  "required": ["schemaVersion", "name", "branches"],
   "properties": {
     "schemaVersion": {
       "type": "integer",
-      "const": 1
+      "const": 2
     },
     "name": {
       "type": "string",
       "minLength": 1
     },
-    "trunk": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["branch"],
-      "properties": {
-        "branch": {
-          "type": "string",
-          "minLength": 1
-        }
-      }
-    },
-    "branchTypes": {
+    "branches": {
       "type": "array",
       "minItems": 1,
       "items": {
-        "type": "string",
-        "minLength": 1
-      },
-      "contains": {
-        "const": "release"
-      }
-    },
-    "versioning": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["tagPrefix", "qualifiers"],
-      "properties": {
-        "tagPrefix": {
-          "type": "string"
-        },
-        "qualifiers": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["snapshot", "rc"],
-          "properties": {
-            "snapshot": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["enabled"],
-              "properties": {
-                "enabled": { "type": "boolean" }
-              }
-            },
-            "rc": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["enabled", "releaseBranchesOnly"],
-              "properties": {
-                "enabled": { "type": "boolean" },
-                "releaseBranchesOnly": { "type": "boolean" }
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "pattern", "versioning", "publish"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pattern": {
+            "type": "string",
+            "minLength": 1
+          },
+          "versioning": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["template"],
+            "properties": {
+              "template": {
+                "type": "string",
+                "minLength": 1
               }
             }
+          },
+          "publish": {
+            "type": "boolean"
           }
         }
-      }
-    },
-    "publish": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["when"],
-      "properties": {
-        "when": {
-          "type": "string",
-          "enum": ["tag", "branch", "always", "never"]
-        },
-        "branch": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "if": {
-        "properties": { "when": { "const": "branch" } },
-        "required": ["when"]
-      },
-      "then": {
-        "required": ["branch"]
       }
     }
   }

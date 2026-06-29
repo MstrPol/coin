@@ -49,7 +49,7 @@ cat >"${work}/.coin/manifest.json" <<'JSON'
   "pipeline": {
     "stages": [
       {"id": "validate", "name": "Validate"},
-      {"id": "publish", "name": "Publish", "when": "tag"}
+      {"id": "publish", "name": "Publish"}
     ]
   },
   "validateSchema": {"url": "http://example/schema", "sha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
@@ -57,16 +57,20 @@ cat >"${work}/.coin/manifest.json" <<'JSON'
   "branching": {
     "name": "trunk-based",
     "version": "1.0.0",
-    "trunk": {"branch": "main"},
-    "branchTypes": ["feature", "bugfix", "release"],
-    "versioning": {
-      "tagPrefix": "v",
-      "qualifiers": {
-        "snapshot": {"enabled": true},
-        "rc": {"enabled": true, "releaseBranchesOnly": true}
+    "branches": [
+      {
+        "name": "feature",
+        "pattern": "^feature/(?P<jira>[A-Z][A-Z0-9]*-\\d+)(?:-.+)?$",
+        "versioning": {"template": "v{base}-{jira}-snapshot-{n}"},
+        "publish": false
+      },
+      {
+        "name": "release",
+        "pattern": "^release/(?P<jira>[A-Z][A-Z0-9]*-\\d+)(?:-.+)?$",
+        "versioning": {"template": "v{base}-{jira}-rc-{n}"},
+        "publish": true
       }
-    },
-    "publish": {"when": "tag"}
+    ]
   }
 }
 JSON
@@ -100,20 +104,28 @@ echo "==> validate on feature branch (expect pass)"
 (
   cd "${work}"
   export GIT_BRANCH=feature/PROJ-101
-  unset TAG_NAME GIT_TAG_NAME
+  unset TAG_NAME GIT_TAG_NAME COIN_PUBLISH_REQUEST
   "${EXEC}" validate --project .coin/config.yaml --manifest .coin/manifest.json
 )
 
-echo "==> publish on feature branch without tag (expect skip exit 0)"
+echo "==> publish on feature with COIN_PUBLISH_REQUEST=true (expect fail)"
+set +e
 out="$(
   cd "${work}"
   export GIT_BRANCH=feature/PROJ-101
+  export COIN_PUBLISH_REQUEST=true
   unset TAG_NAME GIT_TAG_NAME
   "${EXEC}" run --project .coin/config.yaml --manifest .coin/manifest.json --stage publish 2>&1
 )"
+code=$?
+set -e
 echo "${out}"
-if ! grep -q "skip stage publish" <<<"${out}"; then
-  echo "FAIL: expected publish skip on feature branch" >&2
+if [[ "${code}" -eq 0 ]]; then
+  echo "FAIL: expected publish denied on feature+request" >&2
+  exit 1
+fi
+if ! grep -qi "publish not allowed" <<<"${out}"; then
+  echo "FAIL: expected publish policy error message" >&2
   exit 1
 fi
 

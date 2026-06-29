@@ -60,7 +60,7 @@ curl -fsS "${API}/v1/admin/golden-paths/${GP}/versions/${VER}" \
 
 echo "==> manifest branching section"
 echo "${manifest}" | jq -e '.branching.name == "trunk-based"'
-echo "${manifest}" | jq -e '.branching.publish.when == "tag"'
+echo "${manifest}" | jq -e '(.branching.branches | length) > 0'
 
 echo "==> registry components"
 for comp in "agent/coin-agent" "executor/coin-executor" "gp-content/go-app" "branching-model/trunk-based"; do

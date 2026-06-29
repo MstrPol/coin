@@ -11,14 +11,17 @@ type GitContext struct {
 	Branch  string
 	TagName string
 	WorkDir string
+	tags    []string // optional synthetic tags for preview
 }
 
+// GitFromEnv loads branch/tag from CI environment and git.
 func GitFromEnv(workDir string) (GitContext, error) {
 	g := GitContext{WorkDir: workDir}
+	// PR builds: source branch when multibranch sets CHANGE_BRANCH.
 	g.Branch = firstNonEmpty(
+		os.Getenv("CHANGE_BRANCH"),
 		os.Getenv("GIT_BRANCH"),
 		os.Getenv("BRANCH_NAME"),
-		os.Getenv("CHANGE_BRANCH"),
 	)
 	g.TagName = firstNonEmpty(os.Getenv("TAG_NAME"), os.Getenv("GIT_TAG_NAME"))
 
@@ -37,7 +40,25 @@ func GitFromEnv(workDir string) (GitContext, error) {
 	return g, nil
 }
 
+// WithSyntheticTags returns a copy using in-memory tags (preview API).
+func (g GitContext) WithSyntheticTags(tags []string) GitContext {
+	g.tags = append([]string(nil), tags...)
+	return g
+}
+
 func (g GitContext) Tags(prefix string) ([]string, error) {
+	if g.tags != nil {
+		if prefix == "" {
+			return append([]string(nil), g.tags...), nil
+		}
+		var out []string
+		for _, t := range g.tags {
+			if strings.HasPrefix(t, prefix) {
+				out = append(out, t)
+			}
+		}
+		return out, nil
+	}
 	pattern := prefix + "*"
 	if prefix == "" {
 		pattern = "*"

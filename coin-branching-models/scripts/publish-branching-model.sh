@@ -76,10 +76,7 @@ doc = yaml.safe_load(model_path.read_text())
 subset = {
     "branching": {
         "name": doc["name"],
-        "trunk": doc["trunk"],
-        "branchTypes": doc["branchTypes"],
-        "versioning": doc["versioning"],
-        "publish": doc["publish"],
+        "branches": doc["branches"],
     }
 }
 out_path.write_text(json.dumps(subset))

@@ -124,7 +124,7 @@ Primary actions: **New profile** на каталоге, **New draft** на hub.
 
 Legacy: `/platform/components`, `/components/agent/:name` → hub. `/platform/jenkins-lib` → `/platform/runtime`.
 
-**Editors:** gp-content / branching-model — `/platform/.../:name/:version/edit` (validate → register → promote). Agent — metadata catch-up `/platform/runtime/:name/:version/edit`, CI path через `publish-agent.sh` (draft register + promote).
+**Editors:** gp-content / branching-model — `/platform/.../:name/:version/edit` (validate → register → promote). Branching-model editor: schema v2 rule cards, live YAML preview, `POST /v1/admin/branching-models/preview`. Agent — metadata catch-up `/platform/runtime/:name/:version/edit`, CI path через `publish-agent.sh` (draft register + promote).
 
 **Release detail:** `/platform/{family}/:name/releases/:version` — для agent показывается derived `executor/coin-executor@version`.
 

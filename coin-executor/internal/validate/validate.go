@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"coin.local/coin-executor/internal/branching"
+	"coin.local/coin-executor/pkg/branching"
 	"coin.local/coin-executor/internal/config"
 	"coin.local/coin-executor/internal/deliverables"
 	"coin.local/coin-executor/internal/manifest"

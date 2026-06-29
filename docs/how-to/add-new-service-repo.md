@@ -86,5 +86,6 @@ curl -sf http://localhost:8082/v2/coin-docker/app/tags/list | jq .
 ## Ссылки
 
 - [config.md](../config.md)
+- [branching-models.md](branching-models.md) — GP-pinned branching model (`manifest.branching`)
 - [local-dev-control-plane.md](local-dev-control-plane.md)
 - [samples/demo-go-app/](../../samples/demo-go-app/) — эталон E2E

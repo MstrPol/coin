@@ -24,40 +24,20 @@ type Manifest struct {
 }
 
 type Branching struct {
-	Name        string           `json:"name"`
-	Version     string           `json:"version"`
-	Trunk       BranchingTrunk   `json:"trunk"`
-	BranchTypes []string         `json:"branchTypes"`
-	Versioning  BranchingVersion `json:"versioning"`
-	Publish     BranchingPublish `json:"publish"`
+	Name     string        `json:"name"`
+	Version  string        `json:"version"`
+	Branches []BranchRule  `json:"branches"`
 }
 
-type BranchingTrunk struct {
-	Branch string `json:"branch"`
+type BranchRule struct {
+	Name       string            `json:"name"`
+	Pattern    string            `json:"pattern"`
+	Versioning BranchVersioning  `json:"versioning"`
+	Publish    bool              `json:"publish"`
 }
 
-type BranchingVersion struct {
-	TagPrefix   string              `json:"tagPrefix"`
-	Qualifiers  BranchingQualifiers `json:"qualifiers"`
-}
-
-type BranchingQualifiers struct {
-	Snapshot BranchingQualifierToggle `json:"snapshot"`
-	RC       BranchingRCQualifier     `json:"rc"`
-}
-
-type BranchingQualifierToggle struct {
-	Enabled bool `json:"enabled"`
-}
-
-type BranchingRCQualifier struct {
-	Enabled               bool `json:"enabled"`
-	ReleaseBranchesOnly   bool `json:"releaseBranchesOnly"`
-}
-
-type BranchingPublish struct {
-	When   string `json:"when"`
-	Branch string `json:"branch,omitempty"`
+type BranchVersioning struct {
+	Template string `json:"template"`
 }
 
 type Capabilities struct {

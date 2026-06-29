@@ -95,6 +95,7 @@ def call() {
             checkout scm
             def manifest = coinParseJson(manifestJson)
             def cfg = coinParseJson(cfgJson)
+            env.COIN_PUBLISH_REQUEST = params.publish ? 'true' : 'false'
             coinMaterializeDotCoin(manifest, cfg)
 
             stage('Bootstrap') {

@@ -1,9 +1,12 @@
-# semver-tag
+# semver-tag (schema v2)
 
-Упрощённая tag-based модель для библиотек (`go-lib`, `java-maven-app`).
+Библиотеки и артефакты с semver-тегами на trunk.
 
-- **Trunk:** `main`.
-- **Версия:** semver-теги `vMAJOR.MINOR.PATCH` без RC/snapshot qualifiers.
-- **Publish:** только при semver-теге на коммите (`publish.when: tag`).
+## Правила
 
-Для сервисов с release-ветками и RC используйте `trunk-based`.
+| # | name | branch example | template | publish |
+|---|------|----------------|----------|---------|
+| 1 | main | `main` | `v{base}` | true |
+| 2 | feature | `feature/foo` | `v{base}` | false |
+
+См. [docs/how-to/branching-models.md](../../docs/how-to/branching-models.md).

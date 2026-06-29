@@ -1,136 +1,154 @@
+export type BranchRule = {
+  name: string;
+  pattern: string;
+  versioning: { template: string };
+  publish: boolean;
+};
+
 export type BranchingModel = {
   schemaVersion: number;
   name: string;
-  trunk: { branch: string };
-  branchTypes: string[];
-  versioning: {
-    tagPrefix: string;
-    qualifiers: {
-      snapshot: { enabled: boolean };
-      rc: { enabled: boolean; releaseBranchesOnly: boolean };
-    };
-  };
-  publish: {
-    when: "tag" | "branch" | "always" | "never";
-    branch?: string;
-  };
+  branches: BranchRule[];
 };
+
+export type PreviewScenario = {
+  id: string;
+  branch: string;
+  tagName?: string;
+  tags?: string[];
+  requestPublish?: boolean;
+};
+
+export type BranchingPreviewResult = {
+  patternHint: string;
+  results: Array<{
+    id: string;
+    matchedRule?: string;
+    branchValid: boolean;
+    branchError?: string;
+    coinVersion?: string;
+    versionError?: string;
+    publishOutcome: string;
+    publishReason?: string;
+  }>;
+};
+
+const TRUNK_BASED_RULES: BranchRule[] = [
+  {
+    name: "main",
+    pattern: "^main$|^master$",
+    versioning: { template: "v{base}-main-snapshot-{n}" },
+    publish: false,
+  },
+  {
+    name: "feature",
+    pattern: "^feature/(?P<jira>[A-Z][A-Z0-9]*-\\d+)(?:-.+)?$",
+    versioning: { template: "v{base}-{jira}-snapshot-{n}" },
+    publish: false,
+  },
+  {
+    name: "bugfix",
+    pattern: "^bugfix/(?P<jira>[A-Z][A-Z0-9]*-\\d+)(?:-.+)?$",
+    versioning: { template: "v{base}-{jira}-snapshot-{n}" },
+    publish: false,
+  },
+  {
+    name: "release",
+    pattern: "^release/(?P<jira>[A-Z][A-Z0-9]*-\\d+)(?:-.+)?$",
+    versioning: { template: "v{base}-{jira}-rc-{n}" },
+    publish: true,
+  },
+];
+
+export const DEFAULT_PREVIEW_SCENARIOS: PreviewScenario[] = [
+  { id: "main", branch: "main", requestPublish: true },
+  { id: "feature", branch: "feature/PROJ-101", requestPublish: true },
+  { id: "release", branch: "release/PROJ-404", requestPublish: true },
+];
 
 export function defaultBranchingModel(name: string): BranchingModel {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     name,
-    trunk: { branch: "main" },
-    branchTypes: ["feature", "bugfix", "release"],
-    versioning: {
-      tagPrefix: "v",
-      qualifiers: {
-        snapshot: { enabled: true },
-        rc: { enabled: true, releaseBranchesOnly: true },
-      },
-    },
-    publish: { when: "tag" },
+    branches: TRUNK_BASED_RULES.map((r) => ({ ...r, versioning: { ...r.versioning } })),
   };
 }
 
+function yamlQuote(value: string): string {
+  if (/[:#{}[\],&*!|>'"%@`]/.test(value) || value.includes(" ")) {
+    return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  }
+  return value;
+}
+
 export function serializeBranchingModel(model: BranchingModel): string {
-  const lines = [
-    `schemaVersion: ${model.schemaVersion}`,
-    `name: ${model.name}`,
-    "trunk:",
-    `  branch: ${model.trunk.branch}`,
-    "branchTypes:",
-    ...model.branchTypes.map((t) => `  - ${t}`),
-    "versioning:",
-    `  tagPrefix: ${model.versioning.tagPrefix}`,
-    "  qualifiers:",
-    "    snapshot:",
-    `      enabled: ${model.versioning.qualifiers.snapshot.enabled}`,
-    "    rc:",
-    `      enabled: ${model.versioning.qualifiers.rc.enabled}`,
-    `      releaseBranchesOnly: ${model.versioning.qualifiers.rc.releaseBranchesOnly}`,
-    "publish:",
-    `  when: ${model.publish.when}`,
-  ];
-  if (model.publish.when === "branch" && model.publish.branch) {
-    lines.push(`  branch: ${model.publish.branch}`);
+  const lines = [`schemaVersion: ${model.schemaVersion}`, `name: ${model.name}`, "branches:"];
+  for (const br of model.branches) {
+    lines.push(`  - name: ${br.name}`);
+    lines.push(`    pattern: ${yamlQuote(br.pattern)}`);
+    lines.push("    versioning:");
+    lines.push(`      template: ${yamlQuote(br.versioning.template)}`);
+    lines.push(`    publish: ${br.publish}`);
   }
   return `${lines.join("\n")}\n`;
 }
 
-/** Minimal YAML parser for Component Studio scaffold (known model.yaml shape). */
+function parseBranchesBlock(lines: string[], start: number): { branches: BranchRule[]; next: number } {
+  const branches: BranchRule[] = [];
+  let i = start;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.trim() === "" || line.trim().startsWith("#")) {
+      i++;
+      continue;
+    }
+    if (!line.startsWith("  -")) {
+      break;
+    }
+    const rule: BranchRule = {
+      name: "",
+      pattern: "",
+      versioning: { template: "" },
+      publish: false,
+    };
+    i++;
+    while (i < lines.length && (lines[i].startsWith("    ") || lines[i].trim() === "")) {
+      const inner = lines[i].trim();
+      if (inner.startsWith("name:")) rule.name = inner.slice(5).trim();
+      if (inner.startsWith("pattern:")) rule.pattern = inner.slice(8).trim().replace(/^"|"$/g, "");
+      if (inner.startsWith("template:")) rule.versioning.template = inner.slice(9).trim().replace(/^"|"$/g, "");
+      if (inner.startsWith("publish:")) rule.publish = inner.slice(8).trim() === "true";
+      i++;
+      if (i < lines.length && lines[i].startsWith("  -")) break;
+    }
+    if (rule.name && rule.pattern) {
+      branches.push(rule);
+    }
+  }
+  return { branches, next: i };
+}
+
 export function parseBranchingModelYaml(raw: string, fallbackName: string): BranchingModel {
   const model = defaultBranchingModel(fallbackName);
   const lines = raw.split(/\r?\n/);
-  let inBranchTypes = false;
-  const branchTypes: string[] = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
-
-    if (trimmed === "branchTypes:") {
-      inBranchTypes = true;
-      continue;
-    }
-    if (inBranchTypes) {
-      if (trimmed.startsWith("- ")) {
-        branchTypes.push(trimmed.slice(2).trim());
-        continue;
+    if (trimmed.startsWith("schemaVersion:")) {
+      model.schemaVersion = Number(trimmed.split(":")[1].trim());
+    } else if (trimmed.startsWith("name:")) {
+      model.name = trimmed.slice(5).trim();
+    } else if (trimmed === "branches:") {
+      const parsed = parseBranchesBlock(lines, i + 1);
+      if (parsed.branches.length > 0) {
+        model.branches = parsed.branches;
       }
-      if (!line.startsWith(" ")) {
-        inBranchTypes = false;
-      }
+      i = parsed.next - 1;
     }
-
-    const kv = trimmed.match(/^([a-zA-Z]+):\s*(.+)$/);
-    if (!kv) continue;
-    const [, key, value] = kv;
-
-    switch (key) {
-      case "schemaVersion":
-        model.schemaVersion = Number(value);
-        break;
-      case "name":
-        model.name = value;
-        break;
-      case "branch":
-        if (line.includes("trunk:") || lines[lines.indexOf(line) - 1]?.includes("trunk:")) {
-          model.trunk.branch = value;
-        } else if (model.publish.when === "branch") {
-          model.publish.branch = value;
-        }
-        break;
-      case "tagPrefix":
-        model.versioning.tagPrefix = value;
-        break;
-      case "when":
-        if (model.publish.when !== value) {
-          model.publish.when = value as BranchingModel["publish"]["when"];
-        }
-        break;
-      case "enabled":
-        if (lines.slice(Math.max(0, lines.indexOf(line) - 3), lines.indexOf(line)).join("\n").includes("snapshot:")) {
-          model.versioning.qualifiers.snapshot.enabled = value === "true";
-        } else if (lines.slice(Math.max(0, lines.indexOf(line) - 3), lines.indexOf(line)).join("\n").includes("rc:")) {
-          model.versioning.qualifiers.rc.enabled = value === "true";
-        }
-        break;
-      case "releaseBranchesOnly":
-        model.versioning.qualifiers.rc.releaseBranchesOnly = value === "true";
-        break;
-      default:
-        break;
-    }
-  }
-
-  if (branchTypes.length > 0) {
-    model.branchTypes = branchTypes;
   }
   return model;
 }
 
-/** content_ref v2 manifest subset for resolve materializer. */
 export function buildManifestSubset(
   type: string,
   model: BranchingModel,
@@ -139,10 +157,7 @@ export function buildManifestSubset(
     return {
       branching: {
         name: model.name,
-        trunk: model.trunk,
-        branchTypes: model.branchTypes,
-        versioning: model.versioning,
-        publish: model.publish,
+        branches: model.branches,
       },
     };
   }
@@ -151,14 +166,22 @@ export function buildManifestSubset(
 
 export function validateBranchingModelClient(model: BranchingModel, componentName: string): string[] {
   const issues: string[] = [];
-  if (!model.trunk.branch.trim()) issues.push("trunk.branch обязателен");
-  if (model.branchTypes.length === 0) issues.push("нужен хотя бы один branch type");
-  if (!model.branchTypes.includes("release")) issues.push("branchTypes должен включать release");
+  if (model.schemaVersion !== 2) issues.push("schemaVersion должен быть 2");
   if (model.name !== componentName) {
     issues.push(`model.name (${model.name}) должен совпадать с именем компонента (${componentName})`);
   }
-  if (model.publish.when === "branch" && !model.publish.branch?.trim()) {
-    issues.push("publish.branch обязателен при publish.when=branch");
-  }
+  if (model.branches.length === 0) issues.push("нужно хотя бы одно правило branches[]");
+  model.branches.forEach((br, i) => {
+    if (!br.name.trim()) issues.push(`branches[${i}].name обязателен`);
+    if (!br.pattern.trim()) issues.push(`branches[${i}].pattern обязателен`);
+    if (!br.versioning.template.trim()) issues.push(`branches[${i}].versioning.template обязателен`);
+  });
   return issues;
+}
+
+export function previewModelPayload(model: BranchingModel) {
+  return {
+    name: model.name,
+    branches: model.branches,
+  };
 }

@@ -491,6 +491,21 @@ export const api = {
     }
     return data;
   },
+  branchingModelPreview: async (
+    model: { name: string; branches: unknown[] },
+    scenarios: Array<{
+      id: string;
+      branch: string;
+      tagName?: string;
+      tags?: string[];
+      requestPublish?: boolean;
+    }>,
+  ) => {
+    return apiPost<import("./branchingModelYaml").BranchingPreviewResult>(
+      "/v1/admin/branching-models/preview",
+      { model, scenarios },
+    );
+  },
   promoteComponentVersion: (type: string, name: string, version: string, actor?: string) =>
     apiPost<{ type: string; name: string; version: string; status: string }>(
       `/v1/admin/components/${type}/${name}/versions/${encodeURIComponent(version)}/promote`,

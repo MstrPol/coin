@@ -15,7 +15,7 @@ def call(String stageName) {
             export COIN_REGISTRY_PREFIX="\${COIN_REGISTRY_PREFIX:-localhost:8082/coin-docker}"
             export COIN_API_URL='${env.COIN_API_URL}'
             export COIN_API_TOKEN="\${COIN_API_TOKEN}"
-            export BUILDKIT_HOST="\${BUILDKIT_HOST:-unix:///tmp/buildkit.sock}"
+            export COIN_PUBLISH_REQUEST="\${COIN_PUBLISH_REQUEST:-false}"
             coin-executor run --manifest .coin/manifest.json --stage ${stageName}
         """
     }

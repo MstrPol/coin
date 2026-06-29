@@ -42,5 +42,5 @@ make seed-jenkins-lib   # включает trunk-based@1.0.0 в 5-slot compositi
 ## См. также
 
 - [docs/adr/gp-branching-model.md](../docs/adr/gp-branching-model.md)
-- [docs/branching.md](../docs/branching.md)
+- [docs/how-to/branching-models.md](../docs/how-to/branching-models.md)
 - [docs/golden-paths.md](../docs/golden-paths.md)

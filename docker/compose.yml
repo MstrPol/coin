@@ -133,8 +133,8 @@ services:
 
   coin-api:
     build:
-      context: ../coin-api
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: coin-api/Dockerfile
     platform: ${DOCKER_PLATFORM:-linux/arm64}
     restart: unless-stopped
     depends_on:
@@ -179,7 +179,7 @@ services:
       coin-api:
         condition: service_started
     ports:
-      - "${COIN_UI_PORT:-8091}:80"
+      - "${COIN_UI_PORT:-8091}:8080"
     networks:
       - coin
 

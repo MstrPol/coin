@@ -9,9 +9,14 @@ func TestBuilderBranchingSection(t *testing.T) {
 		Name:    "trunk-based",
 		Version: "1.0.0",
 		Rules: map[string]any{
-			"trunk":       map[string]any{"branch": "main"},
-			"branchTypes": []any{"feature", "release"},
-			"publish":     map[string]any{"when": "tag"},
+			"branches": []any{
+				map[string]any{
+					"name":    "main",
+					"pattern": `^main$`,
+					"versioning": map[string]any{"template": "v{base}-main-snapshot-{n}"},
+					"publish": false,
+				},
+			},
 		},
 	}
 	doc, _, err := b.Build(release, BuildOptions{Project: "demo-go-app", RegistryHost: "localhost:8082"})

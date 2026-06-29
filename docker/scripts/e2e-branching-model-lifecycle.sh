@@ -76,10 +76,7 @@ doc = yaml.safe_load(pathlib.Path(sys.argv[1]).read_text())
 print(json.dumps({
     "branching": {
         "name": doc["name"],
-        "trunk": doc["trunk"],
-        "branchTypes": doc["branchTypes"],
-        "versioning": doc["versioning"],
-        "publish": doc["publish"],
+        "branches": doc["branches"],
     }
 }))
 PY

@@ -40,7 +40,7 @@
 |----------|------------|
 | [config.md](config.md) | `.coin/config.yaml` v2 (`goldenPath` + `version`) |
 | [jenkins-setup.md](jenkins-setup.md) | coin-lib, K8s pod, platform jobs |
-| [branching.md](branching.md) | Ветки, теги, версионирование |
+| [how-to/branching-models.md](how-to/branching-models.md) | Ветки, теги, branching-model v2 |
 
 ## Компоненты monorepo
 

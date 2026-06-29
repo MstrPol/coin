@@ -53,7 +53,7 @@ Split monorepo dev layout → production Gitea repos:
 - [ ] `git filter-repo` или subtree split из monorepo
 - [ ] Перенести migrations, openapi, Dockerfile
 - [ ] Jenkins multibranch / platform job
-- [ ] VERSION / semver policy ([branching.md](../branching.md))
+- [ ] VERSION / semver policy ([branching-models.md](../how-to/branching-models.md))
 - [ ] Update import paths if module rename (keep `coin.local/coin-api` or corp module path)
 - [ ] Deploy manifest (k8s) — out of scope local pilot
 

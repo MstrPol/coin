@@ -7,7 +7,7 @@
 
 ## Контекст
 
-Модель ветвления описана в [docs/branching.md](../branching.md) как глобальный документ, но **не исполняется** в runtime: `coin-executor` не читает правила из manifest, версия продукта не привязана к GP pin.
+Модель ветвления — GP-pinned component `branching-model` (см. [how-to/branching-models.md](../how-to/branching-models.md)), не глобальный документ.
 
 Разные типы продуктов (сервисы vs библиотеки) требуют разных правил. Платформа должна pin'ить модель ветвления на уровне **Golden Path release**, симметрично `gp-content`, `lib`, `executor`, `agent`.
 

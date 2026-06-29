@@ -82,16 +82,32 @@
     },
     "branching": {
       "type": "object",
-      "required": ["name", "version"],
+      "required": ["name", "version", "branches"],
       "properties": {
         "name": { "type": "string" },
         "version": { "type": "string" },
-        "trunk": { "type": "object" },
-        "branchTypes": { "type": "array", "items": { "type": "string" } },
-        "versioning": { "type": "object" },
-        "publish": { "type": "object" }
+        "branches": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name", "pattern", "versioning", "publish"],
+            "properties": {
+              "name": { "type": "string" },
+              "pattern": { "type": "string" },
+              "versioning": {
+                "type": "object",
+                "required": ["template"],
+                "properties": {
+                  "template": { "type": "string" }
+                }
+              },
+              "publish": { "type": "boolean" }
+            }
+          }
+        }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     }
   },
   "$defs": {

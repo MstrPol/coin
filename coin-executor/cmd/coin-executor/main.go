@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"coin.local/coin-executor/internal/bootstrap"
-	"coin.local/coin-executor/internal/branching"
+	"coin.local/coin-executor/pkg/branching"
 	"coin.local/coin-executor/internal/config"
 	"coin.local/coin-executor/internal/executor"
 	"coin.local/coin-executor/internal/manifest"
