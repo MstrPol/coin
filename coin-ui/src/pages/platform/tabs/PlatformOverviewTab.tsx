@@ -3,9 +3,7 @@ import { Link, useOutletContext, useParams, useSearchParams } from "react-router
 import type { ComponentVersion } from "../../../api/types";
 import { api } from "../../../lib/api";
 import {
-  familyHubPath,
   familyNewDraftPath,
-  PLATFORM_FAMILIES,
   type PlatformFamilyId,
 } from "../../../lib/platformFamilyConfig";
 
@@ -18,8 +16,6 @@ export default function PlatformOverviewTab() {
   const showWelcome = searchParams.get("welcome") === "1";
   const [versions, setVersions] = useState<ComponentVersion[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const family = PLATFORM_FAMILIES[familyId];
-  const base = familyHubPath(familyId, name);
 
   useEffect(() => {
     if (!name) return;
@@ -81,20 +77,6 @@ export default function PlatformOverviewTab() {
         <Stat label="Total versions" value={String(versions.length)} />
       </section>
 
-      {family.runbookHref && (
-        <p className="text-sm text-zinc-500">
-          CI publish runbook:{" "}
-          <a href={family.runbookHref} className="text-sky-400 hover:underline">
-            agent-build-model
-          </a>
-        </p>
-      )}
-
-      <section className="flex flex-wrap gap-4 text-sm">
-        <Link to={`${base}/releases`} className="text-sky-400 hover:underline">
-          Releases →
-        </Link>
-      </section>
     </div>
   );
 }
