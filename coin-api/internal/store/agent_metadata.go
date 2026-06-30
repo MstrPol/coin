@@ -38,7 +38,11 @@ func validateAgentMetadataForPromote(version string, metadata []byte) error {
 		return AgentMetadataFieldError{Field: "metadata.image", Message: "required"}
 	}
 	expectedTag := ":" + version
-	if !strings.HasSuffix(image, expectedTag) {
+	parsed, err := ParseAgentImageRef(image)
+	if err != nil {
+		return err
+	}
+	if parsed.Tag != version || !strings.HasSuffix(image, expectedTag) {
 		return AgentMetadataFieldError{
 			Field:   "metadata.image",
 			Message: fmt.Sprintf("tag must equal version %q", version),

@@ -90,7 +90,22 @@ func (s *Store) UpdateComponentVersionRefs(ctx context.Context, typ, name, versi
 		return s.UpdateComponentVersionContentRef(ctx, typ, name, version, contentRef)
 	}
 	meta := metadata
-	if typ == "agent" {
+	if typ == "agent" && len(metadata) > 0 {
+		meta = normalizeAgentMetadata(meta)
+		parsed, err := parseAgentImageFromMetadata(meta)
+		if err != nil {
+			return err
+		}
+		if parsed.Repository != name {
+			return AgentMetadataFieldError{
+				Field:   "metadata.image",
+				Message: fmt.Sprintf("repository %q must match profile %q", parsed.Repository, name),
+			}
+		}
+		if err := validateAgentMetadataForPatch(version, meta); err != nil {
+			return err
+		}
+	} else if typ == "agent" {
 		meta = normalizeAgentMetadata(meta)
 	}
 	if len(meta) == 0 {

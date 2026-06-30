@@ -439,7 +439,7 @@ export const api = {
   createDraftComponentVersion: (
     type: string,
     name: string,
-    body: { version: string; metadata?: Record<string, unknown>; contentRef?: Record<string, unknown>; actor?: string },
+    body: { version?: string; metadata?: Record<string, unknown>; contentRef?: Record<string, unknown>; actor?: string },
   ) =>
     apiPost<DraftComponentResult>(`/v1/admin/components/${type}/${name}/versions/drafts`, body),
   patchComponentVersion: (

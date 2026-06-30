@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import type { ComponentVersionDetail } from "../../api/types";
 import { useAuth } from "../../context/AuthContext";
 import { api, getActor } from "../../lib/api";
+import { parseAgentImageRefForProfile } from "../../lib/agentImageRef";
 import {
   familyReleaseDetailPath,
   type PlatformFamilyId,
@@ -44,6 +45,15 @@ export default function PlatformAgentMetadataEditorPage({ familyId }: { familyId
       setError("Image ref и digest обязательны");
       return;
     }
+    const parsed = parseAgentImageRefForProfile(image, name);
+    if (!parsed.ok) {
+      setError(parsed.message);
+      return;
+    }
+    if (parsed.tag !== version) {
+      setError(`Тег образа (${parsed.tag}) должен совпадать с version ${version}. Создайте новый draft для другого тега.`);
+      return;
+    }
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -75,7 +85,7 @@ export default function PlatformAgentMetadataEditorPage({ familyId }: { familyId
         </Link>
         <h1 className="mt-2 text-2xl font-semibold font-mono">Edit agent metadata</h1>
         <p className="mt-1 text-sm text-zinc-400">
-          Ручной catch-up: image + digest после CI push. Promote — на странице release.
+          Image tag должен оставаться {version}. Для другого тега — New draft.
         </p>
       </div>
 

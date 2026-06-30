@@ -1,6 +1,7 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { api, getActor } from "../../lib/api";
+import { parseAgentImageRefForProfile } from "../../lib/agentImageRef";
 import { platformEditPath } from "../../lib/platformComponentPaths";
 import {
   familyHubPath,
@@ -26,13 +27,29 @@ export default function PlatformNewDraftPage() {
   const [error, setError] = useState<string | null>(null);
   const isAgent = compType === "agent";
 
+  const agentParse = useMemo(() => {
+    if (!isAgent || !image.trim()) return null;
+    return parseAgentImageRefForProfile(image, name);
+  }, [isAgent, image, name]);
+
+  const derivedVersion = agentParse?.ok ? agentParse.tag : null;
+  const imageParseError =
+    isAgent && image.trim() && agentParse && !agentParse.ok ? agentParse.message : null;
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    const ver = version.trim();
-    if (!ver) return;
-    if (isAgent && (!image.trim() || !digest.trim())) {
-      setError("Image ref и digest обязательны для agent draft");
-      return;
+    if (isAgent) {
+      if (!image.trim() || !digest.trim()) {
+        setError("Image ref и digest обязательны для agent draft");
+        return;
+      }
+      if (!derivedVersion) {
+        setError(imageParseError ?? "Не удалось определить version из image ref");
+        return;
+      }
+    } else {
+      const ver = version.trim();
+      if (!ver) return;
     }
     setSubmitting(true);
     setError(null);
@@ -44,8 +61,9 @@ export default function PlatformNewDraftPage() {
             runtime: name,
           }
         : undefined;
+      const ver = isAgent ? derivedVersion! : version.trim();
       await api.createDraftComponentVersion(compType, name, {
-        version: ver,
+        ...(isAgent ? {} : { version: ver }),
         metadata,
         actor: getActor() || undefined,
       });
@@ -62,6 +80,9 @@ export default function PlatformNewDraftPage() {
     }
   }
 
+  const canSubmitAgent =
+    isAgent && Boolean(derivedVersion) && Boolean(digest.trim()) && !submitting;
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
@@ -73,22 +94,22 @@ export default function PlatformNewDraftPage() {
       </div>
 
       <form onSubmit={onSubmit} className="space-y-4 rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
-        <label className="block space-y-1">
-          <span className="text-sm text-zinc-300">Version</span>
-          <input
-            className={inputClass}
-            value={version}
-            onChange={(e) => setVersion(e.target.value)}
-            required
-          />
-        </label>
+        {!isAgent && (
+          <label className="block space-y-1">
+            <span className="text-sm text-zinc-300">Version</span>
+            <input
+              className={inputClass}
+              value={version}
+              onChange={(e) => setVersion(e.target.value)}
+              required
+            />
+          </label>
+        )}
 
         {isAgent && (
           <>
             <p className="text-xs text-zinc-500">
-              Ручной catch-up после CI: укажите image ref и digest из registry. CI path —{" "}
-              <code className="text-zinc-400">publish-agent.sh</code> регистрирует draft; promote — на
-              странице release.
+              Ручной catch-up: image ref и digest из registry. Version определяется из тега образа.
             </p>
             <label className="block space-y-1">
               <span className="text-sm text-zinc-300">Image ref</span>
@@ -99,6 +120,9 @@ export default function PlatformNewDraftPage() {
                 placeholder={`nexus:8082/coin-docker/${name}:1.0.0`}
                 required
               />
+              {imageParseError && (
+                <p className="text-xs text-red-400">{imageParseError}</p>
+              )}
             </label>
             <label className="block space-y-1">
               <span className="text-sm text-zinc-300">Digest</span>
@@ -110,6 +134,10 @@ export default function PlatformNewDraftPage() {
                 required
               />
             </label>
+            <div className="rounded border border-zinc-800 bg-zinc-950/80 px-3 py-2 text-sm">
+              <span className="text-zinc-500">Version (from tag): </span>
+              <span className="font-mono text-zinc-200">{derivedVersion ?? "—"}</span>
+            </div>
           </>
         )}
 
@@ -117,7 +145,7 @@ export default function PlatformNewDraftPage() {
 
         <button
           type="submit"
-          disabled={submitting}
+          disabled={isAgent ? !canSubmitAgent : submitting}
           className="rounded bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50"
         >
           {submitting ? "Создание…" : "Create draft"}

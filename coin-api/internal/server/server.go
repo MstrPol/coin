@@ -401,12 +401,13 @@ func (s *Server) createDraftComponentVersion(w http.ResponseWriter, r *http.Requ
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json"})
 		return
 	}
-	if req.Version == "" {
+	typ := chi.URLParam(r, "type")
+	if typ != "agent" && req.Version == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "version is required"})
 		return
 	}
 
-	row, err := s.admin.CreateDraftComponentVersion(r.Context(), chi.URLParam(r, "type"), chi.URLParam(r, "name"), admin.PublishComponentRequest{
+	row, err := s.admin.CreateDraftComponentVersion(r.Context(), typ, chi.URLParam(r, "name"), admin.PublishComponentRequest{
 		Version:    req.Version,
 		Metadata:   req.Metadata,
 		ContentRef: req.ContentRef,
@@ -414,6 +415,17 @@ func (s *Server) createDraftComponentVersion(w http.ResponseWriter, r *http.Requ
 	})
 	if errors.Is(err, store.ErrDuplicateVersion) {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "component version already exists"})
+		return
+	}
+	var agentMetaErr store.AgentMetadataFieldError
+	if errors.As(err, &agentMetaErr) {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
+			"error": agentMetaErr.Error(),
+			"issues": []map[string]string{{
+				"field":   agentMetaErr.Field,
+				"message": agentMetaErr.Message,
+			}},
+		})
 		return
 	}
 	if err != nil {
@@ -516,6 +528,17 @@ func (s *Server) patchComponentVersion(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, store.ErrComponentVersionNotDraft) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
+			return
+		}
+		var agentMetaErr store.AgentMetadataFieldError
+		if errors.As(err, &agentMetaErr) {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
+				"error": agentMetaErr.Error(),
+				"issues": []map[string]string{{
+					"field":   agentMetaErr.Field,
+					"message": agentMetaErr.Message,
+				}},
+			})
 			return
 		}
 		s.logger.Error("patch component version", "err", err)

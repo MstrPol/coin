@@ -31,8 +31,19 @@ func (s *Store) PromoteComponentToPublished(ctx context.Context, typ, name, vers
 }
 
 func (s *Store) insertComponentVersion(ctx context.Context, in ComponentVersionInput, status, auditAction string) (ComponentVersionRow, error) {
-	if in.Type == "" || in.Name == "" || in.Version == "" {
-		return ComponentVersionRow{}, fmt.Errorf("type, name and version are required")
+	if in.Type == "" || in.Name == "" {
+		return ComponentVersionRow{}, fmt.Errorf("type and name are required")
+	}
+	if in.Type == "agent" {
+		ver, meta, err := resolveAgentDraftVersion(in.Name, in.Version, in.Metadata)
+		if err != nil {
+			return ComponentVersionRow{}, err
+		}
+		in.Version = ver
+		in.Metadata = meta
+	}
+	if in.Version == "" {
+		return ComponentVersionRow{}, fmt.Errorf("version is required")
 	}
 	if err := validateContentRefOnWriteForType(in.Type, in.ContentRef); err != nil {
 		return ComponentVersionRow{}, err

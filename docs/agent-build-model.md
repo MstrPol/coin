@@ -143,9 +143,9 @@ Registry (runtime): `nexus:8082/coin-docker/coin-agent:{semver}`.
 1. `publish-agent.sh` builds and pushes image to Nexus Docker.
 2. `POST /v1/admin/components/agent/coin-agent/versions/drafts` — register draft with metadata `{image, digest}` (без `goarch`).
 3. **Promote только вручную** — Platform UI или `POST .../versions/{version}/promote` (publisher). CI **не** auto-promote.
-4. Platform UI (`/platform/runtime/coin-agent`) — CI path: read-only metadata + Publish; manual catch-up: New draft / Edit metadata с обязательными image + digest.
+4. Platform UI (`/platform/runtime/coin-agent`) — CI path: read-only metadata + Publish; manual catch-up: **Image ref + Digest** (version = тег образа, preview read-only).
 
-Promote gate: coin-api отклоняет promote без `metadata.image` и `metadata.digest` (HTTP 422); тег в image MUST совпадать с version.
+Promote gate: coin-api отклоняет promote без `metadata.image` и `metadata.digest` (HTTP 422); тег в image MUST совпадать с `component_versions.version` (version derive из image при create).
 
 **Cleanup:** orphan drafts (тестовые профили, неудачный CI register) — удалить в Platform UI: `/platform/runtime/{profile}/releases` → Delete, или `DELETE /v1/admin/components/agent/{profile}/versions/{version}` (только `status=draft`).
 
