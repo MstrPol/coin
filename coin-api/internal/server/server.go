@@ -450,6 +450,17 @@ func (s *Server) promoteComponentVersion(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusConflict, map[string]string{"error": err.Error()})
 		return
 	}
+	var agentMetaErr store.AgentMetadataFieldError
+	if errors.As(err, &agentMetaErr) {
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
+			"error": agentMetaErr.Error(),
+			"issues": []map[string]string{{
+				"field":   agentMetaErr.Field,
+				"message": agentMetaErr.Message,
+			}},
+		})
+		return
+	}
 	if err != nil {
 		s.logger.Error("promote component version", "err", err)
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})

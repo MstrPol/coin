@@ -1,30 +1,4 @@
-# platform-runtime-catalog Specification
-
-## Purpose
-
-Platform catalog for runtime components (agent, executor) in coin-ui.
-## Requirements
-### Requirement: Runtime catalog page
-
-The coin-ui SHALL provide a Platform → Runtime catalog listing **agent stack profiles** only.
-
-The page MUST NOT display a platform lib pin banner, «Current platform lib pin» heading, or `lib` / `executor` component rows.
-
-#### Scenario: No lib pin banner on runtime page
-
-- **WHEN** enabling team opens `/platform/runtime`
-- **THEN** the UI MUST NOT show text «Current platform lib pin» or any lib version pin block
-
-#### Scenario: List agent stack profiles
-
-- **WHEN** enabling team opens `/platform/runtime`
-- **THEN** the UI MUST show agent component profiles (e.g. `coin-agent`, `coin-agent-arm`) with version summary per profile
-- **AND** MUST NOT show type `executor` or `lib` components
-
-#### Scenario: Open agent stack hub from catalog
-
-- **WHEN** enabling team selects an agent profile row
-- **THEN** the UI MUST navigate to `/platform/runtime/{name}`
+## MODIFIED Requirements
 
 ### Requirement: Runtime publish guidance
 
@@ -49,15 +23,7 @@ The runtime catalog and hub SHALL support draft registration from CI and manual 
 - **THEN** the UI MUST list both `draft` and `published` versions for that profile
 - **AND** MUST offer «New draft» on the hub for additional versions
 
-### Requirement: Legacy jenkins-lib route redirect
-
-Former `/platform/jenkins-lib` bookmarks SHALL redirect to the runtime catalog.
-
-#### Scenario: Redirect jenkins-lib URL
-
-- **WHEN** user navigates to `/platform/jenkins-lib`
-- **THEN** the UI MUST redirect to `/platform/runtime`
-- **AND** the sidebar MUST NOT highlight a «Jenkins library» nav item (route is not listed in Platform nav)
+## ADDED Requirements
 
 ### Requirement: Manual catch-up draft form
 
@@ -77,4 +43,3 @@ The form MUST NOT include GOARCH or architecture fields.
 - **THEN** the UI MUST display image and digest read-only
 - **AND** MUST offer Promote action for publisher role
 - **AND** MUST NOT offer GOARCH field
-

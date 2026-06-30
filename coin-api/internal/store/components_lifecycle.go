@@ -38,6 +38,9 @@ func (s *Store) insertComponentVersion(ctx context.Context, in ComponentVersionI
 		return ComponentVersionRow{}, err
 	}
 	meta := in.Metadata
+	if in.Type == "agent" {
+		meta = normalizeAgentMetadata(meta)
+	}
 	if len(meta) == 0 {
 		meta = json.RawMessage(`{}`)
 	}
@@ -212,6 +215,11 @@ func (s *Store) transitionComponentVersion(ctx context.Context, typ, name, versi
 	}
 	if toStatus == "canary" && !componentpackage.IsRegisteredForCanary(contentRef) {
 		return ComponentVersionRow{}, ErrComponentPackageNotRegistered
+	}
+	if typ == "agent" && toStatus == "published" {
+		if err := validateAgentMetadataForPromote(version, meta); err != nil {
+			return ComponentVersionRow{}, err
+		}
 	}
 
 	_, err = tx.Exec(ctx, `

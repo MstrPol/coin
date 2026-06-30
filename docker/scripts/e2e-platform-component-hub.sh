@@ -39,9 +39,10 @@ api_post() {
 echo "==> agent draft register ${AGENT_VERSION}"
 api_post "/v1/admin/components" \
   "$(jq -n --arg a "${ACTOR}" '{type:"agent",name:"coin-agent",actor:$a}')" >/dev/null
+E2E_DIGEST="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 api_post "/v1/admin/components/agent/coin-agent/versions/drafts" \
-  "$(jq -n --arg v "${AGENT_VERSION}" --arg a "${ACTOR}" \
-    '{version:$v, metadata:{image:"nexus:8082/coin-docker/coin-agent:'"${AGENT_VERSION}"'",digest:"sha256:deadbeef",goarch:"amd64"},actor:$a}')" >/dev/null
+  "$(jq -n --arg v "${AGENT_VERSION}" --arg a "${ACTOR}" --arg d "${E2E_DIGEST}" \
+    '{version:$v, metadata:{image:"nexus:8082/coin-docker/coin-agent:'"${AGENT_VERSION}"'",digest:$d,runtime:"coin-agent"},actor:$a}')" >/dev/null
 
 status="$(curl -fsS "${API}/v1/admin/components/agent/coin-agent/versions/${AGENT_VERSION}" "${AUTH[@]}" | jq -r .status)"
 if [[ "${status}" != "draft" ]]; then

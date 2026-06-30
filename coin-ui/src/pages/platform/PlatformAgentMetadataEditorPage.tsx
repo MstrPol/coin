@@ -18,7 +18,6 @@ export default function PlatformAgentMetadataEditorPage({ familyId }: { familyId
   const [detail, setDetail] = useState<ComponentVersionDetail | null>(null);
   const [image, setImage] = useState("");
   const [digest, setDigest] = useState("");
-  const [goarch, setGoarch] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -32,7 +31,6 @@ export default function PlatformAgentMetadataEditorPage({ familyId }: { familyId
         const m = d.metadata ?? {};
         setImage(String(m.image ?? ""));
         setDigest(String(m.digest ?? ""));
-        setGoarch(String(m.goarch ?? ""));
       })
       .catch((err: Error) => setError(err.message));
   }, [name, version]);
@@ -42,15 +40,18 @@ export default function PlatformAgentMetadataEditorPage({ familyId }: { familyId
   async function onSave(e: FormEvent) {
     e.preventDefault();
     if (readOnly) return;
+    if (!image.trim() || !digest.trim()) {
+      setError("Image ref и digest обязательны");
+      return;
+    }
     setSaving(true);
     setError(null);
     setMessage(null);
     try {
       await api.patchComponentVersion("agent", name, version, {
         metadata: {
-          image: image.trim() || undefined,
-          digest: digest.trim() || undefined,
-          goarch: goarch.trim() || undefined,
+          image: image.trim(),
+          digest: digest.trim(),
           runtime: name,
         },
         actor: getActor() || undefined,
@@ -73,7 +74,9 @@ export default function PlatformAgentMetadataEditorPage({ familyId }: { familyId
           ← {name}@{version}
         </Link>
         <h1 className="mt-2 text-2xl font-semibold font-mono">Edit agent metadata</h1>
-        <p className="mt-1 text-sm text-zinc-400">Catch-up после CI image push</p>
+        <p className="mt-1 text-sm text-zinc-400">
+          Ручной catch-up: image + digest после CI push. Promote — на странице release.
+        </p>
       </div>
 
       <form onSubmit={onSave} className="space-y-4 rounded-lg border border-zinc-800 bg-zinc-900/50 p-6">
@@ -84,6 +87,7 @@ export default function PlatformAgentMetadataEditorPage({ familyId }: { familyId
             value={image}
             onChange={(e) => setImage(e.target.value)}
             disabled={readOnly}
+            required
           />
         </label>
         <label className="block space-y-1">
@@ -93,15 +97,7 @@ export default function PlatformAgentMetadataEditorPage({ familyId }: { familyId
             value={digest}
             onChange={(e) => setDigest(e.target.value)}
             disabled={readOnly}
-          />
-        </label>
-        <label className="block space-y-1">
-          <span className="text-sm text-zinc-300">GOARCH</span>
-          <input
-            className={inputClass}
-            value={goarch}
-            onChange={(e) => setGoarch(e.target.value)}
-            disabled={readOnly}
+            required
           />
         </label>
 

@@ -90,6 +90,9 @@ func (s *Store) UpdateComponentVersionRefs(ctx context.Context, typ, name, versi
 		return s.UpdateComponentVersionContentRef(ctx, typ, name, version, contentRef)
 	}
 	meta := metadata
+	if typ == "agent" {
+		meta = normalizeAgentMetadata(meta)
+	}
 	if len(meta) == 0 {
 		meta = json.RawMessage(`{}`)
 	}

@@ -40,6 +40,22 @@ echo "==> [4/7] publish coin-agent/${VERSION}"
 chmod +x "${REPO_ROOT}/coin-executor/scripts/publish-agent.sh"
 VERSION="${VERSION}" GOARCH="${GOARCH}" "${REPO_ROOT}/coin-executor/scripts/publish-agent.sh" "${VERSION}" "${GOARCH}"
 
+echo "==> [4b/7] promote coin-agent/${VERSION} (manual gate)"
+api_post() {
+  local path="$1" body="$2"
+  local tmp code
+  tmp="$(mktemp)"
+  code="$(curl -sS -o "${tmp}" -w '%{http_code}' -X POST "${API}${path}" \
+    -H "X-API-Key: ${KEY}" -H "Content-Type: application/json" -d "${body}")"
+  if [[ "${code}" != "201" && "${code}" != "200" && "${code}" != "409" ]]; then
+    echo "POST ${path} failed HTTP ${code}: $(cat "${tmp}")" >&2
+    rm -f "${tmp}"
+    exit 1
+  fi
+  rm -f "${tmp}"
+}
+api_post "/v1/admin/components/agent/coin-agent/versions/${VERSION}/promote" '{"actor":"e2e-bootstrap"}'
+
 echo "==> [5/7] seed GP stack (lib, gp-content, go-app@${VERSION})"
 "${ROOT}/scripts/seed-jenkins-lib-stack.sh"
 

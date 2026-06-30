@@ -36,12 +36,7 @@ func executorPinForAgentStack(agentName, agentVersion string) (ComponentPin, err
 	if agentName == "" || agentVersion == "" {
 		return ComponentPin{}, fmt.Errorf("agent stack name and version are required")
 	}
-	switch agentName {
-	case "coin-agent":
-		return ComponentPin{Type: "executor", Name: "coin-executor", Version: agentVersion}, nil
-	default:
-		return ComponentPin{}, fmt.Errorf("unsupported agent stack %q", agentName)
-	}
+	return ComponentPin{Type: "executor", Name: "coin-executor", Version: agentVersion}, nil
 }
 
 func gpDraftCompositionSlots(agentStackName, gpContentName, branchingModelName string) []compatibility.CompositionSlot {

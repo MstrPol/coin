@@ -114,6 +114,12 @@ export default function PlatformComponentReleaseDetail() {
       {isAgent && (
         <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6 space-y-3">
           <h2 className="font-medium">Agent metadata</h2>
+          {detail?.status === "draft" && (
+            <p className="text-xs text-zinc-500">
+              CI path: draft от <code className="text-zinc-400">publish-agent.sh</code> → проверьте image и
+              digest → Publish. Ручной catch-up: Edit metadata.
+            </p>
+          )}
           <dl className="grid gap-2 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-zinc-500">Image</dt>
@@ -122,10 +128,6 @@ export default function PlatformComponentReleaseDetail() {
             <div>
               <dt className="text-zinc-500">Digest</dt>
               <dd className="font-mono text-zinc-300 break-all">{String(meta.digest ?? "—")}</dd>
-            </div>
-            <div>
-              <dt className="text-zinc-500">GOARCH</dt>
-              <dd className="font-mono text-zinc-300">{String(meta.goarch ?? "—")}</dd>
             </div>
           </dl>
           {derived && (

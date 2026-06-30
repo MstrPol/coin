@@ -113,8 +113,7 @@ payload="$(jq -n \
   --arg ver "${VERSION}" \
   --arg img "${RUNTIME_REF}" \
   --arg digest "${digest}" \
-  --arg arch "${GOARCH}" \
-  '{version: $ver, metadata: {image: $img, digest: $digest, runtime: "coin-agent", goarch: $arch}, actor: "publish-agent"}')"
+  '{version: $ver, metadata: {image: $img, digest: $digest, runtime: "coin-agent"}, actor: "publish-agent"}')"
 
 register_tmp="$(mktemp)"
 register_code="$(curl -sS -o "${register_tmp}" -w '%{http_code}' -X POST \
@@ -129,17 +128,8 @@ if [[ "${register_code}" != "201" && "${register_code}" != "409" ]]; then
 fi
 rm -f "${register_tmp}"
 
-promote_tmp="$(mktemp)"
-promote_code="$(curl -sS -o "${promote_tmp}" -w '%{http_code}' -X POST \
-  "${COIN_API_URL}/v1/admin/components/agent/coin-agent/versions/${VERSION}/promote" \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: ${API_KEY}" \
-  -d '{"actor":"publish-agent"}')"
-if [[ "${promote_code}" != "200" && "${promote_code}" != "409" ]]; then
-  echo "coin-api promote failed HTTP ${promote_code}: $(cat "${promote_tmp}")" >&2
-  rm -f "${promote_tmp}"
-  exit 1
+echo "==> done agent/coin-agent@${VERSION} draft registered image=${RUNTIME_REF} digest=${digest:-<none>}"
+echo "    Promote in Platform UI: /platform/runtime/coin-agent → release ${VERSION} → Publish"
+if [[ -z "${digest}" ]]; then
+  echo "    WARN: digest missing — promote will fail until digest is set in metadata" >&2
 fi
-rm -f "${promote_tmp}"
-
-echo "==> done agent/coin-agent@${VERSION} image=${RUNTIME_REF} digest=${digest:-<none>}"

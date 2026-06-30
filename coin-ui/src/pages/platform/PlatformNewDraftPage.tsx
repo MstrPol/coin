@@ -22,7 +22,6 @@ export default function PlatformNewDraftPage() {
   const [version, setVersion] = useState("0.1.0-draft");
   const [image, setImage] = useState("");
   const [digest, setDigest] = useState("");
-  const [goarch, setGoarch] = useState("amd64");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isAgent = compType === "agent";
@@ -31,18 +30,20 @@ export default function PlatformNewDraftPage() {
     e.preventDefault();
     const ver = version.trim();
     if (!ver) return;
+    if (isAgent && (!image.trim() || !digest.trim())) {
+      setError("Image ref и digest обязательны для agent draft");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
-      const metadata =
-        isAgent && (image.trim() || digest.trim())
-          ? {
-              image: image.trim() || undefined,
-              digest: digest.trim() || undefined,
-              goarch: goarch.trim() || undefined,
-              runtime: name,
-            }
-          : undefined;
+      const metadata = isAgent
+        ? {
+            image: image.trim(),
+            digest: digest.trim(),
+            runtime: name,
+          }
+        : undefined;
       await api.createDraftComponentVersion(compType, name, {
         version: ver,
         metadata,
@@ -85,19 +86,29 @@ export default function PlatformNewDraftPage() {
         {isAgent && (
           <>
             <p className="text-xs text-zinc-500">
-              Опционально: metadata для catch-up после CI push (image, digest, goarch).
+              Ручной catch-up после CI: укажите image ref и digest из registry. CI path —{" "}
+              <code className="text-zinc-400">publish-agent.sh</code> регистрирует draft; promote — на
+              странице release.
             </p>
             <label className="block space-y-1">
               <span className="text-sm text-zinc-300">Image ref</span>
-              <input className={inputClass} value={image} onChange={(e) => setImage(e.target.value)} />
+              <input
+                className={inputClass}
+                value={image}
+                onChange={(e) => setImage(e.target.value)}
+                placeholder={`nexus:8082/coin-docker/${name}:1.0.0`}
+                required
+              />
             </label>
             <label className="block space-y-1">
               <span className="text-sm text-zinc-300">Digest</span>
-              <input className={inputClass} value={digest} onChange={(e) => setDigest(e.target.value)} />
-            </label>
-            <label className="block space-y-1">
-              <span className="text-sm text-zinc-300">GOARCH</span>
-              <input className={inputClass} value={goarch} onChange={(e) => setGoarch(e.target.value)} />
+              <input
+                className={inputClass}
+                value={digest}
+                onChange={(e) => setDigest(e.target.value)}
+                placeholder="sha256:…"
+                required
+              />
             </label>
           </>
         )}

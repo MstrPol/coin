@@ -393,7 +393,7 @@ paths:
       summary: Register component version as draft
       description: |
         Creates a component version with `status = draft`.
-        For `agent`, only metadata (image, digest, architecture) is required — no Nexus package.
+        For `agent`, metadata (`image`, `digest`) is optional at draft register; promote requires both fields with tag↔version invariant. No Nexus package.
         Idempotent for CI: duplicate version returns HTTP 409.
       security:
         - adminKey: []
@@ -789,6 +789,7 @@ paths:
         Promotes a draft component version to `published`.
         For `gp-content` and `branching-model`, validates registered package and uploads to Nexus when needed.
         For `agent`, promotes using metadata only (no Nexus content_ref required).
+        Returns HTTP 422 when `metadata.image` or `metadata.digest` is missing or invalid.
         Legacy component status `canary` is accepted as input but new writes use draft→published only.
       security:
         - adminKey: []
@@ -828,6 +829,8 @@ paths:
           description: Version not found
         "409":
           description: Invalid status or package not registered
+        "422":
+          description: Agent metadata validation failed (missing image/digest or tag mismatch)
         "401":
           description: Unauthorized
 

@@ -119,10 +119,24 @@ Stages — typed ids; **нет** `pipeline.stages[].script.url`.
 
 | Не в GP composition | Где |
 |---------------------|-----|
-| `executor` | Derived от agent (`coin-agent@X` → `coin-executor@X`) |
+| `executor` | Derived от agent (`agent/{profile}@X` → `executor/coin-executor@X`, same version) |
 | `lib` | Platform pin; Jenkins `@Library`; не в `gp_composition` map |
 
 OpenSpec: `gp-composition-two-slot` (id retained; фактически three-pin).
+
+### 10. Runtime agent registry (Platform)
+
+| Поле metadata | Назначение |
+|---------------|------------|
+| `image` | Full container ref для Jenkins pod (`manifest.runtime.image`) |
+| `digest` | Content-addressable pin (`sha256:…`); обязателен для promote |
+| `runtime` | = `components.name` (profile) |
+
+| Инвариант | Значение |
+|-----------|----------|
+| Promote | Только publisher (UI / Admin API); CI register — draft only |
+| GOARCH | Build-time only (`publish-agent.sh`); **не** в PG metadata |
+| Executor derive | Любой agent profile → `coin-executor@{same V}` |
 
 ### 9. Superseded (не реализовывать)
 
