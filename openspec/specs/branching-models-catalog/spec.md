@@ -68,6 +68,12 @@ The catalog and hub SHALL expose lifecycle actions appropriate to the version st
 - **THEN** the UI MUST create a draft and open `/platform/branching-models/{name}/{version}/edit`
 - **AND** MUST NOT route to Component Studio
 
+#### Scenario: Delete orphan draft from hub
+
+- **WHEN** publisher deletes a branching-model draft that is not needed
+- **THEN** the hub MUST remove the version from the Releases list after successful Admin API delete
+- **AND** MUST NOT require Component Studio or legacy `/components` routes
+
 ### Requirement: Branching model rule builder
 
 The branching model editor SHALL provide an ordered list of branch rule cards editing schema v2 fields: `name`, `pattern`, `versioning.template`, and `publish`.
@@ -108,4 +114,28 @@ The branching models catalog and editor SHALL link operators to `docs/how-to/bra
 
 - **WHEN** publisher opens branching model draft editor
 - **THEN** the UI MUST provide a link or reference to the authoring how-to documentation
+
+### Requirement: Delete branching-model draft from hub
+
+The branching models hub SHALL allow publishers to delete draft versions from the Releases tab and the draft editor lifecycle panel.
+
+#### Scenario: Delete draft from releases list
+
+- **WHEN** publisher views `/platform/branching-models/{name}/releases`
+- **AND** a version row has `status = draft`
+- **THEN** the UI MUST offer a «Delete» or «Delete draft» action for that row
+- **AND** MUST call `DELETE /v1/admin/components/branching-model/{name}/versions/{version}`
+- **AND** MUST NOT offer delete for `published` rows
+
+#### Scenario: Delete draft from editor lifecycle panel
+
+- **WHEN** publisher opens draft editor at `/platform/branching-models/{name}/{version}/edit`
+- **THEN** the lifecycle panel MUST offer «Delete draft» alongside Validate and Publish
+- **AND** MUST require confirmation before calling the Admin API
+- **AND** after successful delete MUST navigate to `/platform/branching-models/{name}/releases`
+
+#### Scenario: Non-publisher cannot delete
+
+- **WHEN** user without publisher role views branching-model draft releases or editor
+- **THEN** the UI MUST NOT show delete actions
 

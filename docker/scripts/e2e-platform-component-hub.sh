@@ -106,4 +106,16 @@ if [[ "${bml_status}" != "draft" ]]; then
   exit 1
 fi
 
-echo "==> platform component hub E2E OK (agent draft→published, bml profile+draft)"
+echo "==> branching-model draft delete ${BML_VERSION}"
+del_code="$(api_delete "/v1/admin/components/branching-model/${BML_NAME}/versions/${BML_VERSION}?actor=${ACTOR}")"
+if [[ "${del_code}" != "204" ]]; then
+  echo "expected bml delete HTTP 204, got ${del_code}" >&2
+  exit 1
+fi
+get_code="$(curl -sS -o /dev/null -w '%{http_code}' "${API}/v1/admin/components/branching-model/${BML_NAME}/versions/${BML_VERSION}" "${AUTH[@]}")"
+if [[ "${get_code}" != "404" ]]; then
+  echo "expected 404 after bml delete, got HTTP ${get_code}" >&2
+  exit 1
+fi
+
+echo "==> platform component hub E2E OK (agent draft→published, bml draft delete)"

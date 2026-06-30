@@ -34,7 +34,9 @@ GP pin: branching-model slot в composition → `manifest.branching` при reso
 
 ## UI и preview
 
-Component Studio: rule builder + `POST /v1/admin/branching-models/preview` (executor SoT).
+Platform hub (`/platform/branching-models`): rule builder + `POST /v1/admin/branching-models/preview` (executor SoT). Draft lifecycle: validate → register → publish.
+
+**Удаление draft:** Releases tab → **Delete** на строке draft, или в редакторе (`/platform/branching-models/{name}/{version}/edit`) → **Delete draft** в lifecycle panel (publisher+). Published версии удалить нельзя.
 
 ## См. также
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import BranchingModelEditor from "../studio/BranchingModelEditor";
 import GpContentEditor from "../studio/GpContentEditor";
 import type { ComponentVersionDetail, ValidateComponentPackageResult } from "../../api/types";
@@ -23,7 +23,7 @@ import {
   validateGpContentClient,
   type GpContentModel,
 } from "../../lib/gpContentYaml";
-import { platformCatalogPath } from "../../lib/platformComponentPaths";
+import { platformCatalogPath, platformHubPath, supportsDraftDelete } from "../../lib/platformComponentPaths";
 import { platformTypeConfig } from "../../lib/platformComponentTypes";
 
 function statusClass(status: string): string {
@@ -49,6 +49,7 @@ export default function PlatformComponentEditor({
   canEdit: boolean;
 }) {
   const config = platformTypeConfig(type);
+  const navigate = useNavigate();
   const [detail, setDetail] = useState<ComponentVersionDetail | null>(null);
   const [branchingModel, setBranchingModel] = useState<BranchingModel | null>(null);
   const [gpContent, setGpContent] = useState<GpContentModel | null>(null);
@@ -62,10 +63,12 @@ export default function PlatformComponentEditor({
   const [validation, setValidation] = useState<ValidateComponentPackageResult | null>(null);
   const [validating, setValidating] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const isDraft = detail?.status === "draft";
   const readOnly = !canEdit || !isDraft;
   const hasContentRef = !!detail?.contentRef;
+  const canDeleteDraft = supportsDraftDelete(type) && type === "branching-model";
 
   const load = useCallback(async () => {
     setError(null);
@@ -231,6 +234,23 @@ export default function PlatformComponentEditor({
     }
   }
 
+  async function deleteDraft() {
+    if (!canDeleteDraft || readOnly) return;
+    if (!window.confirm(`Удалить draft ${name}@${version}? Несохранённые изменения будут потеряны.`)) return;
+    setDeleting(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await api.deleteComponentVersionDraft(type, name, version, getActor() || undefined);
+      const hub = platformHubPath(type, name);
+      navigate(hub ? `${hub}/releases` : platformCatalogPath(type) ?? "/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "delete failed");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (!config) {
     return (
       <div className="space-y-4">
@@ -329,8 +349,11 @@ export default function PlatformComponentEditor({
             canEdit={canEdit && isDraft}
             validating={validating}
             publishing={publishing}
+            deleting={deleting}
+            showDeleteDraft={canDeleteDraft && canEdit}
             onValidate={() => void runValidate()}
             onPublish={() => void publishToStable()}
+            onDeleteDraft={() => void deleteDraft()}
           />
         </section>
       </div>
@@ -345,8 +368,11 @@ function LifecyclePanel({
   canEdit,
   validating,
   publishing,
+  deleting,
+  showDeleteDraft,
   onValidate,
   onPublish,
+  onDeleteDraft,
 }: {
   status: string;
   hasContentRef: boolean;
@@ -354,8 +380,11 @@ function LifecyclePanel({
   canEdit: boolean;
   validating: boolean;
   publishing: boolean;
+  deleting: boolean;
+  showDeleteDraft: boolean;
   onValidate: () => void;
   onPublish: () => void;
+  onDeleteDraft: () => void;
 }) {
   const validated = validation?.valid === true;
   const steps = [
@@ -397,15 +426,25 @@ function LifecyclePanel({
           <button
             type="button"
             onClick={onValidate}
-            disabled={validating || publishing}
+            disabled={validating || publishing || deleting}
             className="rounded border border-zinc-600 px-3 py-1.5 text-sm hover:bg-zinc-800 disabled:opacity-50"
           >
             {validating ? "Проверка…" : "Validate"}
           </button>
+          {showDeleteDraft && (
+            <button
+              type="button"
+              onClick={onDeleteDraft}
+              disabled={deleting || validating || publishing}
+              className="rounded border border-red-800 px-3 py-1.5 text-sm text-red-300 hover:bg-red-950/40 disabled:opacity-50"
+            >
+              {deleting ? "Удаление…" : "Delete draft"}
+            </button>
+          )}
           <button
             type="button"
             onClick={onPublish}
-            disabled={publishing || validating}
+            disabled={publishing || validating || deleting}
             className="rounded bg-sky-600 px-3 py-1.5 text-sm hover:bg-sky-500 disabled:opacity-50"
           >
             {publishing ? "Публикация…" : "Publish"}

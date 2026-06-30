@@ -3,7 +3,7 @@ import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom
 import type { ComponentVersionDetail } from "../../api/types";
 import { useAuth } from "../../context/AuthContext";
 import { api, getActor } from "../../lib/api";
-import { platformEditPath } from "../../lib/platformComponentPaths";
+import { platformEditPath, supportsDraftDelete } from "../../lib/platformComponentPaths";
 import {
   familyHubPath,
   type PlatformFamilyId,
@@ -35,6 +35,7 @@ export default function PlatformComponentReleaseDetail() {
   const [message, setMessage] = useState<string | null>(null);
   const hubBase = familyHubPath(familyId, name);
   const isAgent = compType === "agent";
+  const canDeleteDraft = supportsDraftDelete(compType);
   const isEditableArtifact = compType === "gp-content" || compType === "branching-model";
 
   useEffect(() => {
@@ -75,7 +76,7 @@ export default function PlatformComponentReleaseDetail() {
   }
 
   async function deleteDraft() {
-    if (!name || !version || detail?.status !== "draft" || !isAgent) return;
+    if (!name || !version || detail?.status !== "draft" || !canDeleteDraft) return;
     if (!window.confirm(`Удалить draft ${name}@${version}?`)) return;
     setDeleting(true);
     setError(null);
@@ -179,7 +180,7 @@ export default function PlatformComponentReleaseDetail() {
               Edit metadata
             </Link>
           )}
-          {isAgent && (
+          {canDeleteDraft && isAgent && (
             <button
               type="button"
               disabled={deleting}

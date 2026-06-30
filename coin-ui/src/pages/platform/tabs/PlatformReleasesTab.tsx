@@ -3,7 +3,7 @@ import { Link, useOutletContext, useParams } from "react-router-dom";
 import type { ComponentVersion } from "../../../api/types";
 import { useAuth } from "../../../context/AuthContext";
 import { api, getActor } from "../../../lib/api";
-import { platformEditPath } from "../../../lib/platformComponentPaths";
+import { platformEditPath, supportsDraftDelete } from "../../../lib/platformComponentPaths";
 import {
   familyNewDraftPath,
   familyReleaseDetailPath,
@@ -31,7 +31,7 @@ export default function PlatformReleasesTab() {
   const [includeDrafts, setIncludeDrafts] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingVersion, setDeletingVersion] = useState<string | null>(null);
-  const isAgent = compType === "agent";
+  const canDeleteDraft = supportsDraftDelete(compType);
 
   function reload() {
     if (!name) return;
@@ -51,7 +51,7 @@ export default function PlatformReleasesTab() {
   }, [name, compType, includeDrafts]);
 
   async function deleteDraft(ver: string) {
-    if (!name || !isAgent) return;
+    if (!name || !canDeleteDraft) return;
     if (!window.confirm(`Удалить draft ${name}@${ver}?`)) return;
     setDeletingVersion(ver);
     setError(null);
@@ -129,7 +129,7 @@ export default function PlatformReleasesTab() {
                         </Link>
                       </>
                     )}
-                    {r.status === "draft" && isAgent && can("publisher") && (
+                    {r.status === "draft" && canDeleteDraft && can("publisher") && (
                       <>
                         {" · "}
                         <button

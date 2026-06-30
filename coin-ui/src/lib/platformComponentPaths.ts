@@ -46,3 +46,9 @@ export function derivedExecutorPin(
   }
   return null;
 }
+
+const DRAFT_DELETE_TYPES = new Set(["agent", "branching-model"]);
+
+export function supportsDraftDelete(type: string): boolean {
+  return DRAFT_DELETE_TYPES.has(type);
+}
