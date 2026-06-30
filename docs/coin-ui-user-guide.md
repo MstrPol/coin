@@ -96,7 +96,9 @@ Entity-centric view одного GP:
 | Policy | latest / minimum / deprecated, resolve preview |
 | Canary | Rollout %, health, resolve preview |
 
-**Publisher actions:** New draft (`/gp/:name/releases/new-draft`) — 3 pickers: agent stack, gp-content, branching-model. Stable release — только promote draft на release detail.
+**Publisher actions:** New draft (`/gp/:name/releases/new-draft`) — 3 pickers: agent stack (**published only**), gp-content и branching-model (**draft или published**). Stable release — только promote draft на release detail; promote заблокирован, пока хотя бы один component pin в `draft`.
+
+**GP draft на component drafts:** можно собрать GP draft, пинуя draft build stack / branching model (agent — только published). На release detail — предупреждение и disabled Promote до publish всех pins. Workflow: Platform drafts → GP draft → publish component pins → Promote GP.
 
 **Draft lifecycle:** пока `status=draft` — composition редактируется на release detail (**Save composition**), draft можно удалить. После promote — read-only, без Save/Delete.
 

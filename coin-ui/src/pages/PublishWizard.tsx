@@ -7,6 +7,11 @@ import {
   defaultBranchingModelForGP,
   GP_DRAFT_SLOT_ORDER,
 } from "../lib/gpSlots";
+import {
+  publishedVersions,
+  versionLabels,
+  versionStatusMap,
+} from "../lib/gpCompositionVersions";
 import GpCompositionForm from "../components/GpCompositionForm";
 
 type SlotVersions = Record<string, string[]>;
@@ -38,12 +43,6 @@ function nextSnapshotVersion(drafts: GPRelease[], base: string): string {
   return `${cleanBase}-snapshot.${maxN + 1}`;
 }
 
-function publishedVersions(
-  items: { version: string; status: string }[],
-): string[] {
-  return items.filter((v) => v.status === "published").map((v) => v.version);
-}
-
 export default function PublishWizard({ scopedGpName }: PublishWizardProps = {}) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -59,6 +58,7 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
   const [agentStackOptions, setAgentStackOptions] = useState<string[]>([]);
   const [composition, setComposition] = useState<Record<string, string>>({});
   const [versionOptions, setVersionOptions] = useState<SlotVersions>({});
+  const [versionStatuses, setVersionStatuses] = useState<Record<string, Record<string, string>>>({});
   const [version, setVersion] = useState("");
   const [baseVersion, setBaseVersion] = useState("1.0.0");
   const [drafts, setDrafts] = useState<GPRelease[]>([]);
@@ -98,6 +98,7 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
       setLoading(false);
       setComposition({});
       setVersionOptions({});
+      setVersionStatuses({});
       setBranchingModelName("");
       setBranchingModelOptions([]);
       setGpContentName("");
@@ -182,9 +183,11 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
         setAgentStackName(agentName);
 
         const versions: SlotVersions = {};
+        const statuses: Record<string, Record<string, string>> = {};
         if (agentName) {
           const agentR = await api.componentVersions("agent", agentName);
           versions.agent = publishedVersions(agentR.items);
+          statuses.agent = versionStatusMap(agentR.items);
           if (!defaults.agent && versions.agent.length > 0) {
             defaults.agent = versions.agent[0];
           }
@@ -193,7 +196,8 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
         }
         if (gcName) {
           const gcR = await api.componentVersionsOptional("gp-content", gcName);
-          versions["gp-content"] = publishedVersions(gcR?.items ?? []);
+          versions["gp-content"] = versionLabels(gcR?.items ?? [], false);
+          statuses["gp-content"] = versionStatusMap(gcR?.items ?? []);
           if (!defaults["gp-content"] && versions["gp-content"].length > 0) {
             defaults["gp-content"] = versions["gp-content"][0];
           }
@@ -202,13 +206,15 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
         }
         if (bmName) {
           const bmR = await api.componentVersions("branching-model", bmName);
-          versions["branching-model"] = publishedVersions(bmR.items);
+          versions["branching-model"] = versionLabels(bmR.items, false);
+          statuses["branching-model"] = versionStatusMap(bmR.items);
           if (!defaults["branching-model"] && versions["branching-model"].length > 0) {
             defaults["branching-model"] = versions["branching-model"][0];
           }
         }
 
         setVersionOptions(versions);
+        setVersionStatuses(statuses);
         setComposition(defaults);
         setVersion(nextSnapshotVersion(draftItems, baseVersion || "1.0.0"));
         if (draftItems.length > 0 && !promoteVersion) {
@@ -224,8 +230,12 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
     api
       .componentVersions("branching-model", branchingModelName)
       .then((r) => {
-        const vers = r.items.filter((v) => v.status === "published").map((v) => v.version);
+        const vers = versionLabels(r.items, false);
         setVersionOptions((prev) => ({ ...prev, "branching-model": vers }));
+        setVersionStatuses((prev) => ({
+          ...prev,
+          "branching-model": versionStatusMap(r.items),
+        }));
         setComposition((prev) => {
           if (prev["branching-model"] && vers.includes(prev["branching-model"])) {
             return prev;
@@ -241,8 +251,12 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
     api
       .componentVersionsOptional("gp-content", gpContentName)
       .then((r) => {
-        const vers = publishedVersions(r?.items ?? []);
+        const vers = versionLabels(r?.items ?? [], false);
         setVersionOptions((prev) => ({ ...prev, "gp-content": vers }));
+        setVersionStatuses((prev) => ({
+          ...prev,
+          "gp-content": versionStatusMap(r?.items ?? []),
+        }));
         setComposition((prev) => {
           if (prev["gp-content"] && vers.includes(prev["gp-content"])) return prev;
           return { ...prev, "gp-content": vers[0] ?? "" };
@@ -258,6 +272,7 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
       .then((r) => {
         const vers = publishedVersions(r.items);
         setVersionOptions((prev) => ({ ...prev, agent: vers }));
+        setVersionStatuses((prev) => ({ ...prev, agent: versionStatusMap(r.items) }));
         setComposition((prev) => {
           if (prev.agent && vers.includes(prev.agent)) return prev;
           return { ...prev, agent: vers[0] ?? "" };
@@ -329,7 +344,7 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
     } catch (err) {
       const msg = err instanceof Error ? err.message : "create draft failed";
       if (msg.includes("gp-content") || msg.includes("gpContentName")) {
-        setError("Выберите опубликованный gp-content и версию из каталога");
+        setError("Проверьте gp-content: выберите компонент и версию из каталога");
       } else if (msg.includes("component")) {
         setError(msg);
       } else {
@@ -463,7 +478,8 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
           <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
             <h2 className="font-medium">GP composition (3 pins)</h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Agent stack, gp-content и branching-model — per GP version.
+              Agent stack — только published. gp-content и branching-model — draft или published.
+              Promote GP заблокирован, пока хотя бы один pin в draft.
             </p>
             <GpCompositionForm
               agentStackName={agentStackName}
@@ -477,6 +493,7 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
               onBranchingModelChange={setBranchingModelName}
               composition={composition}
               versionOptions={versionOptions}
+              versionStatuses={versionStatuses}
               onCompositionChange={setComposition}
             />
           </section>

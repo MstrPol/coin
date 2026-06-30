@@ -1,20 +1,12 @@
 import { useEffect, useState } from "react";
 import type { CompositionItem } from "../api/types";
 import { api } from "./api";
+import {
+  publishedVersions,
+  versionLabels,
+  versionStatusMap,
+} from "./gpCompositionVersions";
 import { defaultAgentStackName, defaultBranchingModelForGP } from "./gpSlots";
-
-function versionLabels(items: { version: string; status: string }[], publishedOnly: boolean): string[] {
-  if (publishedOnly) {
-    return items.filter((v) => v.status === "published").map((v) => v.version);
-  }
-  return items
-    .filter((v) => v.status === "published" || v.status === "draft")
-    .map((v) => v.version);
-}
-
-function publishedVersions(items: { version: string; status: string }[]): string[] {
-  return versionLabels(items, true);
-}
 
 export function useGpCompositionEditor(gpName: string, initial?: CompositionItem[]) {
   const [agentStackName, setAgentStackName] = useState(defaultAgentStackName());
@@ -104,17 +96,17 @@ export function useGpCompositionEditor(gpName: string, initial?: CompositionItem
         if (agent) {
           const r = await api.componentVersions("agent", agent);
           versions.agent = publishedVersions(r.items);
-          statuses.agent = Object.fromEntries(r.items.map((v) => [v.version, v.status]));
+          statuses.agent = versionStatusMap(r.items);
         }
         if (gc) {
           const r = await api.componentVersionsOptional("gp-content", gc);
           versions["gp-content"] = versionLabels(r?.items ?? [], false);
-          statuses["gp-content"] = Object.fromEntries((r?.items ?? []).map((v) => [v.version, v.status]));
+          statuses["gp-content"] = versionStatusMap(r?.items ?? []);
         }
         if (bm) {
           const r = await api.componentVersions("branching-model", bm);
           versions["branching-model"] = versionLabels(r.items, false);
-          statuses["branching-model"] = Object.fromEntries(r.items.map((v) => [v.version, v.status]));
+          statuses["branching-model"] = versionStatusMap(r.items);
         }
         if (cancelled) return;
 
@@ -149,6 +141,7 @@ export function useGpCompositionEditor(gpName: string, initial?: CompositionItem
       .then((r) => {
         const vers = publishedVersions(r.items);
         setVersionOptions((prev) => ({ ...prev, agent: vers }));
+        setVersionStatuses((prev) => ({ ...prev, agent: versionStatusMap(r.items) }));
         setComposition((prev) => {
           if (prev.agent && vers.includes(prev.agent)) return prev;
           return { ...prev, agent: vers[0] ?? "" };
@@ -166,7 +159,7 @@ export function useGpCompositionEditor(gpName: string, initial?: CompositionItem
         setVersionOptions((prev) => ({ ...prev, "gp-content": vers }));
         setVersionStatuses((prev) => ({
           ...prev,
-          "gp-content": Object.fromEntries((r?.items ?? []).map((v) => [v.version, v.status])),
+          "gp-content": versionStatusMap(r?.items ?? []),
         }));
         setComposition((prev) => {
           if (prev["gp-content"] && vers.includes(prev["gp-content"])) return prev;
@@ -185,7 +178,7 @@ export function useGpCompositionEditor(gpName: string, initial?: CompositionItem
         setVersionOptions((prev) => ({ ...prev, "branching-model": vers }));
         setVersionStatuses((prev) => ({
           ...prev,
-          "branching-model": Object.fromEntries(r.items.map((v) => [v.version, v.status])),
+          "branching-model": versionStatusMap(r.items),
         }));
         setComposition((prev) => {
           if (prev["branching-model"] && vers.includes(prev["branching-model"])) return prev;

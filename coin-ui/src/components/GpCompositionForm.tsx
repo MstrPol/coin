@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { GP_DRAFT_SLOT_ORDER, SLOT_LABELS } from "../lib/gpSlots";
+import { gpSlotEmptyVersionHint } from "../lib/gpCompositionVersions";
 import { platformEditPath } from "../lib/platformComponentPaths";
 
 const inputClass =
@@ -144,7 +145,7 @@ export default function GpCompositionForm({
                       disabled={versions.length === 0}
                     >
                       {versions.length === 0 ? (
-                        <option value="">— нет версий —</option>
+                        <option value="">{gpSlotEmptyVersionHint(key)}</option>
                       ) : (
                         versions.map((v) => {
                           const st = versionStatuses[key]?.[v];
