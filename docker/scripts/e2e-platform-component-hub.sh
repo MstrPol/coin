@@ -36,6 +36,20 @@ api_post() {
   rm -f "${tmp}"
 }
 
+api_delete() {
+  local path="$1"
+  local tmp code
+  tmp="$(mktemp)"
+  code="$(curl -sS -o "${tmp}" -w '%{http_code}' -X DELETE "${API}${path}" "${AUTH[@]}")"
+  if [[ "${code}" != "204" && "${code}" != "404" ]]; then
+    echo "DELETE ${path} failed HTTP ${code}: $(cat "${tmp}")" >&2
+    rm -f "${tmp}"
+    exit 1
+  fi
+  rm -f "${tmp}"
+  echo "${code}"
+}
+
 echo "==> agent draft register ${AGENT_VERSION}"
 api_post "/v1/admin/components" \
   "$(jq -n --arg a "${ACTOR}" '{type:"agent",name:"coin-agent",actor:$a}')" >/dev/null
@@ -53,6 +67,22 @@ fi
 derived="$(curl -fsS "${API}/v1/admin/components/agent/coin-agent/versions/${AGENT_VERSION}" "${AUTH[@]}" | jq -r '.derivedExecutorPin.version // empty')"
 if [[ "${derived}" != "${AGENT_VERSION}" ]]; then
   echo "expected derivedExecutorPin.version=${AGENT_VERSION}, got ${derived}" >&2
+  exit 1
+fi
+
+DELETE_VERSION="${COIN_AGENT_DELETE_E2E_VERSION:-9.9.9-hub-delete}"
+echo "==> agent draft delete ${DELETE_VERSION}"
+api_post "/v1/admin/components/agent/coin-agent/versions/drafts" \
+  "$(jq -n --arg v "${DELETE_VERSION}" --arg a "${ACTOR}" --arg d "${E2E_DIGEST}" \
+    '{version:$v, metadata:{image:"nexus:8082/coin-docker/coin-agent:'"${DELETE_VERSION}"'",digest:$d,runtime:"coin-agent"},actor:$a}')" >/dev/null
+del_code="$(api_delete "/v1/admin/components/agent/coin-agent/versions/${DELETE_VERSION}?actor=${ACTOR}")"
+if [[ "${del_code}" != "204" ]]; then
+  echo "expected delete HTTP 204, got ${del_code}" >&2
+  exit 1
+fi
+get_code="$(curl -sS -o /dev/null -w '%{http_code}' "${API}/v1/admin/components/agent/coin-agent/versions/${DELETE_VERSION}" "${AUTH[@]}")"
+if [[ "${get_code}" != "404" ]]; then
+  echo "expected 404 after delete, got HTTP ${get_code}" >&2
   exit 1
 fi
 

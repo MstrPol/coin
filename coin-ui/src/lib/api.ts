@@ -513,6 +513,12 @@ export const api = {
       componentName,
     });
   },
+  deleteComponentVersionDraft: (type: string, name: string, version: string, actor?: string) => {
+    const q = actor ? `?actor=${encodeURIComponent(actor)}` : "";
+    return apiDelete(
+      `/v1/admin/components/${type}/${name}/versions/${encodeURIComponent(version)}${q}`,
+    );
+  },
   promoteComponentVersion: (type: string, name: string, version: string, actor?: string) =>
     apiPost<{ type: string; name: string; version: string; status: string }>(
       `/v1/admin/components/${type}/${name}/versions/${encodeURIComponent(version)}/promote`,

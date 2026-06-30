@@ -696,6 +696,43 @@ paths:
           description: Not found
         "401":
           description: Unauthorized
+    delete:
+      summary: Delete component version draft
+      description: |
+        Removes a component version with `status = draft` from PostgreSQL.
+        Cascade-deletes artifact bodies; does not modify Nexus.
+        Published versions are immutable (HTTP 409).
+      security:
+        - adminKey: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: actor
+          in: query
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Draft deleted
+        "404":
+          description: Not found
+        "409":
+          description: Version is not draft
+        "401":
+          description: Unauthorized
 
   /v1/admin/components/{type}/{name}/versions/{version}/validate-package:
     post:

@@ -147,6 +147,8 @@ Registry (runtime): `nexus:8082/coin-docker/coin-agent:{semver}`.
 
 Promote gate: coin-api отклоняет promote без `metadata.image` и `metadata.digest` (HTTP 422); тег в image MUST совпадать с version.
 
+**Cleanup:** orphan drafts (тестовые профили, неудачный CI register) — удалить в Platform UI: `/platform/runtime/{profile}/releases` → Delete, или `DELETE /v1/admin/components/agent/{profile}/versions/{version}` (только `status=draft`).
+
 Composition slot: `agent` → `coin-agent@version` (не stack-specific images).
 
 ---

@@ -120,6 +120,10 @@ func (s *Service) DeleteGPReleaseDraft(ctx context.Context, name, version, actor
 	return s.store.DeleteGPReleaseDraft(ctx, name, version, actor)
 }
 
+func (s *Service) DeleteComponentVersionDraft(ctx context.Context, typ, name, version, actor string) error {
+	return s.store.DeleteComponentVersionDraft(ctx, typ, name, version, actor)
+}
+
 func (s *Service) UpdateGPReleaseDraft(ctx context.Context, name, version string, req CreateDraftRequest) (store.GPReleaseRow, error) {
 	return s.store.UpdateGPReleaseDraft(ctx, store.PublishGPReleaseInput{
 		Name:               name,

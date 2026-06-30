@@ -31,6 +31,7 @@ export default function PlatformComponentReleaseDetail() {
   const [detail, setDetail] = useState<ComponentVersionDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [promoting, setPromoting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const hubBase = familyHubPath(familyId, name);
   const isAgent = compType === "agent";
@@ -70,6 +71,22 @@ export default function PlatformComponentReleaseDetail() {
       setError(err instanceof Error ? err.message : "promote failed");
     } finally {
       setPromoting(false);
+    }
+  }
+
+  async function deleteDraft() {
+    if (!name || !version || detail?.status !== "draft" || !isAgent) return;
+    if (!window.confirm(`Удалить draft ${name}@${version}?`)) return;
+    setDeleting(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await api.deleteComponentVersionDraft(compType, name, version, getActor() || undefined);
+      navigate(`${hubBase}/releases`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "delete failed");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -161,6 +178,16 @@ export default function PlatformComponentReleaseDetail() {
             >
               Edit metadata
             </Link>
+          )}
+          {isAgent && (
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => void deleteDraft()}
+              className="rounded border border-red-800 px-4 py-2 text-sm text-red-300 hover:bg-red-950/40 disabled:opacity-50"
+            >
+              {deleting ? "Deleting…" : "Delete draft"}
+            </button>
           )}
           <button
             type="button"

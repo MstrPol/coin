@@ -123,6 +123,7 @@ func (s *Server) Router() http.Handler {
 				r.With(shortTimeout).Post("/components/{type}/{name}/versions/drafts", s.createDraftComponentVersion)
 				r.With(shortTimeout).Post("/components/{type}/{name}/versions/{version}/promote", s.promoteComponentVersion)
 				r.With(shortTimeout).Patch("/components/{type}/{name}/versions/{version}", s.patchComponentVersion)
+				r.With(shortTimeout).Delete("/components/{type}/{name}/versions/{version}", s.deleteComponentVersionDraft)
 				r.With(shortTimeout).Post("/components/{type}/{name}/versions/{version}/register-package", s.registerComponentPackage)
 				r.With(shortTimeout).Post("/components/{type}/{name}/versions/{version}/validate-package", s.validateComponentPackage)
 				r.With(shortTimeout).Put("/components/{type}/{name}/versions/{version}/artifacts/*", s.putComponentArtifact)
@@ -744,6 +745,29 @@ func (s *Server) deleteGPReleaseDraft(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		s.logger.Error("delete gp draft", "err", err, "gp", name, "version", version)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "delete failed"})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) deleteComponentVersionDraft(w http.ResponseWriter, r *http.Request) {
+	typ := chi.URLParam(r, "type")
+	name := chi.URLParam(r, "name")
+	version := chi.URLParam(r, "version")
+	actor := r.URL.Query().Get("actor")
+
+	err := s.admin.DeleteComponentVersionDraft(r.Context(), typ, name, version, actor)
+	if errors.Is(err, store.ErrNotFound) {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "component version not found"})
+		return
+	}
+	if errors.Is(err, store.ErrComponentVersionNotDraft) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "published component versions are immutable"})
+		return
+	}
+	if err != nil {
+		s.logger.Error("delete component draft", "err", err, "type", typ, "name", name, "version", version)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "delete failed"})
 		return
 	}

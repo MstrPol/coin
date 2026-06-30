@@ -126,7 +126,9 @@ Legacy: `/components/:type/:name` → family hub (`agent` → runtime, `gp-conte
 
 **Editors:** gp-content / branching-model — `/platform/.../:name/:version/edit` (validate → register → promote). Branching-model editor: schema v2 rule cards, live YAML preview, `POST /v1/admin/branching-models/preview`. Agent — metadata catch-up `/platform/runtime/:name/:version/edit` (image + digest); CI path через `publish-agent.sh` (draft register only) → promote на release detail.
 
-**Release detail:** `/platform/{family}/:name/releases/:version` — для agent показывается derived `executor/coin-executor@version`.
+**Release detail:** `/platform/{family}/:name/releases/:version` — для agent показывается derived `executor/coin-executor@version`. Draft agent: **Publish** и **Delete draft** (publisher+); список releases — **Delete** на строке draft.
+
+**Cleanup:** тестовые agent drafts (`agent-30-06` и т.п.) — Releases tab → Delete или release detail → Delete draft.
 
 ### Audit log
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useOutletContext, useParams } from "react-router-dom";
 import type { ComponentVersion } from "../../../api/types";
 import { useAuth } from "../../../context/AuthContext";
-import { api } from "../../../lib/api";
+import { api, getActor } from "../../../lib/api";
 import { platformEditPath } from "../../../lib/platformComponentPaths";
 import {
   familyNewDraftPath,
@@ -30,6 +30,8 @@ export default function PlatformReleasesTab() {
   const [items, setItems] = useState<ComponentVersion[]>([]);
   const [includeDrafts, setIncludeDrafts] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingVersion, setDeletingVersion] = useState<string | null>(null);
+  const isAgent = compType === "agent";
 
   function reload() {
     if (!name) return;
@@ -47,6 +49,21 @@ export default function PlatformReleasesTab() {
   useEffect(() => {
     reload();
   }, [name, compType, includeDrafts]);
+
+  async function deleteDraft(ver: string) {
+    if (!name || !isAgent) return;
+    if (!window.confirm(`Удалить draft ${name}@${ver}?`)) return;
+    setDeletingVersion(ver);
+    setError(null);
+    try {
+      await api.deleteComponentVersionDraft(compType, name, ver, getActor() || undefined);
+      reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "delete failed");
+    } finally {
+      setDeletingVersion(null);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -110,6 +127,19 @@ export default function PlatformReleasesTab() {
                         >
                           Edit
                         </Link>
+                      </>
+                    )}
+                    {r.status === "draft" && isAgent && can("publisher") && (
+                      <>
+                        {" · "}
+                        <button
+                          type="button"
+                          disabled={deletingVersion === r.version}
+                          onClick={() => void deleteDraft(r.version)}
+                          className="text-red-400 hover:underline disabled:opacity-50"
+                        >
+                          {deletingVersion === r.version ? "Deleting…" : "Delete"}
+                        </button>
                       </>
                     )}
                   </td>

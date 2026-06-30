@@ -15,7 +15,7 @@ coin-api-up: build-coin-api
 build-coin-ui:
 	DOCKER_BUILDKIT=1 docker compose --progress plain build coin-ui
 
-coin-ui-up: build-coin-ui
+coin-ui-up: build-coin-ui build-coin-api
 	docker compose up -d --force-recreate coin-api coin-ui
 
 openapi-ui:
