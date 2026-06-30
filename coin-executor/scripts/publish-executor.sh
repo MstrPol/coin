@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
-# Upload coin-executor binary to Nexus and register in coin-api.
+# Upload coin-executor binary to Nexus (for agent image bake). No coin-api registry.
 set -euo pipefail
 
 VERSION="${1:?version (e.g. 1.0.0)}"
 GOARCH="${2:?goarch (amd64|arm64)}"
 BINARY="${3:-coin-executor}"
 
-COIN_API_URL="${COIN_API_URL:-http://coin-api:8090}"
-API_KEY="${COIN_API_KEY:-dev-local-admin-key}"
 # shellcheck source=lib/maven-url.sh
 source "$(dirname "$0")/lib/maven-url.sh"
 
-for cmd in curl jq; do
+for cmd in curl; do
   command -v "${cmd}" >/dev/null 2>&1 || { echo "missing required command: ${cmd}" >&2; exit 1; }
 done
 
@@ -53,29 +51,4 @@ nexus_upload() {
 
 nexus_upload "${REMOTE}" "${BINARY}"
 
-SHA256="sha256:$(sha256sum "${BINARY}" | awk '{print $1}')"
-
-echo "==> register executor/coin-executor@${VERSION}"
-payload="$(jq -n \
-  --arg ver "${VERSION}" \
-  --arg url "${REMOTE}" \
-  --arg arch "${GOARCH}" \
-  --arg sha "${SHA256}" \
-  '{version: $ver, metadata: {url: $url, goarch: $arch, sha256: $sha}, actor: "jenkins-executor"}')"
-register_tmp="$(mktemp)"
-register_code="$(curl -sS -o "${register_tmp}" -w '%{http_code}' -X POST \
-  "${COIN_API_URL}/v1/admin/components/executor/coin-executor/versions" \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: ${API_KEY}" \
-  -d "${payload}")"
-if [[ "${register_code}" != "201" && "${register_code}" != "409" ]]; then
-  echo "coin-api register failed HTTP ${register_code}: $(cat "${register_tmp}")" >&2
-  rm -f "${register_tmp}"
-  exit 1
-fi
-if [[ "${register_code}" == "409" ]]; then
-  echo "==> version already registered in coin-api"
-fi
-rm -f "${register_tmp}"
-
-echo "==> done executor/coin-executor@${VERSION} (${GOARCH})"
+echo "==> done Nexus upload coin-executor@${VERSION} (${GOARCH}) at ${REMOTE}"

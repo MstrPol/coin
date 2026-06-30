@@ -70,9 +70,6 @@ def manifestToConfig(Map manifest) {
     if (manifest.runtime?.image) {
         layer.runtime = [image: manifest.runtime.image.toString()]
     }
-    if (manifest.executor?.url) {
-        layer.executor = [url: manifest.executor.url.toString()]
-    }
     if (manifest.pipeline?.stages) {
         layer.pipeline = [stages: manifest.pipeline.stages]
     }

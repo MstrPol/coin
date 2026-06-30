@@ -10,7 +10,6 @@ import (
 type compositionApplier func(parts *manifest.Composition, meta map[string]any, compName, compVersion string)
 
 var compositionAppliers = map[string]compositionApplier{
-	"executor":        applyExecutorComposition,
 	"agent":           applyAgentComposition,
 	"gp-content":      applyGPContentComposition,
 	"pipeline":        applyPipelineComposition,
@@ -23,12 +22,6 @@ func applyCompositionSlot(parts *manifest.Composition, typ, compName, compVersio
 		return
 	}
 	apply(parts, meta, compName, compVersion)
-}
-
-func applyExecutorComposition(parts *manifest.Composition, meta map[string]any, _, compVersion string) {
-	parts.ExecutorVersion = compVersion
-	parts.ExecutorURL = metaString(meta, "url")
-	parts.ExecutorSHA256 = metaString(meta, "sha256")
 }
 
 func applyAgentComposition(parts *manifest.Composition, meta map[string]any, _, _ string) {

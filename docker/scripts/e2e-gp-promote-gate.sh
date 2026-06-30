@@ -112,4 +112,11 @@ if [[ "${gp_status}" != "published" ]]; then
   exit 1
 fi
 
+echo "==> resolve manifest has no executor section"
+manifest="$(curl -fsS "${API}/v1/golden-paths/${GP}/resolve?version=${published_ver}&channel=stable" "${AUTH[@]}")"
+if echo "${manifest}" | jq -e '.executor' >/dev/null 2>&1; then
+  echo "FAIL: resolved manifest must not contain executor: ${manifest}" >&2
+  exit 1
+fi
+
 echo "OK: GP promote gate E2E (${GP})"

@@ -8,7 +8,6 @@
     "manifestVersion",
     "manifestHash",
     "goldenPath",
-    "executor",
     "runtime",
     "build",
     "pipeline"
@@ -29,16 +28,6 @@
       "properties": {
         "name": { "type": "string", "minLength": 1 },
         "version": { "type": "string", "minLength": 1 }
-      }
-    },
-    "executor": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["version", "url", "sha256"],
-      "properties": {
-        "version": { "type": "string" },
-        "url": { "type": "string", "format": "uri" },
-        "sha256": { "type": "string" }
       }
     },
     "runtime": {

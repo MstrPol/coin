@@ -1,6 +1,6 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import type { CatalogOverview } from "../../../api/types";
+import type { CatalogOverview, GPRelease } from "../../../api/types";
 import { useAuth } from "../../../context/AuthContext";
 import { api, getActor, setActor } from "../../../lib/api";
 
@@ -10,10 +10,26 @@ function lineBadge(line?: string) {
   return null;
 }
 
+function stableVersionOptions(releases: GPRelease[]): string[] {
+  return releases
+    .filter((r) => r.status === "published" && !r.version.includes("-snapshot."))
+    .map((r) => r.version)
+    .sort();
+}
+
+function canaryVersionOptions(releases: GPRelease[]): { version: string; label: string }[] {
+  return releases
+    .map((r) => ({
+      version: r.version,
+      label: r.status === "draft" ? `${r.version} (draft)` : r.version,
+    }))
+    .sort((a, b) => a.version.localeCompare(b.version));
+}
+
 export default function GpPolicyTab() {
   const { name: gpName = "" } = useParams();
   const { can } = useAuth();
-  const [publishedVersions, setPublishedVersions] = useState<string[]>([]);
+  const [releases, setReleases] = useState<GPRelease[]>([]);
   const [overview, setOverview] = useState<CatalogOverview | null>(null);
   const [latest, setLatest] = useState("");
   const [latestCanary, setLatestCanary] = useState("");
@@ -25,17 +41,20 @@ export default function GpPolicyTab() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
+  const publishedVersions = useMemo(() => stableVersionOptions(releases), [releases]);
+  const canaryVersions = useMemo(() => canaryVersionOptions(releases), [releases]);
+  const canaryIsDraft = useMemo(
+    () => releases.find((r) => r.version === latestCanary)?.status === "draft",
+    [releases, latestCanary],
+  );
+
   useEffect(() => {
     if (!gpName) return;
     setLoading(true);
     setError(null);
-    Promise.all([api.catalog(gpName), api.gpReleases(gpName, false)])
-      .then(([o, releases]) => {
-        const published = releases.items
-          .filter((r) => r.status === "published" && !r.version.includes("-snapshot."))
-          .map((r) => r.version)
-          .sort();
-        setPublishedVersions(published);
+    Promise.all([api.catalog(gpName), api.gpReleases(gpName, true)])
+      .then(([o, rel]) => {
+        setReleases(rel.items);
         setOverview(o);
         setLatest(o.catalog.latest ?? "");
         setLatestCanary(o.catalog.latestCanary ?? "");
@@ -86,6 +105,12 @@ export default function GpPolicyTab() {
         </div>
       )}
 
+      {can("publisher") && canaryIsDraft && (
+        <div className="rounded border border-amber-900/50 bg-amber-950/30 px-4 py-3 text-amber-200 text-sm">
+          Canary line указывает на GP draft — pilot resolve может включать draft component pins.
+        </div>
+      )}
+
       {can("publisher") && (
         <form onSubmit={onSave} className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
           <h2 className="font-medium">Политика версий</h2>
@@ -95,7 +120,7 @@ export default function GpPolicyTab() {
               label="Latest canary"
               value={latestCanary}
               onChange={setLatestCanary}
-              options={publishedVersions}
+              options={canaryVersions}
               emptyLabel="— не задано —"
             />
             <PolicySelect label="Minimum" value={minimum} onChange={setMinimum} options={publishedVersions} />
@@ -172,7 +197,7 @@ function PolicySelect({
   label: string;
   value: string;
   onChange: (v: string) => void;
-  options: string[];
+  options: string[] | { version: string; label: string }[];
   emptyLabel?: string;
 }) {
   return (
@@ -184,11 +209,15 @@ function PolicySelect({
         className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm font-mono"
       >
         <option value="">{emptyLabel}</option>
-        {options.map((v) => (
-          <option key={v} value={v}>
-            {v}
-          </option>
-        ))}
+        {options.map((opt) => {
+          const version = typeof opt === "string" ? opt : opt.version;
+          const text = typeof opt === "string" ? opt : opt.label;
+          return (
+            <option key={version} value={version}>
+              {text}
+            </option>
+          );
+        })}
       </select>
     </label>
   );

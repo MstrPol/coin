@@ -27,7 +27,7 @@ curl -fsS "${API}/ready" >/dev/null
 echo "==> [2/7] deploy coin-lib"
 make -C "${ROOT}" coin-lib
 
-echo "==> [3/7] publish executor/${VERSION}"
+echo "==> [3/7] upload coin-executor binary to Nexus ${VERSION}"
 (
   cd "${REPO_ROOT}/coin-executor"
   GOOS=linux GOARCH="${GOARCH}" CGO_ENABLED=0 go build -trimpath \

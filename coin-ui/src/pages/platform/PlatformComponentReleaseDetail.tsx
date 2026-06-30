@@ -108,9 +108,6 @@ export default function PlatformComponentReleaseDetail() {
   }
 
   const meta = detail?.metadata ?? {};
-  const derived =
-    detail?.derivedExecutorPin ??
-  (isAgent ? { type: "executor", name: "coin-executor", version } : null);
 
   return (
     <div className="space-y-6">
@@ -148,14 +145,6 @@ export default function PlatformComponentReleaseDetail() {
               <dd className="font-mono text-zinc-300 break-all">{String(meta.digest ?? "—")}</dd>
             </div>
           </dl>
-          {derived && (
-            <div className="pt-2 border-t border-zinc-800">
-              <p className="text-xs text-zinc-500 mb-1">Derived executor pin (read-only)</p>
-              <p className="font-mono text-sm text-zinc-300">
-                {derived.type}/{derived.name}@{derived.version}
-              </p>
-            </div>
-          )}
         </section>
       )}
 

@@ -11,12 +11,15 @@ The component profile name (`components.name`) SHALL equal the image repository 
 
 Component version string SHALL equal the image tag parsed from `metadata.image`. The image tag is the sole source of truth for agent version identity on manual register.
 
+Resolved manifest for GP builds SHALL NOT include an `executor` section. Runtime contract for Jenkins and `coin-executor` CLI SHALL use only `manifest.runtime` from the pinned agent version metadata.
+
 #### Scenario: CI registers draft after push
 
 - **WHEN** Jenkins `publish-agent.sh` completes docker push for version `1.2.0`
 - **THEN** coin-api MUST create `agent/{profile}@1.2.0` with `status = draft`
 - **AND** metadata MUST include `image` with tag `1.2.0` and `digest` from the push
 - **AND** MUST NOT call promote
+- **AND** MUST NOT require or create `executor/coin-executor@1.2.0`
 
 #### Scenario: Image tag matches version
 
@@ -40,6 +43,13 @@ Component version string SHALL equal the image tag parsed from `metadata.image`.
 
 - **WHEN** client POSTs agent draft with `metadata.image` without a tag (no `:` after repository segment) or tag `latest`
 - **THEN** coin-api MUST reject with HTTP 422 on `metadata.image`
+
+#### Scenario: Resolve GP with alternate agent profile
+
+- **WHEN** GP composition pins `agent/agent-30-06@1.2.0` with published agent metadata
+- **THEN** coin-api MUST resolve manifest successfully without lookup of `executor/coin-executor@1.2.0`
+- **AND** `manifest.runtime` MUST use `image` and `digest` from agent metadata
+- **AND** resolved manifest MUST NOT contain an `executor` key
 
 ### Requirement: Manual promote gate
 
@@ -71,33 +81,6 @@ Agent component metadata MUST NOT include `goarch` or `architecture` fields. Bui
 - **WHEN** client PATCHes agent draft metadata including `goarch`
 - **THEN** coin-api MUST ignore or reject the field per API schema
 - **AND** MUST NOT persist `goarch` in component_versions.metadata
-
-### Requirement: Executor derive same-version for all agent profiles
-
-coin-api SHALL derive executor pin for GP resolve as `executor/coin-executor@{agentVersion}` for **any** registered `agent` profile name.
-
-coin-api MUST NOT reject executor derive solely because the agent profile name is not `coin-agent`.
-
-Jenkins pod runtime SHALL use only the pinned agent version `metadata.image` and `metadata.digest`; executor derive MUST NOT require additional fields in agent metadata.
-
-#### Scenario: Resolve GP with alternate agent profile
-
-- **WHEN** GP composition pins `agent/coin-agent-arm@1.2.0` with published agent metadata
-- **THEN** coin-api MUST resolve manifest successfully
-- **AND** `manifest.runtime` MUST use `image` and `digest` from agent metadata
-- **AND** `manifest.executor` MUST reference `executor/coin-executor@1.2.0`
-
-#### Scenario: No hardcoded profile switch
-
-- **WHEN** `executorPinForAgentStack` is called for profile `coin-agent-arm` and version `1.2.0`
-- **THEN** coin-api MUST return executor pin `executor/coin-executor@1.2.0`
-- **AND** MUST NOT return unsupported agent stack error based on profile name alone
-
-#### Scenario: Executor component must exist at derived version
-
-- **WHEN** resolve derives `executor/coin-executor@1.2.0` for agent pin `1.2.0`
-- **AND** executor version `1.2.0` is missing or not visible for resolve mode
-- **THEN** coin-api MUST fail resolve with a clear error listing the missing executor pin
 
 ### Requirement: Agent image tag parsing
 

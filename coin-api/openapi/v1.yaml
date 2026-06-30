@@ -1128,7 +1128,6 @@ components:
         - manifestVersion
         - manifestHash
         - goldenPath
-        - executor
         - runtime
         - build
         - pipeline
@@ -1146,17 +1145,6 @@ components:
             name:
               type: string
             version:
-              type: string
-        executor:
-          type: object
-          required: [version, url, sha256]
-          properties:
-            version:
-              type: string
-            url:
-              type: string
-              format: uri
-            sha256:
               type: string
         runtime:
           type: object

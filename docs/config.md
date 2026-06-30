@@ -92,7 +92,7 @@ Credentials → env при publish: `COIN_REGISTRY_USER`, `COIN_REGISTRY_PASSWOR
 | Build engine | `manifest.build.engine` (`buildkit` \| `buildpack` \| `dockerfile`) |
 | Containerfile / targets | `manifest.build.buildkit` / `build.dockerfile` / `build.buildpack` |
 | Pipeline stages | `manifest.pipeline.stages` (typed `id`, без script URLs) |
-| coin-executor | `manifest.executor` (baked в `coin-agent` на pilot) |
+| coin-executor CLI | Baked в agent image (не отдельный platform component) |
 | Config schema | `manifest.validateSchema` |
 
 ---
@@ -104,7 +104,7 @@ Credentials → env при publish: `COIN_REGISTRY_USER`, `COIN_REGISTRY_PASSWOR
 | Слой | Источник | Примеры |
 |------|----------|---------|
 | lib | `coin-lib/resources/coin-lib-defaults.yaml` + env | `coin.apiUrl`, credential IDs, registry prefix |
-| GP | resolved `manifest.json` | `runtime.image`, `executor.url`, `pipeline.stages` |
+| GP | resolved `manifest.json` | `runtime.image`, `pipeline.stages` |
 | project | `.coin/config.yaml` | `coin.goldenPath`, `project.*`, `jenkins.credentials.docker` |
 
 В workspace pod пишутся runtime artifacts (в `.gitignore`):

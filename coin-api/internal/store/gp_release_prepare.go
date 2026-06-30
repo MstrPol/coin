@@ -20,48 +20,21 @@ func (s *Store) prepareGPRelease(ctx context.Context, in PublishGPReleaseInput) 
 		return preparedGPRelease{}, err
 	}
 
-	if isLegacyFullComposition(in.Composition) {
-		slots := legacyFullCompositionSlots(in.Name)
-		return preparedGPRelease{
-			storeSlots:        slots,
-			validateSlots:     slots,
-			mergedComposition: in.Composition,
-		}, nil
-	}
-
 	gpSlots, err := validateNewGPComposition(in.AgentStackName, in.GPContentName, in.BranchingModelName, in.Composition)
 	if err != nil {
 		return preparedGPRelease{}, fmt.Errorf("%w: %v", ErrInvalidComposition, err)
 	}
 
-	execPin, err := executorPinForAgentStack(in.AgentStackName, in.Composition["agent"])
-	if err != nil {
-		return preparedGPRelease{}, fmt.Errorf("%w: %v", ErrInvalidComposition, err)
-	}
-
-	executorSlot := compatibility.CompositionSlot{Key: "executor", Type: execPin.Type, Name: execPin.Name}
-	validateSlots := mergeSlotsForValidation(gpSlots, []compatibility.CompositionSlot{executorSlot})
-
-	merged := make(map[string]string, len(in.Composition)+1)
+	merged := make(map[string]string, len(in.Composition))
 	for k, v := range in.Composition {
 		merged[k] = v
 	}
-	merged["executor"] = execPin.Version
 
 	return preparedGPRelease{
 		storeSlots:        gpSlots,
-		validateSlots:     validateSlots,
+		validateSlots:     gpSlots,
 		mergedComposition: merged,
 	}, nil
-}
-
-func legacyFullCompositionSlots(gpName string) []compatibility.CompositionSlot {
-	return []compatibility.CompositionSlot{
-		{Key: "agent", Type: "agent", Name: "coin-agent"},
-		{Key: "executor", Type: "executor", Name: "coin-executor"},
-		{Key: "gp-content", Type: "gp-content", Name: gpName},
-		{Key: "branching-model", Type: "branching-model", Name: DefaultBranchingModelForGP(gpName)},
-	}
 }
 
 func insertGPComposition(ctx context.Context, tx pgx.Tx, releaseID int64, slots []compatibility.CompositionSlot, composition map[string]string) error {

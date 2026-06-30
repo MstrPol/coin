@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/mod/semver"
 
 	"coin.local/coin-api/internal/pin"
@@ -66,7 +67,7 @@ func (s *Store) ValidateCatalogPolicyUpdate(ctx context.Context, gpName, latest,
 	if err := ensurePublished("minimum", minimum, true); err != nil {
 		return err
 	}
-	if err := ensurePublished("latestCanary", latestCanary, false); err != nil {
+	if err := ensureCanaryLineGP(ctx, s, gpName, latestCanary); err != nil {
 		return err
 	}
 	for _, v := range deprecated {
@@ -102,4 +103,37 @@ func (s *Store) UpdateCatalogPolicy(ctx context.Context, gpName, latest, latestC
 		VALUES ('update_catalog', 'catalog_policy', $1, $2, $3)
 	`, gpName, nullIfEmpty(actor), depJSON)
 	return err
+}
+
+func ensureCanaryLineGP(ctx context.Context, s *Store, gpName, version string) error {
+	if version == "" {
+		return nil
+	}
+	ok, err := s.gpReleaseVersionExists(ctx, gpName, version, true)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("latestCanary version %s is not a GP release (draft or published)", version)
+	}
+	return nil
+}
+
+func (s *Store) gpReleaseVersionExists(ctx context.Context, gpName, version string, allowDraft bool) (bool, error) {
+	statusFilter := "status = 'published'"
+	if allowDraft {
+		statusFilter = "status IN ('published', 'draft')"
+	}
+	var one int
+	err := s.pool.QueryRow(ctx, fmt.Sprintf(`
+		SELECT 1 FROM gp_releases
+		WHERE name = $1 AND version = $2 AND %s
+	`, statusFilter), gpName, version).Scan(&one)
+	if err == pgx.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }

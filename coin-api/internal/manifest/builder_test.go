@@ -80,6 +80,9 @@ func TestBuilderBuildEngineContract(t *testing.T) {
 	if _, hasLib := doc["lib"]; hasLib {
 		t.Fatal("manifest must not contain lib section")
 	}
+	if _, hasExecutor := doc["executor"]; hasExecutor {
+		t.Fatal("manifest must not contain executor section")
+	}
 	runtime, ok := doc["runtime"].(map[string]string)
 	if !ok || runtime["image"] == "" {
 		t.Fatalf("runtime missing: %#v", doc["runtime"])
@@ -135,11 +138,8 @@ func sampleRelease() GPRelease {
 		Name:    "go-app",
 		Version: "1.0.0",
 		Parts: Composition{
-			ExecutorVersion:  "0.1.0",
 			AgentImage:       "localhost:8082/coin-docker/coin-agent:1.0.0",
 			AgentDigest:      "sha256:deadbeef",
-			ExecutorURL:      "http://localhost:8081/repository/maven-releases/coin/executor/coin-executor/0.1.0/coin-executor-0.1.0-linux-amd64.bin",
-			ExecutorSHA256:   "sha256:abc",
 			GPContentName:    "go-app",
 			GPContentVersion: "1.0.0",
 		},

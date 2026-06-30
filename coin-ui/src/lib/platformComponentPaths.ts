@@ -37,16 +37,6 @@ export function platformReleaseDetailPathForFamily(
   return familyReleaseDetailPath(familyId, name, version);
 }
 
-export function derivedExecutorPin(
-  agentName: string,
-  version: string,
-): { type: string; name: string; version: string } | null {
-  if (agentName === "coin-agent") {
-    return { type: "executor", name: "coin-executor", version };
-  }
-  return null;
-}
-
 const DRAFT_DELETE_TYPES = new Set(["agent", "branching-model"]);
 
 export function supportsDraftDelete(type: string): boolean {

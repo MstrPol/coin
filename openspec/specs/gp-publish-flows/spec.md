@@ -210,3 +210,20 @@ The new GP draft wizard SHALL use the same component version visibility rules as
 - **WHEN** publisher changes agent stack name in the new draft wizard
 - **THEN** the UI MUST load only `status = published` versions for the agent slot
 
+### Requirement: Canary catalog picker includes GP drafts
+
+The GP Policy tab version picker for `latestCanary` SHALL list GP releases with `status = draft` and `status = published`.
+
+The picker for `latest` (stable) and `minimum` SHALL list only `published` GP releases without snapshot suffix.
+
+#### Scenario: Select GP draft for canary line
+
+- **WHEN** publisher opens GP Policy tab for a profile with GP draft releases
+- **THEN** the `Latest canary` dropdown MUST include draft GP versions labeled with `(draft)`
+- **AND** saving MUST call catalog update API successfully
+
+#### Scenario: Stable picker excludes drafts
+
+- **WHEN** publisher opens `Latest (stable)` dropdown
+- **THEN** the UI MUST NOT list GP versions with `status = draft`
+

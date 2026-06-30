@@ -4,7 +4,7 @@ package store
 type ComponentResolveMode string
 
 const (
-	// ComponentResolveStable — published components only (stable channel, agent/executor slots).
+	// ComponentResolveStable — published components only (stable channel, agent slot).
 	ComponentResolveStable ComponentResolveMode = "stable"
 	// ComponentResolveDraft — published + draft (GP draft edit, canary channel resolve).
 	ComponentResolveDraft ComponentResolveMode = "draft"
@@ -40,7 +40,7 @@ func componentStatusAllowed(status string, mode ComponentResolveMode) bool {
 
 // componentResolveModeForGPDraftEdit selects valid component statuses when creating/updating GP drafts.
 func componentResolveModeForGPDraftEdit(componentType string) ComponentResolveMode {
-	if componentType == "agent" || componentType == "executor" {
+	if componentType == "agent" {
 		return ComponentResolveStable
 	}
 	return ComponentResolveDraft

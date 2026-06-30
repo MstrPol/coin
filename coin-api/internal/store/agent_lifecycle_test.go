@@ -23,23 +23,6 @@ func TestValidateContentRefOnWriteForGPContentStillValidates(t *testing.T) {
 	}
 }
 
-func TestDerivedExecutorPin(t *testing.T) {
-	pin, ok := DerivedExecutorPin("coin-agent", "1.2.0")
-	if !ok {
-		t.Fatal("expected derived pin")
-	}
-	if pin.Type != "executor" || pin.Name != "coin-executor" || pin.Version != "1.2.0" {
-		t.Fatalf("unexpected pin: %#v", pin)
-	}
-	pin, ok = DerivedExecutorPin("coin-agent-arm", "1.0.0")
-	if !ok {
-		t.Fatal("expected derived pin for alternate profile")
-	}
-	if pin.Name != "coin-executor" || pin.Version != "1.0.0" {
-		t.Fatalf("unexpected pin: %#v", pin)
-	}
-}
-
 func TestValidateAgentMetadataForPromote(t *testing.T) {
 	validDigest := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	validMeta := json.RawMessage(`{"image":"nexus:8082/coin-docker/coin-agent:1.2.0","digest":"` + validDigest + `"}`)

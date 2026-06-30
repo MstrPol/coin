@@ -28,9 +28,8 @@ curl -X POST http://localhost:8090/v1/admin/golden-paths/go-app/versions \
     "version": "1.0.1",
     "composition": {
       "agent": "1.0.0",
-      "executor": "0.1.0",
-      "lib": "1.0.0",
-      "gp-content": "1.0.0"
+      "gp-content": "1.0.0",
+      "branching-model": "1.0.0"
     }
   }'
 ```
@@ -81,7 +80,7 @@ Fleet scanner удалён (UI-02).
 
 ## Component registry SoT
 
-Версии компонентов (agent, executor, …):
+Версии компонентов (agent, gp-content, branching-model, …):
 
 | Endpoint | Назначение |
 |----------|------------|

@@ -25,16 +25,13 @@ type GPRelease struct {
 }
 
 type Composition struct {
-	ExecutorVersion  string
-	AgentImage       string
-	AgentDigest      string
-	ExecutorURL      string
-	ExecutorSHA256   string
-	GPContentName           string
-	GPContentVersion        string
-	PipelineVersion         string
-	BranchingModelName      string
-	BranchingModelVersion   string
+	AgentImage            string
+	AgentDigest           string
+	GPContentName         string
+	GPContentVersion      string
+	PipelineVersion       string
+	BranchingModelName    string
+	BranchingModelVersion string
 }
 
 type ContentBundle struct {
@@ -70,11 +67,6 @@ func (b Builder) Build(release GPRelease, opts BuildOptions) (map[string]any, st
 		"goldenPath": map[string]string{
 			"name":    release.Name,
 			"version": release.Version,
-		},
-		"executor": map[string]string{
-			"version": release.Parts.ExecutorVersion,
-			"url":     RuntimeNexusURL(release.Parts.ExecutorURL),
-			"sha256":  release.Parts.ExecutorSHA256,
 		},
 		"runtime": map[string]string{
 			"image":  release.Parts.AgentImage,

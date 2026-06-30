@@ -36,7 +36,6 @@ cat >"${work}/.coin/manifest.json" <<'JSON'
 {
   "manifestVersion": 1,
   "goldenPath": {"name": "go-app", "version": "1.0.0"},
-  "executor": {"version": "0.1.0", "url": "http://example/executor"},
   "runtime": {"image": "coin-agent:1.0.0"},
   "build": {
     "engine": "buildkit",

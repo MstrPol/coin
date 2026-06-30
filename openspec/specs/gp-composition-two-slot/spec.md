@@ -6,37 +6,31 @@ GP release composition: three operator pins (`agent`, `gp-content`, `branching-m
 ## Requirements
 ### Requirement: Three-pin GP draft composition
 
-GP draft and release composition SHALL contain exactly three operator-selected component pins from the platform registry:
+GP release composition SHALL contain exactly three operator-controlled pins:
 
-1. **`agent`** — CI runtime stack (agent / executor; e.g. `coin-agent`)
-2. **`branching-model`** — versioning and publish policy
-3. **`gp-content`** — build stack (Containerfile, schema, pipeline)
+1. **`agent`** — CI runtime stack (container image with baked `coin-executor`; e.g. `coin-agent`, `agent-30-06`)
+2. **`gp-content`** — build policy, Containerfile, schema
+3. **`branching-model`** — versioning and publish policy
 
-Standalone `executor` SHALL NOT appear in the GP composition map; resolve materializes executor from the selected agent stack.
+Standalone `executor` SHALL NOT appear in the GP composition map, registry, or resolved manifest. The agent pin is the sole runtime source of truth.
 
-coin-api SHALL NOT inject Jenkins Shared Library (`lib`) from platform settings or any other control-plane source during resolve.
+#### Scenario: Create GP draft with three pins
 
-#### Scenario: Create draft with three catalog pins
-
-- **WHEN** publisher creates a draft with `agentStackName` `coin-agent`, `gpContentName` `go-app`, `branchingModelName` `trunk-based`, and matching versions in the composition map
-- **THEN** coin-api MUST accept the draft
-- **AND** MUST require keys `agent`, `gp-content`, and `branching-model` in composition
-
-#### Scenario: Reject lib in GP draft composition
-
-- **WHEN** publisher attempts to create a draft including `lib` in composition
-- **THEN** coin-api MUST reject the request with a validation error
+- **WHEN** publisher creates GP draft with agent, gp-content, and branching-model versions
+- **THEN** coin-api MUST persist exactly three composition rows
+- **AND** MUST NOT validate or require `executor/coin-executor@{agentVersion}` in the component registry
 
 #### Scenario: Reject standalone executor in GP draft composition
 
 - **WHEN** publisher attempts to create a draft including `executor` as a separate composition key
-- **THEN** coin-api MUST reject the request with a validation error
+- **THEN** coin-api MUST reject with invalid composition error
 
-#### Scenario: Resolve without lib injection
+#### Scenario: Resolve materializes runtime from agent only
 
-- **WHEN** resolve runs for a published GP release with three-pin composition
-- **THEN** coin-api MUST materialize executor from the pinned agent stack
-- **AND** MUST NOT add `lib` to the resolved manifest
+- **WHEN** GP release is resolved for CI
+- **THEN** coin-api MUST populate `manifest.runtime` from the pinned agent version metadata
+- **AND** MUST NOT add `manifest.executor`
+- **AND** MUST NOT query component registry for type `executor`
 
 ### Requirement: gp-content pinned per GP version not profile
 
@@ -119,6 +113,8 @@ GP promote SHALL re-validate all composition pins as `published` before transiti
 
 coin-api SHALL allow canary channel resolve when `catalog_policy.latest_canary` references a GP release with `status = draft`.
 
+coin-api SHALL accept catalog policy updates where `latestCanary` references any existing GP release version with `status` in `draft` or `published`, including snapshot semver suffixes (`-snapshot.N`).
+
 #### Scenario: Canary resolves GP draft
 
 - **WHEN** pilot project resolves GP with canary channel
@@ -130,6 +126,18 @@ coin-api SHALL allow canary channel resolve when `catalog_policy.latest_canary` 
 
 - **WHEN** product CI resolves GP on stable channel
 - **THEN** coin-api MUST NOT resolve GP releases with `status = draft`
+
+#### Scenario: Assign GP draft to canary catalog line
+
+- **WHEN** publisher PATCHes catalog policy with `latestCanary` set to an existing GP draft version
+- **THEN** coin-api MUST accept the update
+- **AND** MUST NOT require that version to be `published`
+
+#### Scenario: Stable catalog fields remain published-only
+
+- **WHEN** publisher PATCHes catalog policy `latest` or `minimum`
+- **THEN** coin-api MUST require referenced GP versions to be `published`
+- **AND** MUST reject snapshot semver for those fields
 
 ### Requirement: Composition documentation cross-links
 

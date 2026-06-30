@@ -13,7 +13,6 @@ type Manifest struct {
 	ManifestVersion int          `json:"manifestVersion"`
 	ManifestHash    string       `json:"manifestHash"`
 	GoldenPath      GoldenPath   `json:"goldenPath"`
-	Executor        Executor     `json:"executor"`
 	Runtime         Runtime      `json:"runtime"`
 	Build           Build        `json:"build"`
 	Pipeline        Pipeline     `json:"pipeline"`
@@ -54,12 +53,6 @@ func (m *Manifest) AllowedDeliverableTypes() []string {
 type GoldenPath struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
-}
-
-type Executor struct {
-	Version string `json:"version"`
-	URL     string `json:"url"`
-	SHA256  string `json:"sha256"`
 }
 
 type Runtime struct {

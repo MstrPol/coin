@@ -69,20 +69,3 @@ func TestValidateNewGPCompositionDecoupledFromProfileName(t *testing.T) {
 		t.Fatalf("gp-content slot name = go-app, got %q", slots[1].Name)
 	}
 }
-
-func TestExecutorPinForAgentStack(t *testing.T) {
-	pin, err := executorPinForAgentStack("coin-agent", "1.0.0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if pin.Name != "coin-executor" || pin.Version != "1.0.0" {
-		t.Fatalf("unexpected pin: %#v", pin)
-	}
-	pin, err = executorPinForAgentStack("coin-agent-arm", "2.0.0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if pin.Name != "coin-executor" || pin.Version != "2.0.0" {
-		t.Fatalf("unexpected pin: %#v", pin)
-	}
-}

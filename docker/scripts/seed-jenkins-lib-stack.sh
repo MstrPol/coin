@@ -94,7 +94,6 @@ for stack in "${GP_CONTENT_STACKS[@]}"; do
 done
 
 AGENT_VER="$(component_version agent coin-agent)"
-EXEC_VER="$(component_version executor coin-executor)"
 BRANCHING_VER="$(component_version branching-model trunk-based)"
 
 for stack in "${GP_CONTENT_STACKS[@]}"; do
@@ -104,7 +103,7 @@ for stack in "${GP_CONTENT_STACKS[@]}"; do
   fi
 done
 
-for pair in "agent:${AGENT_VER}" "executor:${EXEC_VER}" "branching-model:${BRANCHING_VER}"; do
+for pair in "agent:${AGENT_VER}" "branching-model:${BRANCHING_VER}"; do
   if [[ -z "${pair#*:}" ]]; then
     echo "missing component version for ${pair%%:*}" >&2
     exit 1

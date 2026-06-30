@@ -108,7 +108,6 @@ func (s *Server) Router() http.Handler {
 				r.With(shortTimeout).Get("/components", s.listComponents)
 				r.With(shortTimeout).Get("/components/agent/{name}/next-version", s.nextAgentVersion)
 				r.With(shortTimeout).Get("/components/gp-content/{name}/next-version", s.nextGPContentVersion)
-				r.With(shortTimeout).Get("/components/executor/{name}/next-version", s.nextExecutorVersion)
 				r.With(shortTimeout).Get("/components/{type}/{name}", s.getComponentDetail)
 				r.With(shortTimeout).Get("/components/{type}/{name}/versions", s.listComponentVersions)
 				r.With(shortTimeout).Get("/components/{type}/{name}/versions/{version}", s.getComponentVersionDetail)
@@ -1041,11 +1040,6 @@ func (s *Server) getComponentVersionDetail(w http.ResponseWriter, r *http.Reques
 	if len(detail.ContentRef) > 0 {
 		resp["contentRef"] = json.RawMessage(detail.ContentRef)
 	}
-	if detail.Type == "agent" {
-		if pin, ok := store.DerivedExecutorPin(detail.Name, detail.Version); ok {
-			resp["derivedExecutorPin"] = pin
-		}
-	}
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -1155,21 +1149,6 @@ func (s *Server) nextGPContentVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := s.admin.NextGPContentVersion(r.Context(), name, bump)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, res)
-}
-
-func (s *Server) nextExecutorVersion(w http.ResponseWriter, r *http.Request) {
-	name := chi.URLParam(r, "name")
-	bump := r.URL.Query().Get("bump")
-	if bump == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bump query param required (major, minor, patch)"})
-		return
-	}
-	res, err := s.admin.NextExecutorVersion(r.Context(), name, bump)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return

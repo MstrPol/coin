@@ -50,7 +50,7 @@ coin-lib/
 Merge в `coinLoadConfig` (приоритет слева направо, поздний слой побеждает):
 
 1. **lib** — `resources/coin-lib-defaults.yaml` + env overrides (`COIN_API_URL`, …)
-2. **GP** — resolved manifest (`runtime`, `executor`, `pipeline.stages`, …)
+2. **GP** — resolved manifest (`runtime`, `pipeline.stages`, …)
 3. **project** — `.coin/config.yaml` из repo
 
 В pod workspace materialize:

@@ -6,7 +6,7 @@
 
 | Слой | Где | Что хранит |
 |------|-----|------------|
-| **Content** | Nexus (+ PG draft bodies в Studio) | gp-content packages, executor binary, manifest blobs; coin-lib ZIP — вне PG registry |
+| **Content** | Nexus (+ PG draft bodies в Studio) | gp-content packages, executor binary (Nexus bake only), manifest blobs; coin-lib ZIP — вне PG registry |
 | **Metadata** | PostgreSQL | `component_versions`, GP releases, composition, catalog policy, audit |
 | **Runtime cache** | Nexus `maven-releases` / `maven-snapshots` | immutable manifest blobs + mutable pointers |
 
@@ -57,11 +57,6 @@ ADR: [adr/gp-component-package-model.md](adr/gp-component-package-model.md) (ame
   "manifestVersion": 1,
   "manifestHash": "sha256:…",
   "goldenPath": { "name": "go-app", "version": "1.0.2" },
-  "executor": {
-    "version": "0.1.0",
-    "url": "http://nexus:8081/repository/maven-releases/coin/executor/coin-executor/0.1.0/coin-executor-0.1.0-linux-arm64",
-    "sha256": "sha256:…"
-  },
   "runtime": {
     "image": "nexus:8082/coin-docker/coin-agent:1.0.0",
     "digest": "sha256:…"

@@ -113,14 +113,15 @@ Stages — typed ids; **нет** `pipeline.stages[].script.url`.
 
 | Slot | Type | Manifest |
 |------|------|----------|
-| `agent` | `agent` | `runtime.image`, derived `executor` |
+| `agent` | `agent` | `runtime.image`, `runtime.digest` (baked `coin-executor` в образе) |
 | `gp-content` | `gp-content` | `build`, `pipeline`, `validateSchema`, capabilities |
 | `branching-model` | `branching-model` | `branching` |
 
 | Не в GP composition | Где |
 |---------------------|-----|
-| `executor` | Derived от agent (`agent/{profile}@X` → `executor/coin-executor@X`, same version) |
 | `lib` | Platform pin; Jenkins `@Library`; не в `gp_composition` map |
+
+Resolved manifest v1 **не содержит** секцию `executor` — CI runtime полностью описан agent pin.
 
 OpenSpec: `gp-composition-two-slot` (id retained; фактически three-pin).
 
@@ -136,7 +137,7 @@ OpenSpec: `gp-composition-two-slot` (id retained; фактически three-pin
 |-----------|----------|
 | Promote | Только publisher (UI / Admin API); CI register — draft only |
 | GOARCH | Build-time only (`publish-agent.sh`); **не** в PG metadata |
-| Executor derive | Любой agent profile → `coin-executor@{same V}` |
+| Executor binary | Baked в agent image; **не** отдельный platform component |
 
 ### 9. Superseded (не реализовывать)
 

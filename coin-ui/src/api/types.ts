@@ -112,7 +112,6 @@ export type ComponentVersionDetail = ComponentVersion & {
   name: string;
   metadata: Record<string, unknown>;
   contentRef?: Record<string, unknown>;
-  derivedExecutorPin?: ComponentPin;
 };
 
 export type ValidationIssue = {

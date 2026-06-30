@@ -3,11 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
-	"coin.local/coin-executor/internal/bootstrap"
 	"coin.local/coin-executor/pkg/branching"
 	"coin.local/coin-executor/internal/config"
 	"coin.local/coin-executor/internal/executor"
@@ -28,7 +26,6 @@ func main() {
 
 	root.AddCommand(validateCmd())
 	root.AddCommand(runCmd())
-	root.AddCommand(bootstrapCmd())
 	root.AddCommand(versionCmd())
 	root.AddCommand(reportCmd())
 
@@ -90,31 +87,6 @@ func runCmd() *cobra.Command {
 	cmd.Flags().StringVar(&projectPath, "project", config.DefaultPath, "project config path")
 	cmd.Flags().StringVar(&manifestPath, "manifest", ".coin/manifest.json", "manifest path")
 	cmd.Flags().StringVar(&stage, "stage", "", "run single stage (validate|test|build|publish)")
-	return cmd
-}
-
-func bootstrapCmd() *cobra.Command {
-	var manifestPath, dest string
-	cmd := &cobra.Command{
-		Use:   "bootstrap",
-		Short: "Download coin-executor binary from manifest URL",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			m, err := manifest.Load(manifestPath)
-			if err != nil {
-				return err
-			}
-			if dest == "" {
-				dest = filepath.Join(".coin", "coin-executor")
-			}
-			if err := bootstrap.DownloadExecutor(m, dest); err != nil {
-				return err
-			}
-			fmt.Printf("✓ executor downloaded: %s (v%s)\n", dest, m.Executor.Version)
-			return nil
-		},
-	}
-	cmd.Flags().StringVar(&manifestPath, "manifest", ".coin/manifest.json", "manifest path")
-	cmd.Flags().StringVar(&dest, "dest", "", "destination path (default .coin/coin-executor)")
 	return cmd
 }
 

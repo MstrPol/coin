@@ -64,12 +64,6 @@ if [[ "${status}" != "draft" ]]; then
   exit 1
 fi
 
-derived="$(curl -fsS "${API}/v1/admin/components/agent/coin-agent/versions/${AGENT_VERSION}" "${AUTH[@]}" | jq -r '.derivedExecutorPin.version // empty')"
-if [[ "${derived}" != "${AGENT_VERSION}" ]]; then
-  echo "expected derivedExecutorPin.version=${AGENT_VERSION}, got ${derived}" >&2
-  exit 1
-fi
-
 DELETE_VERSION="${COIN_AGENT_DELETE_E2E_VERSION:-9.9.9-hub-delete}"
 echo "==> agent draft delete ${DELETE_VERSION}"
 api_post "/v1/admin/components/agent/coin-agent/versions/drafts" \

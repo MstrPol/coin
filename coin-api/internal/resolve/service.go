@@ -67,7 +67,7 @@ func (s *Service) Resolve(ctx context.Context, name, pinRaw string, opts Resolve
 		return Result{}, err
 	}
 
-	allowDraftGP := pin.IsSnapshotVersion(version)
+	allowDraftGP := channel == "canary" || pin.IsSnapshotVersion(version)
 	componentMode := store.ComponentResolveStable
 	if channel == "canary" || allowDraftGP {
 		componentMode = store.ComponentResolveDraft

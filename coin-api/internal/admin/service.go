@@ -559,25 +559,3 @@ func (s *Service) NextGPContentVersion(ctx context.Context, name, bump string) (
 		IsFirst:        isFirst,
 	}, nil
 }
-
-type NextExecutorVersionResult struct {
-	Name           string `json:"name"`
-	Bump           string `json:"bump"`
-	CurrentVersion string `json:"currentVersion"`
-	NextVersion    string `json:"nextVersion"`
-	IsFirst        bool   `json:"isFirst"`
-}
-
-func (s *Service) NextExecutorVersion(ctx context.Context, name, bump string) (NextExecutorVersionResult, error) {
-	current, next, isFirst, err := s.store.NextExecutorVersion(ctx, name, bump)
-	if err != nil {
-		return NextExecutorVersionResult{}, err
-	}
-	return NextExecutorVersionResult{
-		Name:           name,
-		Bump:           bump,
-		CurrentVersion: current,
-		NextVersion:    next,
-		IsFirst:        isFirst,
-	}, nil
-}

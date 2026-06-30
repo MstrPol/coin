@@ -102,7 +102,7 @@ maven-releases/coin/executor/coin-executor/0.1.0/coin-executor-0.1.0-linux-arm64
 maven-releases/coin/executor/coin-executor/0.1.0/coin-executor-0.1.0-linux-amd64
 ```
 
-Manifest `executor.url` должен указывать на правильный arch.
+Manifest `executor` секции нет — binary baked в `coin-agent`. Проверьте arch бинарника в образе agent.
 
 ## coin-executor stages
 
@@ -151,9 +151,9 @@ make e2e-build-engines   # включает prune перед прогоном
 
 **Fix:** `make coin-lib` очищает `caches/git-*` в Jenkins volume.
 
-### executor 404 при bootstrap
+### executor 404 при bootstrap (superseded)
 
-**Симптом:** устаревший flow — executor baked в `coin-agent`.
+**Симптом:** устаревший flow — `coin-executor bootstrap` и `manifest.executor` удалены; binary baked в `coin-agent`.
 
 **Fix:** `make publish-agent`, проверить `manifest.runtime.image` указывает на актуальный `coin-agent` tag.
 

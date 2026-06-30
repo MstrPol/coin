@@ -10,13 +10,7 @@ Platform components `gp-content`, `branching-model`, and `agent` SHALL use a two
 
 The `canary` status SHALL NOT exist for component versions.
 
-`executor` versions SHALL remain derived from agent stack versions at resolve time as `executor/coin-executor@{same version as agent pin}` for any registered `agent` profile, and SHALL NOT have an independent draft UI lifecycle.
-
-#### Scenario: Executor derived for any agent profile
-
-- **WHEN** GP composition pins `agent/{profile}@{version}` for any registered profile name
-- **THEN** coin-api MUST derive `executor/coin-executor@{version}` at resolve time
-- **AND** MUST NOT reject derive solely because profile name is not `coin-agent`
+Component type `executor` SHALL NOT be registered, resolved, or validated as a platform component. CI runtime is fully defined by the pinned `agent` version.
 
 #### Scenario: Create draft component version
 
@@ -24,6 +18,7 @@ The `canary` status SHALL NOT exist for component versions.
 - **THEN** coin-api MUST store the version with `status = draft`
 - **AND** for `gp-content` and `branching-model` artifact bodies MUST be editable in PostgreSQL until publish
 - **AND** for `agent` metadata (`image`, `digest`) MUST be editable while `status = draft`
+- **AND** MUST NOT create or require a paired `executor` component version
 
 #### Scenario: Publish draft to stable
 
@@ -33,6 +28,7 @@ The `canary` status SHALL NOT exist for component versions.
 - **AND** for `agent` MUST NOT require Nexus content_ref; `metadata.image` and `metadata.digest` MUST be present and valid before promote
 - **AND** CI register flows MUST NOT promote `agent` versions automatically
 - **AND** MUST NOT transition through a `canary` component status
+- **AND** MUST NOT auto-publish or require `executor/coin-executor@{same version}`
 
 #### Scenario: Delete draft component version
 

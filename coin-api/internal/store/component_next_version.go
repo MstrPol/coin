@@ -100,15 +100,6 @@ func (s *Store) NextGPContentVersion(ctx context.Context, name, bump string) (cu
 	return s.nextSemverComponentVersion(ctx, "gp-content", name, bump)
 }
 
-// NextExecutorVersion returns semver after bump for executor/coin-executor.
-// First publish → 1.0.0.
-func (s *Store) NextExecutorVersion(ctx context.Context, name, bump string) (currentVersion, nextVersion string, isFirst bool, err error) {
-	if name == "" {
-		return "", "", false, fmt.Errorf("executor name is required")
-	}
-	return s.nextSemverComponentVersion(ctx, "executor", name, bump)
-}
-
 func latestPublishedSemver(versions []ComponentVersionListItem) string {
 	var best string
 	for _, v := range versions {

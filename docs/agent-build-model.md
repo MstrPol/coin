@@ -11,7 +11,7 @@ Operational runbook. **Каноническая модель:** ADR [coin-ci-run
 | Слой | Роль |
 |------|------|
 | **GP content** | SoT: `build.engine`, managed Containerfile (buildkit), schema, `capabilities.deliverables`, typed `pipeline.stages` |
-| **coin-api** | Resolve → manifest с `build`, `runtime.image`, `executor`, typed stages |
+| **coin-api** | Resolve → manifest с `build`, `runtime.image`, typed stages |
 | **coin-agent** | Единый Jenkins inbound-agent image: `coin-executor`, `podman`, buildkit binaries (fallback) |
 | **coin-executor** | `validate` / `run --stage` / `publish` — dispatch по `manifest.build.engine` |
 | **coin-lib** | Jenkins glue: resolve, pod, credentials, bootstrap podman, вызов executor |

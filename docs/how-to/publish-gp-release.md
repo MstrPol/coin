@@ -19,9 +19,9 @@
 | `gp-content` | `gp-content` | `go-app@1.0.2` |
 | `branching-model` | `branching-model` | `trunk-based@1.0.0` |
 
-`executor` materialized из agent stack (не отдельный composition key). `coin-lib` — вне GP composition (Jenkins `@Library`).
+Agent pin = полный CI runtime stack (`coin-executor` baked в образ). `coin-lib` — вне GP composition (Jenkins `@Library`).
 
-**Superseded:** 4-slot с `executor` + `lib` в composition; slots `pipeline`, `validate`, `dockerfile`, stack agent `go@{ver}`.
+**Superseded:** 4-slot с `executor` + `lib` в composition; `manifest.executor` секция.
 
 Manifest собирается из composition: `build`, `pipeline.stages` (typed), `validateSchema`, `branching`, `runtime.image`.
 
@@ -48,9 +48,8 @@ curl -X POST http://localhost:8090/v1/admin/golden-paths/go-app/versions \
     "version": "1.0.3",
     "composition": {
       "agent": "1.0.0",
-      "executor": "0.1.0",
-      "lib": "1.0.0",
-      "gp-content": "1.0.2"
+      "gp-content": "1.0.2",
+      "branching-model": "1.0.0"
     },
     "actor": "platform-team"
   }'
