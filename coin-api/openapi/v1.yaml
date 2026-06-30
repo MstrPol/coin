@@ -542,6 +542,29 @@ paths:
         "401":
           description: Unauthorized
 
+  /v1/admin/gp-content/preview:
+    post:
+      summary: Preview gp-content manifest subset (executor SoT)
+      security:
+        - adminKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GpContentPreviewRequest"
+      responses:
+        "200":
+          description: Preview build/pipeline fragment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GpContentPreviewResult"
+        "400":
+          description: Invalid content yaml
+        "401":
+          description: Unauthorized
+
   /v1/admin/golden-paths/{name}/projects/{project}/canary-context:
     get:
       summary: Canary audience context for project
@@ -1139,22 +1162,20 @@ components:
       properties:
         engine:
           type: string
-          enum: [buildkit, buildpack, dockerfile]
+          enum: [buildkit, dockerfile]
         buildkit:
           $ref: "#/components/schemas/ManifestBuildkit"
-        buildpack:
-          $ref: "#/components/schemas/ManifestBuildpack"
         dockerfile:
           $ref: "#/components/schemas/ManifestDockerfileEngine"
 
     ManifestDockerfileEngine:
       type: object
-      required: [dockerfile, containerfile]
+      required: [dockerfile]
       properties:
         dockerfile:
           type: string
-          description: Resolved path in workspace, e.g. .coin/Containerfile
-          example: ".coin/Containerfile"
+          description: Path to Dockerfile in product workspace (BYO)
+          example: Dockerfile
         imageTarget:
           type: string
           example: runtime
@@ -1164,21 +1185,6 @@ components:
         cacheRef:
           type: string
           example: "localhost:8082/coin-cache/demo-go-app:dockerfile"
-        containerfile:
-          $ref: "#/components/schemas/ContentRef"
-
-    ManifestBuildpack:
-      type: object
-      required: [builder]
-      properties:
-        builder:
-          type: string
-          example: paketobuildpacks/builder-jammy-base
-        runImage:
-          type: string
-        cacheRef:
-          type: string
-          example: "localhost:8082/coin-cache/demo-go-app:buildpack"
 
     ManifestBuildkit:
       type: object
@@ -1235,13 +1241,10 @@ components:
           properties:
             engine:
               type: string
-              enum: [buildkit, buildpack, dockerfile]
+              enum: [buildkit, dockerfile]
             buildkit:
               type: object
               properties:
-                dockerfile:
-                  type: string
-                  example: dockerfiles/Containerfile
                 targets:
                   type: object
                   additionalProperties:
@@ -1249,24 +1252,12 @@ components:
                 cacheRefTemplate:
                   type: string
                   example: "{{registryHost}}/coin-cache/{{project}}:buildkit"
-            buildpack:
-              type: object
-              required: [builder]
-              properties:
-                builder:
-                  type: string
-                  example: paketobuildpacks/builder-jammy-base
-                runImage:
-                  type: string
-                cacheRefTemplate:
-                  type: string
-                  example: "{{registryHost}}/coin-cache/{{project}}:buildpack"
             dockerfile:
               type: object
               properties:
-                file:
+                path:
                   type: string
-                  example: dockerfiles/Containerfile
+                  example: Dockerfile
                 imageTarget:
                   type: string
                   example: runtime
@@ -1276,6 +1267,14 @@ components:
                 cacheRefTemplate:
                   type: string
                   example: "{{registryHost}}/coin-cache/{{project}}:dockerfile"
+        capabilities:
+          type: object
+          properties:
+            deliverables:
+              type: array
+              items:
+                type: string
+                enum: [image, artifact]
         validateSchema:
           type: object
           required: [artifactKey, sha256]
@@ -2055,6 +2054,49 @@ components:
                 enum: [not-requested, allowed, denied]
               publishReason:
                 type: string
+
+    GpContentPreviewRequest:
+      type: object
+      required: [contentYaml]
+      properties:
+        contentYaml:
+          type: string
+        componentName:
+          type: string
+        project:
+          type: string
+        registryHost:
+          type: string
+
+    GpContentPreviewResult:
+      type: object
+      required: [valid, issues]
+      properties:
+        valid:
+          type: boolean
+        issues:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field:
+                type: string
+              message:
+                type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        build:
+          type: object
+          additionalProperties: true
+        pipeline:
+          type: object
+          additionalProperties: true
+        capabilities:
+          type: object
+          additionalProperties: true
 
     AdminPrincipal:
       type: object

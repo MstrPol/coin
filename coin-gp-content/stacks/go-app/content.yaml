@@ -1,34 +1,22 @@
+schemaVersion: 2
 name: go-app
 kind: gp-content
+
 capabilities:
   deliverables:
     - image
     - artifact
-controls:
-  skipTests:
-    type: boolean
-    default: false
-  publishMode:
-    type: choice
-    values: [auto, never, force]
-    default: auto
-  snapshot:
-    type: boolean
-    default: true
-  bump:
-    type: choice
-    values: [none, patch, minor, major]
-    default: none
+
 build:
   engine: buildkit
   buildkit:
-    dockerfile: dockerfiles/Containerfile
     targets:
       validate: validate
       test: test
       image: runtime
       artifact: artifact
     cacheRefTemplate: "{{registryHost}}/coin-cache/{{project}}:buildkit"
+
 pipeline:
   stages:
     - id: validate
@@ -39,8 +27,7 @@ pipeline:
       name: Build
     - id: publish
       name: Publish
-      when: tag
-validateSchema:
-  artifactKey: schemas/config.v2.schema.json
-containerfile:
-  artifactKey: dockerfiles/Containerfile
+
+artifacts:
+  validateSchema: schemas/config.v2.schema.json
+  containerfile: dockerfiles/Containerfile

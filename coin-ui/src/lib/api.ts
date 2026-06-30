@@ -506,6 +506,13 @@ export const api = {
       { model, scenarios },
     );
   },
+  gpContentPreview: async (model: import("./gpContentYaml").GpContentModel, componentName: string) => {
+    const { serializeGpContent } = await import("./gpContentYaml");
+    return apiPost<import("./gpContentYaml").GpContentPreviewResult>("/v1/admin/gp-content/preview", {
+      contentYaml: serializeGpContent(model),
+      componentName,
+    });
+  },
   promoteComponentVersion: (type: string, name: string, version: string, actor?: string) =>
     apiPost<{ type: string; name: string; version: string; status: string }>(
       `/v1/admin/components/${type}/${name}/versions/${encodeURIComponent(version)}/promote`,

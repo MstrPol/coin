@@ -10,9 +10,9 @@ Operational runbook. **Каноническая модель:** ADR [coin-ci-run
 
 | Слой | Роль |
 |------|------|
-| **GP content** | SoT: `build.engine`, Containerfile (buildkit/dockerfile), Paketo builder (buildpack), schema, typed `pipeline.stages` |
+| **GP content** | SoT: `build.engine`, managed Containerfile (buildkit), schema, `capabilities.deliverables`, typed `pipeline.stages` |
 | **coin-api** | Resolve → manifest с `build`, `runtime.image`, `executor`, typed stages |
-| **coin-agent** | Единый Jenkins inbound-agent image: `coin-executor`, `podman`, `pack`, buildkit binaries (fallback) |
+| **coin-agent** | Единый Jenkins inbound-agent image: `coin-executor`, `podman`, buildkit binaries (fallback) |
 | **coin-executor** | `validate` / `run --stage` / `publish` — dispatch по `manifest.build.engine` |
 | **coin-lib** | Jenkins glue: resolve, pod, credentials, bootstrap podman, вызов executor |
 
@@ -20,19 +20,17 @@ Operational runbook. **Каноническая модель:** ADR [coin-ci-run
 
 ---
 
-## Три build engine (local pilot)
+## Два build engine (local pilot)
 
-| Engine | Golden path (sample) | Сборка образа | Managed Containerfile |
-|--------|----------------------|---------------|------------------------|
-| `buildkit` | `go-app` | BuildKit targets через **podman build** (см. ниже) | Да — multi-stage с targets `validate`, `test`, `runtime`, `artifact` |
-| `buildpack` | `go-app-bp` | `pack build` + podman | Нет |
-| `dockerfile` | `go-app-df` | **podman build** по targets `test` / `image` | Да — явные `imageTarget` / `testTarget` |
+| Engine | Golden path (sample) | Сборка образа | Containerfile |
+|--------|----------------------|---------------|---------------|
+| `buildkit` | `go-app` | BuildKit targets через **podman build** | Managed в gp-content → `.coin/Containerfile` |
+| `dockerfile` (BYO) | `go-app-docker` | **podman build** по `imageTarget` / `testTarget` | Dockerfile в репозитории продукта |
 
 Эталон content:
 
 - [`coin-gp-content/stacks/go-app/content.yaml`](../coin-gp-content/stacks/go-app/content.yaml)
-- [`coin-gp-content/stacks/go-app-bp/content.yaml`](../coin-gp-content/stacks/go-app-bp/content.yaml)
-- [`coin-gp-content/stacks/go-app-df/content.yaml`](../coin-gp-content/stacks/go-app-df/content.yaml)
+- [`coin-gp-content/stacks/go-app-docker/content.yaml`](../coin-gp-content/stacks/go-app-docker/content.yaml)
 
 E2E на стенде:
 
@@ -40,8 +38,8 @@ E2E на стенде:
 cd docker
 make seed-jenkins-lib          # lib + gp-content + GP profiles
 make publish-agent             # coin-agent → Nexus (arm64: GOARCH=arm64)
-make samples                   # demo-go-app, demo-go-app-bp, demo-go-app-df
-make e2e-build-engines         # все три job → SUCCESS
+make samples                   # demo-go-app, demo-go-app-docker
+make e2e-build-engines         # обе job → SUCCESS
 ```
 
 ---
@@ -73,7 +71,7 @@ flowchart TB
 | Stage | Поведение |
 |-------|-----------|
 | `validate` | JSON schema `.coin/config.yaml` + manifest capabilities |
-| `test` | buildkit/dockerfile: target `test` в Containerfile; buildpack: `pack` с `BP_RUN_TESTS=true` |
+| `test` | buildkit: target `test` в Containerfile; BYO dockerfile: `testTarget` в product Dockerfile |
 | `build` | Сборка image → `.coin/outputs.json` |
 | `publish` | Push image; skip — `params.publish=false` (coin-lib); deny — branching policy |
 

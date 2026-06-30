@@ -40,6 +40,37 @@ The coin-ui SHALL provide a Platform → Build stacks catalog listing **gp-conte
 - **WHEN** publisher clicks «New draft» on build stack hub
 - **THEN** the UI MUST create a draft version via Admin API and open the edit page
 
+### Requirement: GP content schema v2 editor
+
+The build stack editor SHALL edit `content.yaml` schema v2 bijectively with ordered section cards: engine, build policy, capabilities, pipeline stages, and artifacts.
+
+#### Scenario: Engine card switches build block
+
+- **WHEN** publisher selects engine `dockerfile` in the editor
+- **THEN** the UI MUST show BYO dockerfile fields (`path`, `imageTarget`, `testTarget`)
+- **AND** MUST hide buildkit targets and managed containerfile artifact key
+
+#### Scenario: Engine card buildkit
+
+- **WHEN** publisher selects engine `buildkit`
+- **THEN** the UI MUST show buildkit targets map and managed containerfile artifact editor
+- **AND** MUST allow `artifact` in capabilities deliverables
+
+#### Scenario: Save produces v2 yaml
+
+- **WHEN** publisher saves draft from the editor
+- **THEN** persisted `content.yaml` MUST have `schemaVersion: 2`
+- **AND** MUST NOT contain `controls` or `pipeline.stages[].when`
+
+### Requirement: Build stack preview panel
+
+The build stack editor SHALL call gp-content preview API and display resolved manifest fragment and warnings.
+
+#### Scenario: Debounced preview on edit
+
+- **WHEN** publisher changes engine or targets in draft editor
+- **THEN** the UI MUST call preview API and show resolved `build` snippet
+
 ### Requirement: gp-content from GP release composition
 
 When viewing a GP release, the UI SHALL surface the pinned gp-content from that release's composition — not from the profile entity.

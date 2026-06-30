@@ -1,9 +1,8 @@
 # syntax=docker/dockerfile:1.8
-# Universal Coin Jenkins agent: inbound-agent + coin-executor + BuildKit + pack/podman.
+# Universal Coin Jenkins agent: inbound-agent + coin-executor + BuildKit + podman.
 ARG REGISTRY=""
 ARG JENKINS_INBOUND_AGENT_TAG=3327.v868139a_d00e0-8
 ARG BUILDKIT_VERSION=v0.17.3
-ARG PACK_VERSION=0.36.2
 
 FROM ${REGISTRY}golang:1.22-bookworm AS executor-builder
 
@@ -40,11 +39,6 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends curl git jq ca-certificates podman fuse-overlayfs \
   && rm -rf /var/lib/apt/lists/*
 
-ARG PACK_VERSION
-ARG TARGETARCH
-COPY pack /usr/local/bin/pack
-RUN chmod +x /usr/local/bin/pack
-
 COPY --from=buildkit-bin /usr/bin/buildkitd /usr/local/bin/buildkitd
 COPY --from=buildkit-bin /usr/bin/buildctl /usr/local/bin/buildctl
 COPY --from=buildkit-bin /usr/bin/buildkit-runc /usr/local/bin/runc
@@ -55,9 +49,6 @@ COPY podman-storage.conf /etc/containers/storage.conf
 COPY podman-registries.conf /etc/containers/registries.conf
 COPY --from=executor-builder /coin-executor /usr/local/bin/coin-executor
 RUN chmod +x /usr/local/bin/coin-executor /usr/local/bin/buildkitd /usr/local/bin/buildctl /usr/local/bin/runc
-
-# Buildpack builder baked as tar (loaded into podman at bootstrap; avoids registry pull in pod).
-COPY paketo-builder.tar /usr/share/coin/paketo-builder.tar
 
 # coin-agent: buildkitd/podman требуют root (rootless нужен RootlessKit). Jenkins remoting ok as root.
 USER root

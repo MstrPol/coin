@@ -47,13 +47,11 @@ type ContentBundle struct {
 	ContainerfileKey     string
 	ContainerfileSHA256  string
 	BuildEngine          string
-	BuildkitDockerfile   string
 	BuildkitTargets      map[string]string
-	BuildpackBuilder        string
-	BuildpackRunImage       string
-	DockerfileImageTarget   string
-	DockerfileTestTarget    string
-	CacheRefTemplate        string
+	DockerfilePath       string
+	DockerfileImageTarget string
+	DockerfileTestTarget  string
+	CacheRefTemplate     string
 	Stages               []TypedStage
 }
 
@@ -142,26 +140,13 @@ func (b Builder) buildSection(release GPRelease, opts BuildOptions, resolvedDock
 	}
 	if engine != "buildkit" {
 		switch engine {
-		case "buildpack":
-			bp := map[string]any{
-				"builder": release.Content.BuildpackBuilder,
-			}
-			if runImage := strings.TrimSpace(release.Content.BuildpackRunImage); runImage != "" {
-				bp["runImage"] = runImage
-			}
-			if cacheRef := resolveCacheRef(release.Content.CacheRefTemplate, opts); cacheRef != "" {
-				bp["cacheRef"] = cacheRef
-			}
-			out["buildpack"] = bp
 		case "dockerfile":
+			dockerfilePath := strings.TrimSpace(release.Content.DockerfilePath)
+			if dockerfilePath == "" {
+				dockerfilePath = "Dockerfile"
+			}
 			df := map[string]any{
-				"dockerfile": resolvedDockerfile,
-				"containerfile": contentRef(
-					release.Name,
-					release.Version,
-					release.Content.ContainerfileKey,
-					release.Content.ContainerfileSHA256,
-				),
+				"dockerfile": dockerfilePath,
 			}
 			if target := strings.TrimSpace(release.Content.DockerfileImageTarget); target != "" {
 				df["imageTarget"] = target

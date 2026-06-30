@@ -4,7 +4,7 @@
 
 | Сущность | Описание |
 |----------|----------|
-| **Golden Path (GP)** | Именованный профиль: `go-app`, `go-app-bp`, `go-app-df`, … |
+| **Golden Path (GP)** | Именованный профиль: `go-app`, `go-app-docker`, … |
 | **GP release** | Semver pin в продукте: `go-app@1.0.0` |
 | **Platform component** | Версионируемый артефакт платформы (`gp-content`, `lib`, `agent`, …) |
 | **Manifest** | JSON от Resolve: `build`, `runtime`, `pipeline`, `lib`, `validateSchema` |
@@ -112,16 +112,14 @@ Package layout: `maven-releases/coin/{type}/{name}/{version}/package.manifest.js
 | GP | `build.engine` | Sample repo | Jenkins job |
 |----|----------------|-------------|-------------|
 | `go-app` | `buildkit` | `samples/demo-go-app` | `demo-go-app` |
-| `go-app-bp` | `buildpack` | `samples/demo-go-app-bp` | `demo-go-app-bp` |
-| `go-app-df` | `dockerfile` | `samples/demo-go-app-df` | `demo-go-app-df` |
+| `go-app-docker` | `dockerfile` (BYO) | `samples/demo-go-app-docker` | `demo-go-app-docker` |
 
 Content SoT (reference + Studio export):
 
 ```
 coin-gp-content/stacks/
-├── go-app/content.yaml       # buildkit
-├── go-app-bp/content.yaml    # buildpack
-└── go-app-df/content.yaml    # dockerfile
+├── go-app/content.yaml
+└── go-app-docker/content.yaml
 ```
 
 ## Runtime pod

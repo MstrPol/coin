@@ -23,27 +23,21 @@ func DefaultBranchingModelForGP(gpName string) string {
 }
 
 type gpContentContentRef struct {
-	Pipeline struct {
+	Capabilities map[string]any `json:"capabilities"`
+	Pipeline     struct {
 		Stages []struct {
 			ID   string `json:"id"`
 			Name string `json:"name"`
-			When string `json:"when"`
 		} `json:"stages"`
 	} `json:"pipeline"`
 	Build struct {
 		Engine   string `json:"engine"`
 		Buildkit struct {
-			Dockerfile       string            `json:"dockerfile"`
 			Targets          map[string]string `json:"targets"`
 			CacheRefTemplate string            `json:"cacheRefTemplate"`
 		} `json:"buildkit"`
-		Buildpack struct {
-			Builder          string `json:"builder"`
-			RunImage         string `json:"runImage"`
-			CacheRefTemplate string `json:"cacheRefTemplate"`
-		} `json:"buildpack"`
 		Dockerfile struct {
-			File             string `json:"file"`
+			Path             string `json:"path"`
 			ImageTarget      string `json:"imageTarget"`
 			TestTarget       string `json:"testTarget"`
 			CacheRefTemplate string `json:"cacheRefTemplate"`
@@ -95,35 +89,33 @@ func contentBundleFromGPContent(meta gpContentMetadata, cref gpContentContentRef
 		stages = append(stages, manifest.TypedStage{
 			ID:   st.ID,
 			Name: st.Name,
-			When: st.When,
 		})
 	}
+	capabilities := meta.Capabilities
+	if len(capabilities) == 0 {
+		capabilities = cref.Capabilities
+	}
 	return manifest.ContentBundle{
-		BundleURL:           meta.URL,
-		BundleSHA256:        meta.SHA256,
-		BuildControls:       meta.BuildControls,
-		Capabilities:        meta.Capabilities,
-		SchemaArtifactKey:   cref.ValidateSchema.ArtifactKey,
-		SchemaSHA256:        cref.ValidateSchema.SHA256,
-		ContainerfileKey:    cref.Containerfile.ArtifactKey,
-		ContainerfileSHA256: cref.Containerfile.SHA256,
-		BuildEngine:         cref.Build.Engine,
-		BuildkitDockerfile:  cref.Build.Buildkit.Dockerfile,
-		BuildkitTargets:     cref.Build.Buildkit.Targets,
-		BuildpackBuilder:      cref.Build.Buildpack.Builder,
-		BuildpackRunImage:     cref.Build.Buildpack.RunImage,
+		BundleURL:             meta.URL,
+		BundleSHA256:          meta.SHA256,
+		BuildControls:         meta.BuildControls,
+		Capabilities:          capabilities,
+		SchemaArtifactKey:     cref.ValidateSchema.ArtifactKey,
+		SchemaSHA256:          cref.ValidateSchema.SHA256,
+		ContainerfileKey:      cref.Containerfile.ArtifactKey,
+		ContainerfileSHA256:   cref.Containerfile.SHA256,
+		BuildEngine:           cref.Build.Engine,
+		BuildkitTargets:       cref.Build.Buildkit.Targets,
+		DockerfilePath:        cref.Build.Dockerfile.Path,
 		DockerfileImageTarget: cref.Build.Dockerfile.ImageTarget,
 		DockerfileTestTarget:  cref.Build.Dockerfile.TestTarget,
-		CacheRefTemplate:    cacheRefTemplateFromContent(cref),
-		Stages:              stages,
+		CacheRefTemplate:      cacheRefTemplateFromContent(cref),
+		Stages:                stages,
 	}
 }
 
 func cacheRefTemplateFromContent(cref gpContentContentRef) string {
 	if t := strings.TrimSpace(cref.Build.Buildkit.CacheRefTemplate); t != "" {
-		return t
-	}
-	if t := strings.TrimSpace(cref.Build.Buildpack.CacheRefTemplate); t != "" {
 		return t
 	}
 	return strings.TrimSpace(cref.Build.Dockerfile.CacheRefTemplate)

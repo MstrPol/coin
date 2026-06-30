@@ -67,9 +67,9 @@
 2. **coin-api** собирает manifest из composition slots + Nexus packages (materializers).
 3. **Component Studio** — primary path для platform components (`gp-content`, `branching-model`).
 4. **Nexus** — immutable blobs + mutable pointers; CI resolve с fallback при недоступном API.
-5. **coin-executor** — validate, build engines (`buildkit` / `buildpack` / `dockerfile`), report.
+5. **coin-executor** — validate, build engines (`buildkit` / BYO `dockerfile`), report.
 6. **coin-lib** + **Jenkinsfile.coin** — resolve → pod (`coin-agent`) → executor stages.
-7. **E2E local pilot:** `make e2e-build-engines` — три demo jobs (buildkit, buildpack, dockerfile).
+7. **E2E local pilot:** `make e2e-build-engines` — две demo jobs (buildkit + BYO dockerfile).
 
 ## ADR (архитектурные решения)
 

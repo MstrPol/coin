@@ -86,48 +86,15 @@ func TestBuilderBuildEngineContract(t *testing.T) {
 	}
 }
 
-func TestBuilderBuildpackEngine(t *testing.T) {
-	b := Builder{}
-	release := sampleRelease()
-	release.Content.BuildEngine = "buildpack"
-	release.Content.BuildpackBuilder = "paketobuildpacks/builder-jammy-base"
-	release.Content.CacheRefTemplate = "{{registryHost}}/coin-cache/{{project}}:buildpack"
-	release.Content.ContainerfileKey = ""
-	release.Content.ContainerfileSHA256 = ""
-
-	doc, _, err := b.Build(release, BuildOptions{Project: "demo-go-app", RegistryHost: "localhost:8082"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	build, ok := doc["build"].(map[string]any)
-	if !ok {
-		t.Fatal("build missing")
-	}
-	if build["engine"] != "buildpack" {
-		t.Fatalf("unexpected engine: %#v", build["engine"])
-	}
-	bp, ok := build["buildpack"].(map[string]any)
-	if !ok {
-		t.Fatal("build.buildpack missing")
-	}
-	if bp["builder"] != "paketobuildpacks/builder-jammy-base" {
-		t.Fatalf("unexpected builder: %#v", bp["builder"])
-	}
-	cacheRef, _ := bp["cacheRef"].(string)
-	if cacheRef != "localhost:8082/coin-cache/demo-go-app:buildpack" {
-		t.Fatalf("unexpected cacheRef: %q", cacheRef)
-	}
-	if _, hasBuildkit := build["buildkit"]; hasBuildkit {
-		t.Fatal("buildpack manifest must not include buildkit section")
-	}
-}
-
 func TestBuilderDockerfileEngine(t *testing.T) {
 	b := Builder{}
 	release := sampleRelease()
 	release.Content.BuildEngine = "dockerfile"
+	release.Content.DockerfilePath = "Dockerfile"
 	release.Content.DockerfileImageTarget = "runtime"
 	release.Content.DockerfileTestTarget = "test"
+	release.Content.ContainerfileKey = ""
+	release.Content.ContainerfileSHA256 = ""
 	release.Content.CacheRefTemplate = "{{registryHost}}/coin-cache/{{project}}:dockerfile"
 
 	doc, _, err := b.Build(release, BuildOptions{Project: "demo-go-app", RegistryHost: "localhost:8082"})
@@ -145,7 +112,7 @@ func TestBuilderDockerfileEngine(t *testing.T) {
 	if !ok {
 		t.Fatal("build.dockerfile missing")
 	}
-	if df["dockerfile"] != ".coin/Containerfile" {
+	if df["dockerfile"] != "Dockerfile" {
 		t.Fatalf("unexpected dockerfile path: %#v", df["dockerfile"])
 	}
 	if df["imageTarget"] != "runtime" || df["testTarget"] != "test" {
@@ -155,9 +122,8 @@ func TestBuilderDockerfileEngine(t *testing.T) {
 	if cacheRef != "localhost:8082/coin-cache/demo-go-app:dockerfile" {
 		t.Fatalf("unexpected cacheRef: %q", cacheRef)
 	}
-	cf, ok := df["containerfile"].(map[string]string)
-	if !ok || cf["url"] == "" {
-		t.Fatalf("containerfile ref missing: %#v", df["containerfile"])
+	if _, hasContainerfile := df["containerfile"]; hasContainerfile {
+		t.Fatal("BYO dockerfile manifest must not include containerfile ref")
 	}
 	if _, hasBuildkit := build["buildkit"]; hasBuildkit {
 		t.Fatal("dockerfile manifest must not include buildkit section")
@@ -183,7 +149,6 @@ func sampleRelease() GPRelease {
 			ContainerfileKey:      "dockerfiles/Containerfile",
 			ContainerfileSHA256:   "sha256:containerfile",
 			BuildEngine:           "buildkit",
-			BuildkitDockerfile:    "dockerfiles/Containerfile",
 			BuildkitTargets: map[string]string{
 				"validate": "validate",
 				"test":     "test",
@@ -195,7 +160,7 @@ func sampleRelease() GPRelease {
 				{ID: "validate", Name: "Validate"},
 				{ID: "test", Name: "Test"},
 				{ID: "build", Name: "Build"},
-				{ID: "publish", Name: "Publish", When: "tag"},
+				{ID: "publish", Name: "Publish"},
 			},
 		},
 	}

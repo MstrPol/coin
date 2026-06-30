@@ -46,10 +46,8 @@ Coin CI runtime после hard cut:
 |-----------|------------|
 | `jenkins/inbound-agent` | JNLP remoting |
 | `coin-executor` | validate, stages, publish, report |
-| `podman` | Container builds; socket для `pack` |
-| `pack` | Buildpack engine |
+| `podman` | Container builds (buildkit + BYO dockerfile на arm64 pilot) |
 | `buildkitd` / `buildctl` | В образе; corp amd64 primary path |
-| `paketo-builder.tar` | Baked builder (buildpack pilot) |
 
 **Нет** language toolchains (Go/Java/Node) в agent — toolchain в managed Containerfile / builder images.
 
@@ -58,24 +56,24 @@ Coin CI runtime после hard cut:
 Обязательно на каждой сборке:
 
 1. `podman system service` → `unix:///var/run/docker.sock` **внутри pod** (не Docker Daemon).
-2. **buildpack only:** `podman load` из `/usr/share/coin/paketo-builder.tar` при необходимости.
-3. `coin-executor version`.
+2. `coin-executor version`.
 
 `buildkitd` **не** стартует в bootstrap на **local pilot arm64**.
 
-### 4. Три build engine
+### 4. Два build engine
 
 Источник SoT: `coin-gp-content/stacks/<gp>/content.yaml` → manifest `build`.
 
 | Engine | Sample GP | Containerfile | Реализация (pilot arm64) |
 |--------|-----------|---------------|--------------------------|
-| `buildkit` | `go-app` | multi-target | **podman build** по targets |
-| `buildpack` | `go-app-bp` | нет | `pack build` + podman socket |
-| `dockerfile` | `go-app-df` | explicit targets | **podman build** |
+| `buildkit` | `go-app` | managed → `.coin/Containerfile` | **podman build** по targets |
+| `dockerfile` (BYO) | `go-app-docker` | product `Dockerfile` | **podman build** по `imageTarget` / `testTarget` |
+
+Buildpack superseded (hard cut 2026-06).
 
 `coin-executor` dispatch по `manifest.build.engine`. `coin-lib` **не** интерпретирует engine.
 
-Managed Containerfile materialize в workspace: `.coin/Containerfile` (content ref из gp-content package).
+Managed Containerfile materialize в workspace только для **buildkit** (content ref из gp-content package).
 
 ### 5. Pilot vs corp
 
@@ -91,7 +89,7 @@ Managed Containerfile materialize в workspace: `.coin/Containerfile` (content r
 | Stage | Executor |
 |-------|----------|
 | `validate` | schema + capabilities |
-| `test` | engine-specific test target / buildpack tests |
+| `test` | engine-specific test target |
 | `build` | image → `.coin/outputs.json` |
 | `publish` | registry push |
 

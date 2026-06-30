@@ -82,7 +82,7 @@ COIN_API_KEY="${KEY}" \
 
 echo "==> publish gp-content stacks"
 chmod +x "${REPO_ROOT}/coin-gp-content/scripts/"*.sh "${REPO_ROOT}/coin-gp-content/scripts/lib/"*.sh
-GP_CONTENT_STACKS=(go-app go-app-bp go-app-df)
+GP_CONTENT_STACKS=(go-app go-app-docker)
 for stack in "${GP_CONTENT_STACKS[@]}"; do
   echo "    gp-content/${stack}@1.0.0"
   NEXUS_URL="${NEXUS_URL:-http://localhost:8081}" \

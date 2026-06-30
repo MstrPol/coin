@@ -103,6 +103,7 @@ func (s *Server) Router() http.Handler {
 				r.With(shortTimeout).Get("/golden-paths/{name}/versions/{version}/artifacts/{key}", s.getArtifact)
 				r.With(shortTimeout).Get("/golden-paths/{name}/resolve-preview", s.resolvePreview)
 				r.With(shortTimeout).Post("/branching-models/preview", s.branchingModelPreview)
+				r.With(shortTimeout).Post("/gp-content/preview", s.gpContentPreview)
 				r.With(shortTimeout).Get("/golden-paths/{name}/projects/{project}/canary-context", s.canaryContext)
 				r.With(shortTimeout).Get("/components", s.listComponents)
 				r.With(shortTimeout).Get("/components/agent/{name}/next-version", s.nextAgentVersion)

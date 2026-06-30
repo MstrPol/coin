@@ -55,9 +55,8 @@
       "additionalProperties": false,
       "required": ["engine"],
       "properties": {
-        "engine": { "type": "string", "enum": ["buildkit", "buildpack", "dockerfile"] },
+        "engine": { "type": "string", "enum": ["buildkit", "dockerfile"] },
         "buildkit": { "$ref": "#/$defs/buildkit" },
-        "buildpack": { "$ref": "#/$defs/buildpack" },
         "dockerfile": { "$ref": "#/$defs/dockerfileEngine" }
       }
     },
@@ -134,26 +133,15 @@
         "containerfile": { "$ref": "#/$defs/contentRef" }
       }
     },
-    "buildpack": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["builder"],
-      "properties": {
-        "builder": { "type": "string", "minLength": 1 },
-        "runImage": { "type": "string" },
-        "cacheRef": { "type": "string" }
-      }
-    },
     "dockerfileEngine": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["dockerfile", "containerfile"],
+      "required": ["dockerfile"],
       "properties": {
         "dockerfile": { "type": "string", "minLength": 1 },
         "imageTarget": { "type": "string" },
         "testTarget": { "type": "string" },
-        "cacheRef": { "type": "string" },
-        "containerfile": { "$ref": "#/$defs/contentRef" }
+        "cacheRef": { "type": "string" }
       }
     },
     "stage": {

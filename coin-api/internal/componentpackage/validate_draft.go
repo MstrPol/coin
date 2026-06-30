@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"coin.local/coin-api/internal/gpcontent"
 )
 
 type DraftArtifact struct {
@@ -139,82 +141,35 @@ func validateBranchingModelArtifact(bodies []DraftArtifact, componentName string
 	return issues
 }
 
-type gpContentDoc struct {
-	Name  string `yaml:"name"`
-	Kind  string `yaml:"kind"`
-	Build struct {
-		Engine string `yaml:"engine"`
-	} `yaml:"build"`
-	Pipeline struct {
-		Stages []struct {
-			ID   string `yaml:"id"`
-			Name string `yaml:"name"`
-		} `yaml:"stages"`
-	} `yaml:"pipeline"`
-	ValidateSchema struct {
-		ArtifactKey string `yaml:"artifactKey"`
-	} `yaml:"validateSchema"`
-	Containerfile struct {
-		ArtifactKey string `yaml:"artifactKey"`
-	} `yaml:"containerfile"`
-}
-
 func validateGPContentArtifacts(bodies []DraftArtifact, componentName string) []ValidationIssue {
 	var issues []ValidationIssue
-	var contentRaw, containerRaw []byte
+	var contentRaw []byte
+	hasContainerfile := false
 	for _, b := range bodies {
 		switch b.Path {
 		case "content.yaml":
 			contentRaw = b.Body
 		case "dockerfiles/Containerfile":
-			containerRaw = b.Body
+			hasContainerfile = len(b.Body) > 0
 		}
 	}
 	if len(contentRaw) == 0 {
-		issues = append(issues, ValidationIssue{Field: "content.yaml", Message: "required primary artifact is missing"})
-		return issues
-	}
-	if len(containerRaw) == 0 {
-		issues = append(issues, ValidationIssue{Field: "dockerfiles/Containerfile", Message: "required containerfile artifact is missing"})
+		return []ValidationIssue{{Field: "content.yaml", Message: "required primary artifact is missing"}}
 	}
 
-	var doc gpContentDoc
-	if err := yaml.Unmarshal(contentRaw, &doc); err != nil {
-		return append(issues, ValidationIssue{Field: "content.yaml", Message: fmt.Sprintf("invalid yaml: %v", err)})
+	doc, err := gpcontent.ParseDoc(contentRaw)
+	if err != nil {
+		return []ValidationIssue{{Field: "content.yaml", Message: fmt.Sprintf("invalid yaml: %v", err)}}
 	}
-	if strings.TrimSpace(doc.Name) == "" {
-		issues = append(issues, ValidationIssue{Field: "content.yaml.name", Message: "name is required"})
-	} else if doc.Name != componentName {
-		issues = append(issues, ValidationIssue{
-			Field:   "content.yaml.name",
-			Message: fmt.Sprintf("name %q must match component name %q", doc.Name, componentName),
-		})
+	gpIssues, _ := gpcontent.ValidateDoc(doc, gpcontent.PreviewOptions{
+		ComponentName:            componentName,
+		HasContainerfileArtifact: hasContainerfile,
+	})
+	for _, iss := range gpIssues {
+		issues = append(issues, ValidationIssue{Field: iss.Field, Message: iss.Message})
 	}
-	if doc.Kind != "gp-content" {
-		issues = append(issues, ValidationIssue{Field: "content.yaml.kind", Message: "kind must be gp-content"})
-	}
-	switch doc.Build.Engine {
-	case "buildkit", "buildpack", "dockerfile":
-	default:
-		issues = append(issues, ValidationIssue{Field: "content.yaml.build.engine", Message: "build.engine must be buildkit, buildpack or dockerfile"})
-	}
-	if len(doc.Pipeline.Stages) == 0 {
-		issues = append(issues, ValidationIssue{Field: "content.yaml.pipeline.stages", Message: "at least one pipeline stage is required"})
-	} else {
-		for i, st := range doc.Pipeline.Stages {
-			if strings.TrimSpace(st.ID) == "" || strings.TrimSpace(st.Name) == "" {
-				issues = append(issues, ValidationIssue{
-					Field:   fmt.Sprintf("content.yaml.pipeline.stages[%d]", i),
-					Message: "stage id and name are required",
-				})
-			}
-		}
-	}
-	if strings.TrimSpace(doc.ValidateSchema.ArtifactKey) == "" {
-		issues = append(issues, ValidationIssue{Field: "content.yaml.validateSchema.artifactKey", Message: "validateSchema.artifactKey is required"})
-	}
-	if strings.TrimSpace(doc.Containerfile.ArtifactKey) == "" {
-		issues = append(issues, ValidationIssue{Field: "content.yaml.containerfile.artifactKey", Message: "containerfile.artifactKey is required"})
+	if strings.TrimSpace(doc.Build.Engine) == "buildkit" && !hasContainerfile {
+		issues = append(issues, ValidationIssue{Field: "dockerfiles/Containerfile", Message: "required containerfile artifact is missing for buildkit engine"})
 	}
 	return issues
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# E2E: demo-go-app (buildkit), demo-go-app-bp (buildpack), demo-go-app-df (dockerfile).
+# E2E: demo-go-app (buildkit), demo-go-app-docker (BYO dockerfile).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -10,7 +10,7 @@ load_env
 
 PUBLISH="${COIN_E2E_PUBLISH:-false}"
 TIMEOUT_SEC="${COIN_E2E_TIMEOUT_SEC:-1200}"
-JOBS=(demo-go-app demo-go-app-bp demo-go-app-df)
+JOBS=(demo-go-app demo-go-app-docker)
 if [[ -n "${COIN_E2E_JOBS:-}" ]]; then
   # shellcheck disable=SC2206
   JOBS=(${COIN_E2E_JOBS})

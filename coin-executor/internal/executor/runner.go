@@ -72,8 +72,6 @@ func (r Runner) runTest(m *manifest.Manifest) error {
 	switch m.Build.Engine {
 	case "buildkit":
 		return r.runBuildkitTarget(m, m.BuildkitTarget("test"))
-	case "buildpack":
-		return r.runBuildpackTest(m)
 	case "dockerfile":
 		target := ""
 		if m.Build.Dockerfile != nil {
@@ -87,28 +85,6 @@ func (r Runner) runTest(m *manifest.Manifest) error {
 	default:
 		return fmt.Errorf("unsupported build engine %q for test stage", m.Build.Engine)
 	}
-}
-
-func buildpackGoEnv(extra ...string) []string {
-	env := []string{
-		"BP_GO_VERSION=1.25.8",
-		"BP_GO_BUILD_TARGETS=./...",
-	}
-	return append(env, extra...)
-}
-
-func (r Runner) runBuildpackTest(m *manifest.Manifest) error {
-	cfg := m.Build.Buildpack
-	if cfg == nil {
-		return fmt.Errorf("manifest build.buildpack is required")
-	}
-	return build.RunBuildpack(build.BuildpackOptions{
-		Workspace: r.Workspace,
-		Builder:   cfg.Builder,
-		RunImage:  cfg.RunImage,
-		CacheRef:  cfg.CacheRef,
-		Env:       buildpackGoEnv("BP_RUN_TESTS=true"),
-	})
 }
 
 func (r Runner) runBuildkitTarget(m *manifest.Manifest, target string) error {
@@ -140,27 +116,6 @@ func (r Runner) runBuild(cfg *config.Config, m *manifest.Manifest) error {
 			Target:     m.BuildkitTarget("image"),
 			CacheRef:   m.Build.Buildkit.CacheRef,
 			Output:     output,
-		}); err != nil {
-			return err
-		}
-		return outputs.Merge(r.Workspace, outputs.Entry{
-			Name: "app",
-			Type: "image",
-			Ref:  imageRef,
-		})
-	case "buildpack":
-		if m.Build.Buildpack == nil {
-			return fmt.Errorf("manifest build.buildpack is required")
-		}
-		imageRef := imageRefForProject(cfg, m, r.Workspace)
-		output := fmt.Sprintf("type=image,name=%s,push=false", imageRef)
-		if err := build.RunBuildpack(build.BuildpackOptions{
-			Workspace: r.Workspace,
-			Builder:   m.Build.Buildpack.Builder,
-			RunImage:  m.Build.Buildpack.RunImage,
-			CacheRef:  m.Build.Buildpack.CacheRef,
-			Output:    output,
-			Env:       buildpackGoEnv(),
 		}); err != nil {
 			return err
 		}
@@ -215,23 +170,6 @@ func (r Runner) pushImageOutput(cfg *config.Config, m *manifest.Manifest, item o
 			Target:     m.BuildkitTarget("image"),
 			CacheRef:   m.Build.Buildkit.CacheRef,
 			Output:     output,
-		}); err != nil {
-			return err
-		}
-		fmt.Printf("==> published image %s (%s)\n", item.Name, ref)
-		return nil
-	case "buildpack":
-		if m.Build.Buildpack == nil {
-			return fmt.Errorf("manifest build.buildpack is required")
-		}
-		output := fmt.Sprintf("type=image,name=%s,push=true", ref)
-		if err := build.RunBuildpack(build.BuildpackOptions{
-			Workspace: r.Workspace,
-			Builder:   m.Build.Buildpack.Builder,
-			RunImage:  m.Build.Buildpack.RunImage,
-			CacheRef:  m.Build.Buildpack.CacheRef,
-			Output:    output,
-			Env:       buildpackGoEnv(),
 		}); err != nil {
 			return err
 		}

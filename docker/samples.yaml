@@ -8,13 +8,9 @@ samples:
     starter: go-app
     goldenPath: go-app
 
-  - repo: demo-go-app-bp
-    starter: go-app
-    goldenPath: go-app-bp
-
-  - repo: demo-go-app-df
-    starter: go-app
-    goldenPath: go-app-df
+  - repo: demo-go-app-docker
+    starter: go-app-docker
+    goldenPath: go-app-docker
 
   - repo: demo-python-uv
     starter: python-uv-app

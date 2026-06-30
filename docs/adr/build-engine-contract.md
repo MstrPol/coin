@@ -24,10 +24,12 @@ accepted
 
 ```yaml
 build:
-  engine: buildpack | buildkit | dockerfile
+  engine: buildkit | dockerfile
 ```
 
-Источник SoT: `coin-gp-content/stacks/<gp>/content.yaml`.
+Источник SoT: `coin-gp-content/stacks/<gp>/content.yaml` (schema v2).
+
+> **2026-06 update:** buildpack hard cut; BYO `dockerfile` — отдельный GP (`go-app-docker`), не managed Containerfile duplicate.
 
 Resolved manifest обязан содержать выбранный `build` object. `coin-executor` выбирает implementation по `manifest.build.engine`.
 
@@ -40,14 +42,14 @@ Resolved manifest обязан содержать выбранный `build` obj
 Сразу перестраиваем runtime:
 
 - universal `coin-agent` без Go/Java/Python/Node toolchains;
-- `coin-agent` собирается на базе `jenkins/inbound-agent` и содержит `coin-executor`, `pack`, `podman`, `buildctl`, `buildkitd` и registry tools;
+- `coin-agent` собирается на базе `jenkins/inbound-agent` и содержит `coin-executor`, `podman`, `buildctl`, `buildkitd` и registry tools;
 - pod содержит один container `jnlp`; отдельный `stack` container и `manifest.jnlp` удаляются;
 - `coin-agent` собирается и публикуется из `coin-executor/`, потому что это runtime-упаковка executor-а;
 - `coin-jenkins-agents/` полностью удаляется как superseded компонент;
-- BuildKit/buildpack как основные build paths;
+- BuildKit как основной managed build path; BYO Dockerfile — отдельный GP profile;
 - для local pilot `buildkitd` **не** стартует в bootstrap на arm64; `podman system service` — обязательный bootstrap step;
 - default engine для `go-app` — `buildkit`;
-- Docker socket хоста не используется; для buildpack engine `pack` работает через `podman system service` внутри agent pod (`unix:///var/run/docker.sock`);
+- Docker socket хоста не используется; container builds через `podman system service` внутри agent pod;
 - произвольные GP `scripts/*.sh` не являются runtime build path;
 - project config не задает `build.engine` в первой итерации.
 

@@ -17,7 +17,7 @@ coinPipeline()
 2. **Pod** — `podTemplate` с `manifest.runtime.image` (`coin-agent`)
 3. **Checkout** — product repo
 4. **Materialize** — `.coin/manifest.json`, `.coin/effective-config.yaml`
-5. **Bootstrap** — podman system service; buildpack: `podman load` Paketo builder
+5. **Bootstrap** — podman system service
 6. **Stages** — динамически из `manifest.pipeline.stages` → `coin-executor run --stage …`
 7. **Report** — `coin-executor report` → `POST /v1/builds/report`
 
@@ -69,9 +69,9 @@ cd docker && make endpoints
 | `make coin-gp-content` | Gitea + job `coin-gp-content` |
 | `make coin-lib` | Gitea tag `1.0.0` + Global Shared Library |
 | `make publish-agent` | `coin-agent` image → Nexus + coin-api |
-| `make seed-jenkins-lib` | lib + gp-content + GP go-app / go-app-bp / go-app-df |
+| `make seed-jenkins-lib` | lib + gp-content + GP go-app / go-app-docker |
 | `make samples` | demo repos → Gitea + multibranch |
-| `make e2e-build-engines` | E2E: demo-go-app, demo-go-app-bp, demo-go-app-df |
+| `make e2e-build-engines` | E2E: demo-go-app, demo-go-app-docker |
 | `make e2e-mvp1` | Smoke resolve + Nexus без Jenkins |
 
 **Superseded:** `make coin-jenkins-agents`, job `agents-build`.
@@ -89,7 +89,7 @@ make e2e-build-engines
 
 **Deprecated:** `make coin-lib` (Gitea SCM retriever) — только для legacy bootstrap.
 
-Verify: Jenkins → `demo-go-app`, `demo-go-app-bp`, `demo-go-app-df` → main → SUCCESS.
+Verify: Jenkins → `demo-go-app`, `demo-go-app-docker` → main → SUCCESS.
 
 ## См. также
 

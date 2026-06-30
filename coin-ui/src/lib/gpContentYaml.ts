@@ -1,34 +1,58 @@
 export type PipelineStage = {
   id: string;
   name: string;
-  when?: string;
 };
 
+export type Deliverable = "image" | "artifact";
+
 export type GpContentModel = {
+  schemaVersion: number;
   name: string;
   kind: "gp-content";
+  capabilities: {
+    deliverables: Deliverable[];
+  };
   build: {
-    engine: "buildkit" | "buildpack" | "dockerfile";
+    engine: "buildkit" | "dockerfile";
     buildkit?: {
-      dockerfile: string;
       targets: Record<string, string>;
+      cacheRefTemplate: string;
+    };
+    dockerfile?: {
+      path: string;
+      imageTarget?: string;
+      testTarget?: string;
       cacheRefTemplate: string;
     };
   };
   pipeline: {
     stages: PipelineStage[];
   };
-  validateSchema: {
-    artifactKey: string;
+  artifacts: {
+    validateSchema: string;
+    containerfile?: string;
   };
-  containerfile: {
-    artifactKey: string;
-  };
+};
+
+export type GpContentPreviewResult = {
+  valid: boolean;
+  issues: Array<{ field: string; message: string }>;
+  warnings?: string[];
+  build?: Record<string, unknown>;
+  pipeline?: Record<string, unknown>;
+  capabilities?: Record<string, unknown>;
 };
 
 export const GP_CONTENT_ARTIFACT = "content.yaml";
 export const GP_CONTAINERFILE_ARTIFACT = "dockerfiles/Containerfile";
 export const GP_SCHEMA_ARTIFACT = "schemas/config.v2.schema.json";
+
+const BUILDKIT_TARGETS: Record<string, string> = {
+  validate: "validate",
+  test: "test",
+  image: "runtime",
+  artifact: "artifact",
+};
 
 export function defaultContainerfile(): string {
   return `# Coin managed Containerfile: Go build targets for BuildKit engine.
@@ -58,20 +82,19 @@ ENTRYPOINT ["/app/app"]
 `;
 }
 
-export function defaultGpContent(name: string): GpContentModel {
+export function defaultGpContent(name: string, preset: "buildkit" | "dockerfile" = "buildkit"): GpContentModel {
+  if (preset === "dockerfile") {
+    return defaultGpContentDocker(name);
+  }
   return {
+    schemaVersion: 2,
     name,
     kind: "gp-content",
+    capabilities: { deliverables: ["image", "artifact"] },
     build: {
       engine: "buildkit",
       buildkit: {
-        dockerfile: GP_CONTAINERFILE_ARTIFACT,
-        targets: {
-          validate: "validate",
-          test: "test",
-          image: "runtime",
-          artifact: "artifact",
-        },
+        targets: { ...BUILDKIT_TARGETS },
         cacheRefTemplate: "{{registryHost}}/coin-cache/{{project}}:buildkit",
       },
     },
@@ -80,152 +103,289 @@ export function defaultGpContent(name: string): GpContentModel {
         { id: "validate", name: "Validate" },
         { id: "test", name: "Test" },
         { id: "build", name: "Build" },
-        { id: "publish", name: "Publish", when: "tag" },
+        { id: "publish", name: "Publish" },
       ],
     },
-    validateSchema: { artifactKey: GP_SCHEMA_ARTIFACT },
-    containerfile: { artifactKey: GP_CONTAINERFILE_ARTIFACT },
+    artifacts: {
+      validateSchema: GP_SCHEMA_ARTIFACT,
+      containerfile: GP_CONTAINERFILE_ARTIFACT,
+    },
   };
+}
+
+export function defaultGpContentDocker(name: string): GpContentModel {
+  return {
+    schemaVersion: 2,
+    name,
+    kind: "gp-content",
+    capabilities: { deliverables: ["image"] },
+    build: {
+      engine: "dockerfile",
+      dockerfile: {
+        path: "Dockerfile",
+        imageTarget: "runtime",
+        testTarget: "test",
+        cacheRefTemplate: "{{registryHost}}/coin-cache/{{project}}:dockerfile",
+      },
+    },
+    pipeline: {
+      stages: [
+        { id: "validate", name: "Validate" },
+        { id: "test", name: "Test" },
+        { id: "build", name: "Build" },
+        { id: "publish", name: "Publish" },
+      ],
+    },
+    artifacts: {
+      validateSchema: GP_SCHEMA_ARTIFACT,
+    },
+  };
+}
+
+function yamlQuote(value: string): string {
+  if (/[:#{}[\],&*!|>'"%@`]/.test(value) || value.includes(" ")) {
+    return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  }
+  return value;
 }
 
 export function serializeGpContent(model: GpContentModel): string {
   const lines = [
+    `schemaVersion: ${model.schemaVersion}`,
     `name: ${model.name}`,
     `kind: ${model.kind}`,
-    "build:",
-    `  engine: ${model.build.engine}`,
+    "",
+    "capabilities:",
+    "  deliverables:",
   ];
+  for (const d of model.capabilities.deliverables) {
+    lines.push(`    - ${d}`);
+  }
+  lines.push("build:", `  engine: ${model.build.engine}`);
   if (model.build.engine === "buildkit" && model.build.buildkit) {
     const bk = model.build.buildkit;
-    lines.push("  buildkit:");
-    lines.push(`    dockerfile: ${bk.dockerfile}`);
-    lines.push("    targets:");
+    lines.push("  buildkit:", "    targets:");
     for (const [k, v] of Object.entries(bk.targets)) {
       lines.push(`      ${k}: ${v}`);
     }
-    lines.push(`    cacheRefTemplate: ${bk.cacheRefTemplate}`);
+    lines.push(`    cacheRefTemplate: ${yamlQuote(bk.cacheRefTemplate)}`);
   }
-  lines.push("pipeline:");
-  lines.push("  stages:");
+  if (model.build.engine === "dockerfile" && model.build.dockerfile) {
+    const df = model.build.dockerfile;
+    lines.push("  dockerfile:");
+    lines.push(`    path: ${df.path}`);
+    if (df.imageTarget) lines.push(`    imageTarget: ${df.imageTarget}`);
+    if (df.testTarget) lines.push(`    testTarget: ${df.testTarget}`);
+    lines.push(`    cacheRefTemplate: ${yamlQuote(df.cacheRefTemplate)}`);
+  }
+  lines.push("pipeline:", "  stages:");
   for (const st of model.pipeline.stages) {
-    lines.push(`    - id: ${st.id}`);
-    lines.push(`      name: ${st.name}`);
-    if (st.when) {
-      lines.push(`      when: ${st.when}`);
-    }
+    lines.push(`    - id: ${st.id}`, `      name: ${st.name}`);
   }
-  lines.push("validateSchema:");
-  lines.push(`  artifactKey: ${model.validateSchema.artifactKey}`);
-  lines.push("containerfile:");
-  lines.push(`  artifactKey: ${model.containerfile.artifactKey}`);
+  lines.push("artifacts:");
+  lines.push(`  validateSchema: ${model.artifacts.validateSchema}`);
+  if (model.artifacts.containerfile) {
+    lines.push(`  containerfile: ${model.artifacts.containerfile}`);
+  }
   return `${lines.join("\n")}\n`;
 }
 
-/** Minimal YAML parser for Component Studio gp-content scaffold. */
+function parseStagesBlock(lines: string[], start: number): { stages: PipelineStage[]; next: number } {
+  const stages: PipelineStage[] = [];
+  let i = start;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.trim() === "" || line.trim().startsWith("#")) {
+      i++;
+      continue;
+    }
+    if (!line.startsWith("    -")) break;
+    const stage: PipelineStage = { id: "", name: "" };
+    const idMatch = line.match(/id:\s*(.+)$/);
+    if (idMatch) stage.id = idMatch[1].trim();
+    i++;
+    while (i < lines.length && lines[i].startsWith("      ")) {
+      const inner = lines[i].trim();
+      if (inner.startsWith("name:")) stage.name = inner.slice(5).trim();
+      i++;
+    }
+    if (stage.id && stage.name) stages.push(stage);
+  }
+  return { stages, next: i };
+}
+
+function parseTargetsBlock(lines: string[], start: number): { targets: Record<string, string>; next: number } {
+  const targets: Record<string, string> = {};
+  let i = start;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.startsWith("      ")) break;
+    const kv = line.trim().match(/^([a-zA-Z]+):\s*(.+)$/);
+    if (kv) targets[kv[1]] = kv[2];
+    i++;
+  }
+  return { targets, next: i };
+}
+
 export function parseGpContentYaml(raw: string, fallbackName: string): GpContentModel {
   const model = defaultGpContent(fallbackName);
   const lines = raw.split(/\r?\n/);
-  let inStages = false;
-  let inTargets = false;
-  let currentStage: PipelineStage | null = null;
-  const stages: PipelineStage[] = [];
-  const targets: Record<string, string> = {};
+  let i = 0;
+  const deliverables: Deliverable[] = [];
+  let inDeliverables = false;
 
-  for (const line of lines) {
+  while (i < lines.length) {
+    const line = lines[i];
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
+    if (!trimmed || trimmed.startsWith("#")) {
+      i++;
+      continue;
+    }
+
+    if (trimmed === "deliverables:") {
+      inDeliverables = true;
+      i++;
+      continue;
+    }
+    if (inDeliverables) {
+      if (trimmed.startsWith("- ")) {
+        const d = trimmed.slice(2).trim() as Deliverable;
+        if (d === "image" || d === "artifact") deliverables.push(d);
+        i++;
+        continue;
+      }
+      if (!line.startsWith("    ")) inDeliverables = false;
+    }
 
     if (trimmed === "stages:") {
-      inStages = true;
+      const parsed = parseStagesBlock(lines, i + 1);
+      if (parsed.stages.length > 0) model.pipeline.stages = parsed.stages;
+      i = parsed.next;
       continue;
-    }
-    if (inStages && trimmed.startsWith("- id:")) {
-      if (currentStage) stages.push(currentStage);
-      currentStage = { id: trimmed.slice(6).trim(), name: "" };
-      continue;
-    }
-    if (inStages && currentStage && trimmed.startsWith("name:")) {
-      currentStage.name = trimmed.slice(5).trim();
-      continue;
-    }
-    if (inStages && currentStage && trimmed.startsWith("when:")) {
-      currentStage.when = trimmed.slice(5).trim();
-      continue;
-    }
-    if (inStages && !line.startsWith(" ")) {
-      if (currentStage) {
-        stages.push(currentStage);
-        currentStage = null;
-      }
-      inStages = false;
     }
 
     if (trimmed === "targets:") {
-      inTargets = true;
+      const parsed = parseTargetsBlock(lines, i + 1);
+      if (model.build.buildkit && Object.keys(parsed.targets).length > 0) {
+        model.build.buildkit.targets = parsed.targets;
+      }
+      i = parsed.next;
       continue;
-    }
-    if (inTargets) {
-      const targetKv = trimmed.match(/^([a-zA-Z]+):\s*(.+)$/);
-      if (targetKv) {
-        targets[targetKv[1]] = targetKv[2];
-        continue;
-      }
-      if (!line.startsWith(" ")) {
-        inTargets = false;
-      }
     }
 
     const kv = trimmed.match(/^([a-zA-Z]+):\s*(.+)$/);
-    if (!kv) continue;
-    const [, key, value] = kv;
-
-    switch (key) {
-      case "name":
-        if (!inStages) model.name = value;
-        break;
-      case "kind":
-        model.kind = value as GpContentModel["kind"];
-        break;
-      case "engine":
-        model.build.engine = value as GpContentModel["build"]["engine"];
-        break;
-      case "dockerfile":
-        if (model.build.buildkit) model.build.buildkit.dockerfile = value;
-        break;
-      case "cacheRefTemplate":
-        if (model.build.buildkit) model.build.buildkit.cacheRefTemplate = value;
-        break;
-      case "artifactKey":
-        if (lines.slice(Math.max(0, lines.indexOf(line) - 2), lines.indexOf(line)).join("\n").includes("validateSchema:")) {
-          model.validateSchema.artifactKey = value;
-        } else {
-          model.containerfile.artifactKey = value;
-        }
-        break;
-      default:
-        break;
+    if (kv) {
+      const [, key, value] = kv;
+      switch (key) {
+        case "schemaVersion":
+          model.schemaVersion = Number(value);
+          break;
+        case "name":
+          model.name = value;
+          break;
+        case "kind":
+          model.kind = value as GpContentModel["kind"];
+          break;
+        case "engine":
+          model.build.engine = value as GpContentModel["build"]["engine"];
+          break;
+        case "path":
+          if (!model.build.dockerfile) {
+            model.build.dockerfile = {
+              path: value,
+              cacheRefTemplate: "{{registryHost}}/coin-cache/{{project}}:dockerfile",
+            };
+          } else {
+            model.build.dockerfile.path = value;
+          }
+          break;
+        case "imageTarget":
+          if (model.build.dockerfile) model.build.dockerfile.imageTarget = value;
+          break;
+        case "testTarget":
+          if (model.build.dockerfile) model.build.dockerfile.testTarget = value;
+          break;
+        case "cacheRefTemplate":
+          if (model.build.engine === "dockerfile" && model.build.dockerfile) {
+            model.build.dockerfile.cacheRefTemplate = value.replace(/^"|"$/g, "");
+          } else if (model.build.buildkit) {
+            model.build.buildkit.cacheRefTemplate = value.replace(/^"|"$/g, "");
+          }
+          break;
+        case "validateSchema":
+          model.artifacts.validateSchema = value;
+          break;
+        case "containerfile":
+          model.artifacts.containerfile = value;
+          break;
+        default:
+          break;
+      }
     }
+    i++;
   }
-  if (currentStage) stages.push(currentStage);
-  if (stages.length > 0) model.pipeline.stages = stages;
-  if (Object.keys(targets).length > 0 && model.build.buildkit) {
-    model.build.buildkit.targets = targets;
+
+  if (deliverables.length > 0) {
+    model.capabilities.deliverables = deliverables;
+  }
+  if (model.build.engine === "dockerfile") {
+    delete model.build.buildkit;
+    if (!model.build.dockerfile) {
+      model.build.dockerfile = {
+        path: "Dockerfile",
+        cacheRefTemplate: "{{registryHost}}/coin-cache/{{project}}:dockerfile",
+      };
+    }
+    delete model.artifacts.containerfile;
+  }
+  if (model.build.engine === "buildkit" && !model.build.buildkit) {
+    model.build.buildkit = {
+      targets: { ...BUILDKIT_TARGETS },
+      cacheRefTemplate: "{{registryHost}}/coin-cache/{{project}}:buildkit",
+    };
+    delete model.build.dockerfile;
   }
   return model;
 }
 
 export function buildGpContentManifestSubset(model: GpContentModel): Record<string, unknown> {
   const subset: Record<string, unknown> = {
-    build: model.build,
-    pipeline: model.pipeline,
-    validateSchema: { artifactKey: model.validateSchema.artifactKey },
-    containerfile: { artifactKey: model.containerfile.artifactKey },
+    capabilities: { deliverables: [...model.capabilities.deliverables] },
+    build: { engine: model.build.engine },
+    pipeline: { stages: model.pipeline.stages.map((s) => ({ id: s.id, name: s.name })) },
+    validateSchema: { artifactKey: model.artifacts.validateSchema },
   };
+  if (model.build.engine === "buildkit" && model.build.buildkit) {
+    subset.build = {
+      engine: model.build.engine,
+      buildkit: {
+        targets: model.build.buildkit.targets,
+        cacheRefTemplate: model.build.buildkit.cacheRefTemplate,
+      },
+    };
+    if (model.artifacts.containerfile) {
+      subset.containerfile = { artifactKey: model.artifacts.containerfile };
+    }
+  }
+  if (model.build.engine === "dockerfile" && model.build.dockerfile) {
+    subset.build = {
+      engine: model.build.engine,
+      dockerfile: {
+        path: model.build.dockerfile.path,
+        imageTarget: model.build.dockerfile.imageTarget,
+        testTarget: model.build.dockerfile.testTarget,
+        cacheRefTemplate: model.build.dockerfile.cacheRefTemplate,
+      },
+    };
+  }
   return subset;
 }
 
 export function validateGpContentClient(model: GpContentModel, componentName: string): string[] {
   const issues: string[] = [];
+  if (model.schemaVersion !== 2) {
+    issues.push("schemaVersion должен быть 2");
+  }
   if (model.name !== componentName) {
     issues.push(`content.yaml name (${model.name}) должен совпадать с именем компонента (${componentName})`);
   }
@@ -235,12 +395,30 @@ export function validateGpContentClient(model: GpContentModel, componentName: st
   if (!model.build.engine) {
     issues.push("build.engine обязателен");
   }
+  if (model.capabilities.deliverables.length === 0) {
+    issues.push("capabilities.deliverables не может быть пустым");
+  }
+  const hasArtifact = model.capabilities.deliverables.includes("artifact");
   if (model.build.engine === "buildkit") {
-    if (!model.build.buildkit?.dockerfile.trim()) {
-      issues.push("build.buildkit.dockerfile обязателен для buildkit");
-    }
     if (!model.build.buildkit?.cacheRefTemplate.trim()) {
       issues.push("build.buildkit.cacheRefTemplate обязателен");
+    }
+    if (!model.artifacts.containerfile?.trim()) {
+      issues.push("artifacts.containerfile обязателен для buildkit");
+    }
+  }
+  if (model.build.engine === "dockerfile") {
+    if (!model.build.dockerfile?.path.trim()) {
+      issues.push("build.dockerfile.path обязателен");
+    }
+    if (!model.build.dockerfile?.cacheRefTemplate.trim()) {
+      issues.push("build.dockerfile.cacheRefTemplate обязателен");
+    }
+    if (hasArtifact) {
+      issues.push("artifact deliverable не поддерживается для dockerfile engine");
+    }
+    if (model.artifacts.containerfile) {
+      issues.push("artifacts.containerfile не должен быть задан для BYO dockerfile");
     }
   }
   if (model.pipeline.stages.length === 0) {
@@ -252,11 +430,8 @@ export function validateGpContentClient(model: GpContentModel, componentName: st
       break;
     }
   }
-  if (!model.validateSchema.artifactKey.trim()) {
-    issues.push("validateSchema.artifactKey обязателен");
-  }
-  if (!model.containerfile.artifactKey.trim()) {
-    issues.push("containerfile.artifactKey обязателен");
+  if (!model.artifacts.validateSchema.trim()) {
+    issues.push("artifacts.validateSchema обязателен");
   }
   return issues;
 }

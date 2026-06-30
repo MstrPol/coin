@@ -68,16 +68,9 @@ type Runtime struct {
 }
 
 type Build struct {
-	Engine     string                `json:"engine"`
-	Buildkit   *BuildkitConfig       `json:"buildkit,omitempty"`
-	Buildpack  *BuildpackConfig      `json:"buildpack,omitempty"`
+	Engine     string                  `json:"engine"`
+	Buildkit   *BuildkitConfig         `json:"buildkit,omitempty"`
 	Dockerfile *DockerfileEngineConfig `json:"dockerfile,omitempty"`
-}
-
-type BuildpackConfig struct {
-	Builder  string `json:"builder"`
-	RunImage string `json:"runImage,omitempty"`
-	CacheRef string `json:"cacheRef,omitempty"`
 }
 
 type BuildkitConfig struct {

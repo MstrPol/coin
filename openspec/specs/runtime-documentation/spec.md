@@ -6,7 +6,7 @@ Documentation and ADR requirements for Coin CI runtime (coin-agent, bootstrap, b
 ## Requirements
 ### Requirement: Canonical CI runtime ADR
 
-The project SHALL maintain `docs/adr/coin-ci-runtime.md` as the canonical architecture decision record for Jenkins CI runtime: single `coin-agent` pod, bootstrap steps, three build engines, publish gate layers, and GP three-pin composition references.
+The project SHALL maintain `docs/adr/coin-ci-runtime.md` as the canonical architecture decision record for Jenkins CI runtime: single `coin-agent` pod, bootstrap steps, two build engines, publish gate layers, and GP three-pin composition references.
 
 #### Scenario: Reader finds runtime SoT
 
@@ -45,10 +45,12 @@ Documentation examples SHALL describe publish eligibility using Jenkins `params.
 
 ### Requirement: Pilot vs corp build implementation
 
-`docs/adr/coin-ci-runtime.md` SHALL document that on local pilot arm64 the `buildkit` and `dockerfile` engines use podman build while engine names in manifest remain unchanged, and that corp amd64 targets native buildkitd per roadmap.
+`docs/adr/coin-ci-runtime.md` SHALL document two product engines (`buildkit`, BYO `dockerfile`) and that buildpack is superseded. On local pilot arm64 both engines use podman build when podman socket is available, and corp amd64 targets native buildkitd per roadmap.
 
 #### Scenario: Pilot troubleshooting
 
 - **WHEN** a reader debugs arm64 pilot build failures
-- **THEN** `docs/agent-build-model.md` MUST explain podman-first implementation and link to `coin-ci-runtime` for environment matrix
+- **THEN** `docs/agent-build-model.md` MUST explain podman-first implementation for both engines
+- **AND** MUST NOT list buildpack bootstrap steps
+- **AND** MUST link to `coin-ci-runtime` for environment matrix
 

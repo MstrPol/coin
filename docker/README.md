@@ -72,7 +72,7 @@ Docker registry: `localhost:8082/coin-docker` (`coin` / `coin1234`).
 | `make coin-starters` | Gitea `coin/coin-starters` |
 | `make samples` | demo repos → Gitea + multibranch jobs |
 | `make e2e-mvp1` | Smoke resolve + Nexus без Jenkins |
-| `make e2e-build-engines` | E2E: demo-go-app, demo-go-app-bp, demo-go-app-df |
+| `make e2e-build-engines` | E2E: demo-go-app, demo-go-app-docker |
 | `make e2e-jenkins-lib` | API checks jenkins-lib model |
 
 **Superseded:** `make coin-jenkins-agents`, `make agents-build`, `make coin-platform` (alias на удалённые agents).
@@ -84,8 +84,7 @@ Docker registry: `localhost:8082/coin-docker` (`coin` / `coin1234`).
 | Repo | GP | Build engine |
 |------|-----|--------------|
 | demo-go-app | go-app | buildkit |
-| demo-go-app-bp | go-app-bp | buildpack |
-| demo-go-app-df | go-app-df | dockerfile |
+| demo-go-app-docker | go-app-docker | BYO dockerfile |
 
 ```bash
 make samples
@@ -97,7 +96,7 @@ make samples
 
 **Platform:** `coin/coin-executor`, `coin/coin-gp-content`, `coin/coin-lib`, `coin/coin-starters`
 
-**Product demos:** `coin/demo-go-app`, `coin/demo-go-app-bp`, `coin/demo-go-app-df`, …
+**Product demos:** `coin/demo-go-app`, `coin/demo-go-app-docker`, …
 
 ---
 

@@ -132,13 +132,6 @@ def call() {
                         tail -100 /tmp/podman.log >&2 || true
                         exit 1
                       fi
-
-                      if [ "${COIN_BUILD_ENGINE:-}" = "buildpack" ] && [ -s /usr/share/coin/paketo-builder.tar ]; then
-                        if ! podman images --format '{{.Repository}}:{{.Tag}}' | grep -qx 'nexus:8082/coin-docker/paketo-builder-jammy-base:latest'; then
-                          echo "==> load buildpack builder from /usr/share/coin/paketo-builder.tar"
-                          podman load -i /usr/share/coin/paketo-builder.tar
-                        fi
-                      fi
                     fi
 
                     coin-executor version

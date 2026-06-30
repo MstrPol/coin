@@ -54,18 +54,29 @@ trunk:
 
 func TestValidateDraftPackage_gpContent(t *testing.T) {
 	t.Parallel()
-	validYAML := `name: go-app
+	validYAML := `schemaVersion: 2
+name: go-app
 kind: gp-content
+capabilities:
+  deliverables:
+    - image
+    - artifact
 build:
   engine: buildkit
+  buildkit:
+    targets:
+      validate: validate
+      test: test
+      image: runtime
+      artifact: artifact
+    cacheRefTemplate: "{{registryHost}}/coin-cache/{{project}}:buildkit"
 pipeline:
   stages:
     - id: test
       name: Test
-validateSchema:
-  artifactKey: schemas/config.v2.schema.json
-containerfile:
-  artifactKey: dockerfiles/Containerfile
+artifacts:
+  validateSchema: schemas/config.v2.schema.json
+  containerfile: dockerfiles/Containerfile
 `
 	res := ValidateDraftPackage("gp-content", "go-app", "1.0.0", []DraftArtifact{
 		{Path: "content.yaml", Body: []byte(validYAML), SHA256: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
@@ -80,5 +91,17 @@ containerfile:
 	})
 	if res.Valid {
 		t.Fatal("expected missing containerfile")
+	}
+
+	v1YAML := `name: go-app
+kind: gp-content
+build:
+  engine: buildkit
+`
+	res = ValidateDraftPackage("gp-content", "go-app", "1.0.0", []DraftArtifact{
+		{Path: "content.yaml", Body: []byte(v1YAML), SHA256: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+	})
+	if res.Valid {
+		t.Fatal("expected v1 schema rejection")
 	}
 }

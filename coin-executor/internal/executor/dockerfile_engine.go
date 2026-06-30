@@ -3,6 +3,7 @@ package executor
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"coin.local/coin-executor/internal/build"
 	"coin.local/coin-executor/internal/config"
@@ -25,6 +26,9 @@ func (r Runner) materializeContainerfile(m *manifest.Manifest) error {
 func (r Runner) materializeDockerfileEngine(m *manifest.Manifest) error {
 	if m.Build.Dockerfile == nil {
 		return fmt.Errorf("manifest build.dockerfile is required")
+	}
+	if strings.TrimSpace(m.Build.Dockerfile.Containerfile.URL) == "" {
+		return nil
 	}
 	return r.materializeContentFile(
 		m.Build.Dockerfile.Dockerfile,

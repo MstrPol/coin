@@ -1,0 +1,13 @@
+coin:
+  goldenPath: go-app-docker
+  version: "*"
+
+jenkins:
+  credentials:
+    docker: nexus-docker
+
+project:
+  name: my-service
+  artifactId: my-service
+  groupId: com.example.team
+  repository: maven-releases

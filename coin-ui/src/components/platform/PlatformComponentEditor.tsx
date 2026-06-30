@@ -298,6 +298,7 @@ export default function PlatformComponentEditor({
             <GpContentEditor
               model={gpContent}
               containerfile={containerfile}
+              componentName={name}
               onChange={(m, cf) => {
                 setGpContent(m);
                 setContainerfile(cf);
