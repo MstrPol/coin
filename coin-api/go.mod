@@ -3,7 +3,6 @@ module coin.local/coin-api
 go 1.25.0
 
 require (
-	coin.local/coin-executor v0.0.0
 	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/jackc/pgx/v5 v5.7.2
@@ -35,5 +34,3 @@ require (
 	golang.org/x/text v0.25.0 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 )
-
-replace coin.local/coin-executor => ../coin-executor

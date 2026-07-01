@@ -71,7 +71,7 @@ artifacts:
 | API | Назначение |
 |-----|------------|
 | `POST /v1/admin/components/gp-content/.../validate` | Draft package (content.yaml + artifacts) |
-| `POST /v1/admin/gp-content/preview` | Manifest subset preview (как branching preview) |
+| `POST /v1/admin/gp-content/preview` | Manifest subset preview |
 
 Studio вызывает preview при редактировании карточек.
 

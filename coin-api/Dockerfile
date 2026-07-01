@@ -13,7 +13,6 @@ ENV GOINSECURE=${GOINSECURE} \
     GIT_SSL_NO_VERIFY=${GIT_SSL_NO_VERIFY}
 
 COPY coin-api/go.mod coin-api/go.sum ./
-COPY coin-executor /src/coin-executor
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=secret,id=go_auth \
     if [ -f /run/secrets/go_auth ]; then cat /run/secrets/go_auth > ~/.netrc; fi && \

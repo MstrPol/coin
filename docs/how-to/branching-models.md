@@ -32,9 +32,11 @@ branches:           # ordered — first match wins
 
 GP pin: branching-model slot в composition → `manifest.branching` при resolve.
 
-## UI и preview
+## UI
 
-Platform hub (`/platform/branching-models`): rule builder + `POST /v1/admin/branching-models/preview` (executor SoT). Draft lifecycle: validate → register → publish.
+Platform hub (`/platform/branching-models`): rule builder + YAML/card editing. Draft lifecycle: validate → register → publish.
+
+Runtime behavior (versioning and publish eligibility) is evaluated by `coin-executor` from `manifest.branching` during CI; `coin-api` does not expose a branching scenario preview endpoint.
 
 **Удаление draft:** Releases tab → **Delete** на строке draft, или в редакторе (`/platform/branching-models/{name}/{version}/edit`) → **Delete draft** в lifecycle panel (publisher+). Published версии удалить нельзя.
 

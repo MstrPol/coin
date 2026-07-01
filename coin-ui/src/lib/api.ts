@@ -491,21 +491,6 @@ export const api = {
     }
     return data;
   },
-  branchingModelPreview: async (
-    model: { name: string; branches: unknown[] },
-    scenarios: Array<{
-      id: string;
-      branch: string;
-      tagName?: string;
-      tags?: string[];
-      requestPublish?: boolean;
-    }>,
-  ) => {
-    return apiPost<import("./branchingModelYaml").BranchingPreviewResult>(
-      "/v1/admin/branching-models/preview",
-      { model, scenarios },
-    );
-  },
   gpContentPreview: async (model: import("./gpContentYaml").GpContentModel, componentName: string) => {
     const { serializeGpContent } = await import("./gpContentYaml");
     return apiPost<import("./gpContentYaml").GpContentPreviewResult>("/v1/admin/gp-content/preview", {

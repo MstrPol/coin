@@ -11,28 +11,6 @@ export type BranchingModel = {
   branches: BranchRule[];
 };
 
-export type PreviewScenario = {
-  id: string;
-  branch: string;
-  tagName?: string;
-  tags?: string[];
-  requestPublish?: boolean;
-};
-
-export type BranchingPreviewResult = {
-  patternHint: string;
-  results: Array<{
-    id: string;
-    matchedRule?: string;
-    branchValid: boolean;
-    branchError?: string;
-    coinVersion?: string;
-    versionError?: string;
-    publishOutcome: string;
-    publishReason?: string;
-  }>;
-};
-
 const TRUNK_BASED_RULES: BranchRule[] = [
   {
     name: "main",
@@ -58,12 +36,6 @@ const TRUNK_BASED_RULES: BranchRule[] = [
     versioning: { template: "v{base}-{jira}-rc-{n}" },
     publish: true,
   },
-];
-
-export const DEFAULT_PREVIEW_SCENARIOS: PreviewScenario[] = [
-  { id: "main", branch: "main", requestPublish: true },
-  { id: "feature", branch: "feature/PROJ-101", requestPublish: true },
-  { id: "release", branch: "release/PROJ-404", requestPublish: true },
 ];
 
 export function defaultBranchingModel(name: string): BranchingModel {
@@ -179,9 +151,3 @@ export function validateBranchingModelClient(model: BranchingModel, componentNam
   return issues;
 }
 
-export function previewModelPayload(model: BranchingModel) {
-  return {
-    name: model.name,
-    branches: model.branches,
-  };
-}

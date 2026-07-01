@@ -42,7 +42,6 @@ cd coin-ui && make openapi-ui
 | GET | `/v1/admin/golden-paths/{name}/versions/{ver}` | X-API-Key | GP release detail + composition |
 | POST | `/v1/admin/golden-paths/{name}/versions` | X-API-Key | Publish GP |
 | GET | `/v1/admin/golden-paths/{name}/versions/{ver}/blast-radius` | X-API-Key | Blast radius |
-| POST | `/v1/admin/branching-models/preview` | X-API-Key | Branching model scenario preview (executor SoT) |
 | GET | `/v1/admin/components` | X-API-Key | Component registry list |
 | GET | `/v1/admin/components/{type}/{name}` | X-API-Key | Component detail |
 | GET | `/v1/admin/components/{type}/{name}/versions/{ver}` | X-API-Key | Version metadata |
