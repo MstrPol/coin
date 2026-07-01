@@ -12,7 +12,7 @@
 
 - [ ] Сервис на **go-app** (v1 template или greenfield)
 - [ ] Есть Jenkins multibranch / pipeline job
-- [ ] Credential `nexus-docker` (или ID из manifest) существует
+- [ ] Credential `nexus-docker` (или ID из `.coin/config.yaml` / Jenkins defaults) существует
 - [ ] Platform подтвердила: coin-api + Nexus cache + executor опубликованы
 
 ## Шаг 1 — Inventory

@@ -1,6 +1,11 @@
 package manifest
 
-import "testing"
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestBuilderStableHash(t *testing.T) {
 	b := Builder{}
@@ -83,9 +88,77 @@ func TestBuilderBuildEngineContract(t *testing.T) {
 	if _, hasExecutor := doc["executor"]; hasExecutor {
 		t.Fatal("manifest must not contain executor section")
 	}
+	if _, hasCredentials := doc["credentials"]; hasCredentials {
+		t.Fatal("manifest must not contain Jenkins credentials")
+	}
 	runtime, ok := doc["runtime"].(map[string]string)
 	if !ok || runtime["image"] == "" {
 		t.Fatalf("runtime missing: %#v", doc["runtime"])
+	}
+}
+
+func TestBuilderManifestTopLevelShape(t *testing.T) {
+	b := Builder{}
+	release := sampleRelease()
+	release.Branching = BranchingBundle{
+		Name:    "trunk-based",
+		Version: "1.0.0",
+		Rules: map[string]any{
+			"branches": []any{
+				map[string]any{
+					"name":       "main",
+					"pattern":    `^main$`,
+					"versioning": map[string]any{"template": "v{base}-main-snapshot-{n}"},
+					"publish":    false,
+				},
+			},
+		},
+	}
+	release.Content.Capabilities = map[string]any{
+		"deliverables": []any{"image"},
+	}
+
+	doc, _, err := b.Build(release, BuildOptions{Project: "demo-go-app", RegistryHost: "localhost:8082"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	allowed := map[string]bool{
+		"manifestVersion": true,
+		"manifestHash":    true,
+		"goldenPath":      true,
+		"runtime":         true,
+		"build":           true,
+		"pipeline":        true,
+		"validateSchema":  true,
+		"capabilities":    true,
+		"branching":       true,
+	}
+	for key := range doc {
+		if !allowed[key] {
+			t.Fatalf("manifest contains non-composition top-level key %q", key)
+		}
+	}
+	for _, key := range []string{"goldenPath", "runtime", "build", "pipeline", "validateSchema", "capabilities", "branching", "manifestVersion", "manifestHash"} {
+		if _, ok := doc[key]; !ok {
+			t.Fatalf("manifest missing required materialized key %q", key)
+		}
+	}
+}
+
+func TestManifestSchemaRejectsCredentialsField(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "manifest.schema.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var schema struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := schema.Properties["credentials"]; ok {
+		t.Fatal("manifest schema must not allow top-level credentials")
 	}
 }
 
@@ -144,11 +217,11 @@ func sampleRelease() GPRelease {
 			GPContentVersion: "1.0.0",
 		},
 		Content: ContentBundle{
-			SchemaArtifactKey:     "schemas/config.v2.schema.json",
-			SchemaSHA256:          "sha256:schema",
-			ContainerfileKey:      "dockerfiles/Containerfile",
-			ContainerfileSHA256:   "sha256:containerfile",
-			BuildEngine:           "buildkit",
+			SchemaArtifactKey:   "schemas/config.v2.schema.json",
+			SchemaSHA256:        "sha256:schema",
+			ContainerfileKey:    "dockerfiles/Containerfile",
+			ContainerfileSHA256: "sha256:containerfile",
+			BuildEngine:         "buildkit",
 			BuildkitTargets: map[string]string{
 				"validate": "validate",
 				"test":     "test",

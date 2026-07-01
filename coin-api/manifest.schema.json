@@ -61,10 +61,6 @@
       }
     },
     "validateSchema": { "$ref": "#/$defs/contentRef" },
-    "credentials": {
-      "type": "object",
-      "additionalProperties": { "type": "string" }
-    },
     "capabilities": {
       "type": "object"
     },

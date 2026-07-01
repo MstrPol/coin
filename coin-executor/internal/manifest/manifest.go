@@ -17,22 +17,21 @@ type Manifest struct {
 	Build           Build        `json:"build"`
 	Pipeline        Pipeline     `json:"pipeline"`
 	ValidateSchema  ContentRef   `json:"validateSchema"`
-	Credentials     Credentials  `json:"credentials"`
 	Capabilities    Capabilities `json:"capabilities"`
 	Branching       *Branching   `json:"branching,omitempty"`
 }
 
 type Branching struct {
-	Name     string        `json:"name"`
-	Version  string        `json:"version"`
-	Branches []BranchRule  `json:"branches"`
+	Name     string       `json:"name"`
+	Version  string       `json:"version"`
+	Branches []BranchRule `json:"branches"`
 }
 
 type BranchRule struct {
-	Name       string            `json:"name"`
-	Pattern    string            `json:"pattern"`
-	Versioning BranchVersioning  `json:"versioning"`
-	Publish    bool              `json:"publish"`
+	Name       string           `json:"name"`
+	Pattern    string           `json:"pattern"`
+	Versioning BranchVersioning `json:"versioning"`
+	Publish    bool             `json:"publish"`
 }
 
 type BranchVersioning struct {
@@ -104,10 +103,6 @@ type ContentRef struct {
 	GitRef string `json:"gitRef"`
 	Path   string `json:"path"`
 	SHA256 string `json:"sha256"`
-}
-
-type Credentials struct {
-	Docker string `json:"docker"`
 }
 
 func Load(path string) (*Manifest, error) {

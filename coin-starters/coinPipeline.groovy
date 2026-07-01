@@ -57,9 +57,6 @@ def run(script) {
     unstash 'coin-manifest'
     def manifest = readJSON file: '.coin/manifest.json'
     stackImage = manifest.runtime.image
-    if (manifest.credentials?.docker) {
-        dockerCredId = manifest.credentials.docker
-    }
     echo "Coin v2: gp=${env.COIN_GP}@${env.COIN_GP_VERSION} agent=${stackImage}"
 
     def jnlpImage = env.COIN_JNLP_IMAGE ?: 'jenkins/inbound-agent:3327.v868139a_d00e0-8'

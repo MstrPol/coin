@@ -27,7 +27,7 @@ Jenkins Shared Library создаёт drift и не даёт immutable pin. Jenk
 | Q2 | Orchestration в bundle; env fallback только migration |
 | Q3 | Expand manifest v1 при resolve |
 | Q4 | Platform CI `coin-pipeline-bundles` |
-| Q5 | `credentials.docker` в manifest; override в product config |
+| Q5 | Superseded: Jenkins credentials не входят в manifest; источник — product config / coin-lib defaults |
 
 ## Отклонённые альтернативы
 

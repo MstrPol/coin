@@ -104,7 +104,7 @@ Credentials → env при publish: `COIN_REGISTRY_USER`, `COIN_REGISTRY_PASSWOR
 | Слой | Источник | Примеры |
 |------|----------|---------|
 | lib | `coin-lib/resources/coin-lib-defaults.yaml` + env | `coin.apiUrl`, credential IDs, registry prefix |
-| GP | resolved `manifest.json` | `runtime.image`, `pipeline.stages` |
+| GP | resolved `manifest.json` | `runtime.image`, `pipeline.stages`, `build.engine` |
 | project | `.coin/config.yaml` | `coin.goldenPath`, `project.*`, `jenkins.credentials.docker` |
 
 В workspace pod пишутся runtime artifacts (в `.gitignore`):
@@ -113,6 +113,8 @@ Credentials → env при publish: `COIN_REGISTRY_USER`, `COIN_REGISTRY_PASSWOR
 - `.coin/effective-config.yaml` — merged Jenkins glue (debug)
 
 `coin-executor` и GP scripts читают **project** `.coin/config.yaml`, не effective config.
+
+Resolved manifest не содержит Jenkins credential IDs. Если product config задаёт `jenkins.credentials.docker`, это значение имеет приоритет над defaults `coin-lib`.
 
 ---
 

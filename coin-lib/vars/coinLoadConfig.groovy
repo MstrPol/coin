@@ -58,8 +58,8 @@ def deepMerge(Map base, Map override) {
 }
 
 /**
- * Извлекает из resolved manifest поля, нужные только для Jenkins glue (образы, executor, stages, creds).
- * Не копирует весь manifest — только runtime/executor/pipeline/credentials.
+ * Извлекает из resolved manifest поля, нужные только для Jenkins glue (образы, engine, stages).
+ * Jenkins credentials остаются в product config / defaults, не в manifest.
  */
 @NonCPS
 def manifestToConfig(Map manifest) {
@@ -72,9 +72,6 @@ def manifestToConfig(Map manifest) {
     }
     if (manifest.pipeline?.stages) {
         layer.pipeline = [stages: manifest.pipeline.stages]
-    }
-    if (manifest.credentials?.docker) {
-        layer.jenkins = [credentials: [docker: manifest.credentials.docker.toString()]]
     }
     return layer
 }

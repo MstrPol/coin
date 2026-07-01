@@ -14,6 +14,8 @@ GP release composition SHALL contain exactly three operator-controlled pins:
 
 Standalone `executor` SHALL NOT appear in the GP composition map, registry, or resolved manifest. The agent pin is the sole runtime source of truth.
 
+Resolved manifest SHALL be a deterministic materialization of the GP release identity and these three pins only. `coin-api` SHALL NOT add site-local Jenkins glue fields, credential IDs, or synthetic runtime sections that are not sourced from the GP release identity, `agent`, `gp-content`, or `branching-model`.
+
 #### Scenario: Create GP draft with three pins
 
 - **WHEN** publisher creates GP draft with agent, gp-content, and branching-model versions
@@ -31,6 +33,16 @@ Standalone `executor` SHALL NOT appear in the GP composition map, registry, or r
 - **THEN** coin-api MUST populate `manifest.runtime` from the pinned agent version metadata
 - **AND** MUST NOT add `manifest.executor`
 - **AND** MUST NOT query component registry for type `executor`
+
+#### Scenario: Resolve emits only composition-owned sections
+
+- **WHEN** GP release `gp-01-07@1.0.0` is resolved for CI
+- **THEN** the manifest MUST contain GP identity fields `goldenPath.name` and `goldenPath.version`
+- **AND** MUST contain `runtime` materialized from the `agent` pin
+- **AND** MUST contain `build`, `pipeline`, `validateSchema`, and `capabilities` materialized from the `gp-content` pin
+- **AND** MUST contain `branching` materialized from the `branching-model` pin
+- **AND** MUST preserve resolve integrity metadata `manifestVersion` and `manifestHash`
+- **AND** MUST NOT contain top-level `credentials`, `lib`, `executor`, or any Jenkins-instance credential ID
 
 ### Requirement: gp-content pinned per GP version not profile
 

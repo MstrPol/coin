@@ -35,21 +35,21 @@ type Composition struct {
 }
 
 type ContentBundle struct {
-	BundleURL            string
-	BundleSHA256         string
-	BuildControls        map[string]any
-	Capabilities         map[string]any
-	SchemaArtifactKey    string
-	SchemaSHA256         string
-	ContainerfileKey     string
-	ContainerfileSHA256  string
-	BuildEngine          string
-	BuildkitTargets      map[string]string
-	DockerfilePath       string
+	BundleURL             string
+	BundleSHA256          string
+	BuildControls         map[string]any
+	Capabilities          map[string]any
+	SchemaArtifactKey     string
+	SchemaSHA256          string
+	ContainerfileKey      string
+	ContainerfileSHA256   string
+	BuildEngine           string
+	BuildkitTargets       map[string]string
+	DockerfilePath        string
 	DockerfileImageTarget string
 	DockerfileTestTarget  string
-	CacheRefTemplate     string
-	Stages               []TypedStage
+	CacheRefTemplate      string
+	Stages                []TypedStage
 }
 
 type TypedStage struct {
@@ -77,9 +77,6 @@ func (b Builder) Build(release GPRelease, opts BuildOptions) (map[string]any, st
 			"stages": b.stages(release),
 		},
 		"validateSchema": contentRef(release.Name, release.Version, release.Content.SchemaArtifactKey, release.Content.SchemaSHA256),
-		"credentials": map[string]string{
-			"docker": "nexus-docker",
-		},
 	}
 	if len(release.Content.Capabilities) > 0 {
 		doc["capabilities"] = release.Content.Capabilities

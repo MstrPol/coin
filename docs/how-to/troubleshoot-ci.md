@@ -113,6 +113,7 @@ Manifest `executor` секции нет — binary baked в `coin-agent`. Про
 1. Jenkins credentials:
    - `nexus-docker` (user/password для `localhost:8082`)
    - `coin-publisher-api-key` (API key для `POST /v1/admin/components/agent/...`)
+   - credential IDs задаются в Jenkins/product config, не в resolved GP manifest
 2. Docker доступен в Jenkins runner:
    - `docker version` в логе preflight
 3. Доступность Nexus/coin-api из Jenkins контейнера:

@@ -52,6 +52,8 @@ ADR: [adr/gp-component-package-model.md](adr/gp-component-package-model.md) (ame
 
 ## Manifest (v1, сокращённо)
 
+`manifestVersion` остаётся `1`: local pilot использует hard cut контракта, поэтому superseded поля удаляются без compatibility shim.
+
 ```json
 {
   "manifestVersion": 1,
@@ -60,12 +62,6 @@ ADR: [adr/gp-component-package-model.md](adr/gp-component-package-model.md) (ame
   "runtime": {
     "image": "nexus:8082/coin-docker/coin-agent:1.0.0",
     "digest": "sha256:…"
-  },
-  "lib": {
-    "name": "coin-lib",
-    "version": "1.0.0",
-    "url": "http://nexus:8081/repository/maven-releases/coin/lib/coin-lib/1.0.0/coin-lib-1.0.0.zip",
-    "sha256": "sha256:…"
   },
   "build": {
     "engine": "buildkit",
@@ -98,14 +94,13 @@ ADR: [adr/gp-component-package-model.md](adr/gp-component-package-model.md) (ame
       { "id": "build", "name": "Build" },
       { "id": "publish", "name": "Publish" }
     ]
-  },
-  "credentials": { "docker": "nexus-docker" }
+  }
 }
 ```
 
 Stage `publish`: coin-lib skip при `params.publish=false`; eligibility — `manifest.branching` + `COIN_PUBLISH_REQUEST`. См. [adr/gp-branching-model.md](adr/gp-branching-model.md).
 
-**Superseded в manifest:** `dockerfileTemplate`, `pipeline.stages[].script`, `manifest.jnlp`, orchestration bundle URL, `pipeline.stages[].when` как primary publish gate.
+**Superseded в manifest:** `dockerfileTemplate`, `pipeline.stages[].script`, `manifest.jnlp`, orchestration bundle URL, `pipeline.stages[].when` как primary publish gate, `lib`, `executor`, Jenkins `credentials`.
 
 OpenAPI: [`coin-api/openapi/v1.yaml`](../coin-api/openapi/v1.yaml).  
 Schema: [`coin-api/manifest.schema.json`](../coin-api/manifest.schema.json).
@@ -116,7 +111,7 @@ coin-api собирает manifest через **composition slot registry** (н�
 
 1. `gp_composition` → pin component type/name/version per slot
 2. Materializer загружает package / metadata (`content_ref` v2 или legacy)
-3. `manifest.Builder` денормализует секции (`build`, `pipeline`, `lib`, …)
+3. `manifest.Builder` денормализует только GP identity + секции composition pins (`runtime`, `build`, `pipeline`, `validateSchema`, `capabilities`, `branching`)
 
 CI fallback при недоступном API — **только Nexus** (manifest blob + component packages), не PG bodies.
 
