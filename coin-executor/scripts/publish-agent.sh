@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build coin-agent image, push to Nexus Docker, register agent/coin-agent in coin-api.
+# Build coin-agent image from Dockerfile.agent, push to Nexus Docker, register draft in coin-api.
 set -euo pipefail
 
 VERSION="${1:?version (e.g. 1.0.0)}"
@@ -8,6 +8,7 @@ GOARCH="${2:-amd64}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 COIN_API_URL="${COIN_API_URL:-http://localhost:8090}"
 API_KEY="${COIN_API_KEY:-dev-local-admin-key}"
+GOPROXY="${GOPROXY:-https://proxy.golang.org,direct}"
 
 NEXUS_DOCKER_PORT="${NEXUS_DOCKER_PORT:-8082}"
 NEXUS_DOCKER_REPO="${NEXUS_DOCKER_REPO:-coin-docker}"
@@ -20,9 +21,23 @@ IMAGE_NAME="coin-agent"
 PUSH_REF="${PUSH_REGISTRY}/${IMAGE_NAME}:${VERSION}"
 RUNTIME_REF="${RUNTIME_REGISTRY}/${IMAGE_NAME}:${VERSION}"
 
+DOCKER_CONFIG="${DOCKER_CONFIG:-${WORKSPACE:-${ROOT}}/.docker}"
+mkdir -p "${DOCKER_CONFIG}"
+export DOCKER_CONFIG
+
 for cmd in curl jq docker; do
   command -v "${cmd}" >/dev/null 2>&1 || { echo "missing required command: ${cmd}" >&2; exit 1; }
 done
+
+docker version >/dev/null 2>&1 || {
+  echo "docker daemon is not reachable (required for coin-agent build/push)" >&2
+  exit 1
+}
+
+if ! curl -fsS "${COIN_API_URL}/ready" >/dev/null 2>&1; then
+  echo "coin-api is not reachable at ${COIN_API_URL} (required for draft register)" >&2
+  exit 1
+fi
 
 if [[ -z "${DOCKER_PLATFORM:-}" ]]; then
   case "${GOARCH}" in
@@ -32,70 +47,14 @@ if [[ -z "${DOCKER_PLATFORM:-}" ]]; then
   esac
 fi
 
-binary="${COIN_EXECUTOR_BINARY:-${ROOT}/coin-executor}"
-if [[ ! -f "${binary}" ]]; then
-  echo "coin-executor binary not found: ${binary}" >&2
-  echo "build first: GOOS=linux GOARCH=${GOARCH} go build -o coin-executor ./cmd/coin-executor" >&2
-  exit 1
-fi
-
-build_ctx="$(mktemp -d)"
-trap 'rm -rf "${build_ctx}"' EXIT
-cp "${binary}" "${build_ctx}/coin-executor"
-cp "${ROOT}/Dockerfile.agent" "${build_ctx}/Dockerfile"
-cp "${ROOT}/buildkitd.toml" "${build_ctx}/buildkitd.toml"
-cp "${ROOT}/podman-containers.conf" "${build_ctx}/podman-containers.conf"
-cp "${ROOT}/podman-storage.conf" "${build_ctx}/podman-storage.conf"
-cp "${ROOT}/podman-registries.conf" "${build_ctx}/podman-registries.conf"
-
-PACK_VERSION="0.36.2"
-pack_bin="${COIN_PACK_BINARY:-}"
-if [[ -z "${pack_bin}" && -f "${ROOT}/pack.${GOARCH}" ]]; then
-  pack_bin="${ROOT}/pack.${GOARCH}"
-fi
-if [[ -z "${pack_bin}" ]]; then
-  pack_tgz="${build_ctx}/pack.tgz"
-  pack_url="https://github.com/buildpacks/pack/releases/download/v${PACK_VERSION}/pack-v${PACK_VERSION}-linux-${GOARCH}.tgz"
-  echo "==> download pack ${PACK_VERSION} (${GOARCH})"
-  if curl -fsSL --retry 5 --retry-delay 3 --connect-timeout 30 "${pack_url}" -o "${pack_tgz}"; then
-    tar -xzf "${pack_tgz}" -C "${build_ctx}" pack
-    pack_bin="${build_ctx}/pack"
-  elif docker image inspect "${PUSH_REF}" >/dev/null 2>&1; then
-    echo "==> reuse pack from existing ${PUSH_REF}"
-    cid="$(docker create "${PUSH_REF}")"
-  elif docker image inspect "${PUSH_REGISTRY}/${IMAGE_NAME}:latest" >/dev/null 2>&1; then
-    echo "==> reuse pack from existing ${PUSH_REGISTRY}/${IMAGE_NAME}:latest"
-    cid="$(docker create "${PUSH_REGISTRY}/${IMAGE_NAME}:latest")"
-  else
-    echo "failed to download pack and no local agent image to reuse" >&2
-    exit 1
-  fi
-fi
-if [[ -n "${cid:-}" ]]; then
-  docker cp "${cid}:/usr/local/bin/pack" "${build_ctx}/pack"
-  docker rm "${cid}" >/dev/null
-  pack_bin="${build_ctx}/pack"
-fi
-cp "${pack_bin}" "${build_ctx}/pack"
-chmod +x "${build_ctx}/pack"
-
-BUILDER_LOCAL="localhost:${NEXUS_DOCKER_PORT}/${NEXUS_DOCKER_REPO}/paketo-builder-jammy-base:latest"
-BUILDER_RUNTIME="nexus:${NEXUS_DOCKER_PORT}/${NEXUS_DOCKER_REPO}/paketo-builder-jammy-base:latest"
-if docker image inspect "${BUILDER_LOCAL}" >/dev/null 2>&1; then
-  echo "==> bake buildpack builder into agent: ${BUILDER_RUNTIME}"
-  docker tag "${BUILDER_LOCAL}" "${BUILDER_RUNTIME}"
-  docker save "${BUILDER_RUNTIME}" -o "${build_ctx}/paketo-builder.tar"
-else
-  echo "missing builder image ${BUILDER_LOCAL}; run docker/scripts/mirror-paketo-builder.sh first" >&2
-  exit 1
-fi
-
-echo "==> build coin-agent ${VERSION} (${GOARCH})"
+echo "==> build coin-agent ${VERSION} (${GOARCH}) from Dockerfile.agent"
 docker build \
   --platform "${DOCKER_PLATFORM}" \
-  -f "${build_ctx}/Dockerfile" \
+  -f "${ROOT}/Dockerfile.agent" \
+  --build-arg VERSION="${VERSION}" \
+  --build-arg GOPROXY="${GOPROXY}" \
   -t "${PUSH_REF}" \
-  "${build_ctx}"
+  "${ROOT}"
 
 echo "${NEXUS_DOCKER_PASSWORD}" | docker login "localhost:${NEXUS_DOCKER_PORT}" \
   -u "${NEXUS_DOCKER_USER}" --password-stdin
@@ -121,8 +80,12 @@ register_code="$(curl -sS -o "${register_tmp}" -w '%{http_code}' -X POST \
   -H "Content-Type: application/json" \
   -H "X-API-Key: ${API_KEY}" \
   -d "${payload}")"
-if [[ "${register_code}" != "201" && "${register_code}" != "409" ]]; then
-  echo "coin-api register draft failed HTTP ${register_code}: $(cat "${register_tmp}")" >&2
+register_body="$(cat "${register_tmp}")"
+if [[ "${register_code}" == "409" ]]; then
+  echo "==> draft already exists for agent/coin-agent@${VERSION}, continue"
+  echo "    coin-api response: ${register_body}"
+elif [[ "${register_code}" != "201" ]]; then
+  echo "coin-api register draft failed HTTP ${register_code}: ${register_body}" >&2
   rm -f "${register_tmp}"
   exit 1
 fi

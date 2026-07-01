@@ -104,6 +104,27 @@ maven-releases/coin/executor/coin-executor/0.1.0/coin-executor-0.1.0-linux-amd64
 
 Manifest `executor` секции нет — binary baked в `coin-agent`. Проверьте arch бинарника в образе agent.
 
+### coin-executor job не публикует `coin-agent`
+
+**Симптом:** job `coin-executor` падает на publish стадии до регистрации draft.
+
+**Проверки:**
+
+1. Jenkins credentials:
+   - `nexus-docker` (user/password для `localhost:8082`)
+   - `coin-publisher-api-key` (API key для `POST /v1/admin/components/agent/...`)
+2. Docker доступен в Jenkins runner:
+   - `docker version` в логе preflight
+3. Доступность Nexus/coin-api из Jenkins контейнера:
+   - `http://nexus:8082`
+   - `http://coin-api:8090/ready`
+
+**Ожидаемый результат после успешного run:**
+
+- в Nexus Docker есть `coin-agent:<version>`
+- в Platform появляется `agent/coin-agent@<version>` со статусом `draft`
+- promote выполняется вручную в UI (job не делает auto-promote)
+
 ## coin-executor stages
 
 ### manifest sha256 mismatch / validate failed

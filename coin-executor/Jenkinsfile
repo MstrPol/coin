@@ -1,11 +1,7 @@
-// Platform CI: bump semver → test/build binary → Nexus maven2 upload (no coin-api registry).
+// Platform CI: bump semver → test → docker build coin-agent (Dockerfile.agent) → push → register draft.
 
 pipeline {
     agent any
-
-    tools {
-        go 'golang-1.22'
-    }
 
     parameters {
         choice(
@@ -13,14 +9,18 @@ pipeline {
             choices: ['patch', 'minor', 'major'],
             description: 'Semver bump от VERSION в репозитории',
         )
-        string(name: 'GOPROXY', defaultValue: 'https://proxy.golang.org,direct', description: 'URL to Go Proxy/Nexus')
-        string(name: 'GO_AUTH_CRED_ID', defaultValue: 'go-auth-token', description: 'Credentials ID for private Go modules (.netrc format)')
+        choice(
+            name: 'GOARCH',
+            choices: ['arm64', 'amd64'],
+            description: 'Target architecture for coin-agent image (binary built inside Dockerfile.agent)',
+        )
+        string(name: 'GOPROXY', defaultValue: 'https://proxy.golang.org,direct', description: 'Go proxy для builder stage в Dockerfile.agent')
     }
 
     environment {
-        NEXUS_URL = 'http://nexus:8081'
-        NEXUS_MAVEN_RELEASES = 'maven-releases'
-        NEXUS_MAVEN_SNAPSHOTS = 'maven-snapshots'
+        COIN_API_URL = 'http://coin-api:8090'
+        NEXUS_DOCKER_PORT = '8082'
+        NEXUS_DOCKER_REPO = 'coin-docker'
     }
 
     stages {
@@ -29,12 +29,27 @@ pipeline {
                 script {
                     def next = bumpVersionFromFile(params.BUMP)
                     env.COIN_EXECUTOR_VERSION = next
-                    echo "==> coin-executor binary version → ${next}"
+                    echo "==> coin-agent image version → ${next}"
                 }
             }
         }
 
-        stage('Test & Build') {
+        stage('Preflight runtime') {
+            steps {
+                sh '''
+                    set -eu
+                    command -v docker >/dev/null 2>&1 || { echo "docker CLI not found in Jenkins node" >&2; exit 1; }
+                    docker version >/dev/null 2>&1 || { echo "docker daemon is not reachable from Jenkins node" >&2; exit 1; }
+                    code="$(curl -sS -o /dev/null -w '%{http_code}' "http://nexus:${NEXUS_DOCKER_PORT}/v2/" || true)"
+                    case "${code}" in
+                        200|401) : ;;
+                        *) echo "nexus docker registry endpoint is not reachable: nexus:${NEXUS_DOCKER_PORT} (HTTP ${code})" >&2; exit 1 ;;
+                    esac
+                '''
+            }
+        }
+
+        stage('Test') {
             steps {
                 script {
                     withEnv([
@@ -42,50 +57,63 @@ pipeline {
                         "GOINSECURE=*",
                         "GIT_SSL_NO_VERIFY=true"
                     ]) {
-                        withCredentials([string(credentialsId: params.GO_AUTH_CRED_ID, variable: 'GO_AUTH')]) {
-                            sh '''
-                                set -eu
-                                if [ -n "$GO_AUTH" ]; then
-                                    echo "$GO_AUTH" > ~/.netrc
-                                fi
+                        sh '''
+                            set -eu
+                            GO_VERSION=1.24.0
+                            GO_ROOT="${WORKSPACE}/.go"
+                            case "$(uname -m)" in
+                                arm64|aarch64) GOARCH_DL=arm64 ;;
+                                x86_64|amd64) GOARCH_DL=amd64 ;;
+                                *) echo "unsupported: $(uname -m)" >&2; exit 1 ;;
+                            esac
+                            if [ ! -x "${GO_ROOT}/bin/go" ]; then
+                                mkdir -p "${GO_ROOT}"
+                                curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${GOARCH_DL}.tar.gz" \
+                                    | tar -C "${GO_ROOT}" --strip-components=1 -xz
+                            fi
+                            export PATH="${GO_ROOT}/bin:${PATH}"
+                            export GOROOT="${GO_ROOT}"
+                            export GOCACHE="${WORKSPACE}/.cache/go-build"
+                            export GOMODCACHE="${WORKSPACE}/.cache/go-mod"
+                            mkdir -p "${GOCACHE}" "${GOMODCACHE}"
 
-                                echo "Running tests..."
-                                go test ./...
-
-                                case "$(uname -m)" in
-                                    arm64|aarch64) GOARCH=arm64 ;;
-                                    x86_64|amd64) GOARCH=amd64 ;;
-                                    *) echo "unsupported: $(uname -m)" >&2; exit 1 ;;
-                                esac
-
-                                echo "Building for ${GOARCH}..."
-                                GOOS=linux CGO_ENABLED=0 GOARCH="${GOARCH}" go build -buildvcs=false \
-                                    -ldflags "-X main.Version=${COIN_EXECUTOR_VERSION}" \
-                                    -o coin-executor ./cmd/coin-executor
-
-                                echo "${GOARCH}" > .goarch
-                            '''
-                        }
+                            echo "Running tests..."
+                            go test ./...
+                        '''
                     }
                 }
-                stash includes: 'coin-executor,.goarch', name: 'executor-binary'
             }
         }
 
-        stage('Publish') {
+        stage('Publish agent image') {
             steps {
-                unstash 'executor-binary'
-                script {
-                    env.GOARCH = readFile('.goarch').trim()
-                }
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'nexus-admin',
-                        usernameVariable: 'NEXUS_USER',
-                        passwordVariable: 'NEXUS_PASSWORD',
-                    ),
+                withEnv([
+                    "GOARCH=${params.GOARCH}",
+                    "GOPROXY=${params.GOPROXY}",
                 ]) {
-                    publishExecutorBinary(env.COIN_EXECUTOR_VERSION, env.GOARCH)
+                    withCredentials([
+                    usernamePassword(
+                        credentialsId: 'nexus-docker',
+                        usernameVariable: 'NEXUS_DOCKER_USER',
+                        passwordVariable: 'NEXUS_DOCKER_PASSWORD',
+                    ),
+                    string(credentialsId: 'coin-publisher-api-key', variable: 'COIN_API_KEY'),
+                ]) {
+                    sh '''
+                        set -eu
+                        chmod +x scripts/publish-agent.sh
+                        DOCKER_CONFIG="${WORKSPACE}/.docker" \
+                        COIN_API_URL="${COIN_API_URL}" \
+                        NEXUS_DOCKER_PORT="${NEXUS_DOCKER_PORT}" \
+                        NEXUS_DOCKER_REPO="${NEXUS_DOCKER_REPO}" \
+                        NEXUS_DOCKER_USER="${NEXUS_DOCKER_USER}" \
+                        NEXUS_DOCKER_PASSWORD="${NEXUS_DOCKER_PASSWORD}" \
+                        COIN_API_KEY="${COIN_API_KEY}" \
+                        GOPROXY="${GOPROXY}" \
+                        GOARCH="${GOARCH}" \
+                        ./scripts/publish-agent.sh "${COIN_EXECUTOR_VERSION}" "${GOARCH}"
+                    '''
+                }
                 }
             }
         }
@@ -118,31 +146,4 @@ PY
     ).trim()
     writeFile file: 'VERSION', text: next + '\n'
     return next
-}
-
-def publishExecutorBinary(String version, String goarch) {
-    def binaryPath = 'coin-executor'
-    def repo = (version.contains('SNAPSHOT') || version.contains('-dev')) ? env.NEXUS_MAVEN_SNAPSHOTS : env.NEXUS_MAVEN_RELEASES
-    def nexusTarget = "${env.NEXUS_URL}/repository/${repo}/coin/executor/coin-executor/${version}/coin-executor-${version}-${goarch}"
-    def nexusAuth = "${env.NEXUS_USER}:${env.NEXUS_PASSWORD}"
-    def checkCode = sh(script: "curl -s -o /dev/null -w '%{http_code}' -u '${nexusAuth}' -I '${nexusTarget}' || true", returnStdout: true).trim()
-
-    if (checkCode == '200') {
-        echo "==> already in Nexus, skip upload: ${nexusTarget}"
-        return
-    }
-    echo "==> upload ${binaryPath} -> ${nexusTarget}"
-    def uploadCode = sh(
-        script: "curl -sS -u '${nexusAuth}' -o upload.out -w '%{http_code}' -H 'Content-Type: application/octet-stream' --upload-file '${binaryPath}' '${nexusTarget}'",
-        returnStdout: true,
-    ).trim()
-    if (uploadCode != '201' && uploadCode != '200' && uploadCode != '204') {
-        def body = readFile('upload.out').trim()
-        if (uploadCode == '400' && body.contains('already exists')) {
-            echo "==> already in Nexus (immutable repo), continue: ${nexusTarget}"
-            return
-        }
-        error("nexus upload failed HTTP ${uploadCode}: ${body}")
-    }
-    echo "==> done Nexus upload coin-executor@${version} (${goarch})"
 }
