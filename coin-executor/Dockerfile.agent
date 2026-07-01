@@ -31,13 +31,15 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -ldflags "-X main.Version=${VERSION}" \
     -o /coin-executor ./cmd/coin-executor
 
-FROM ${REGISTRY}moby/buildkit:${BUILDKIT_VERSION} AS buildkit-bin
+FROM ${REGISTRY}moby/buildkit:${BUILDKIT_VERSION}-rootless AS buildkit-rootless
 
 FROM ${REGISTRY}jenkins/inbound-agent:${JENKINS_INBOUND_AGENT_TAG}
 
 USER root
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends curl git jq ca-certificates podman fuse-overlayfs \
+  && apt-get install -y --no-install-recommends \
+       curl git jq ca-certificates podman fuse-overlayfs \
+       slirp4netns iptables \
   && rm -rf /var/lib/apt/lists/*
 
 ARG PACK_VERSION
@@ -45,19 +47,24 @@ ARG TARGETARCH
 COPY pack /usr/local/bin/pack
 RUN chmod +x /usr/local/bin/pack
 
-COPY --from=buildkit-bin /usr/bin/buildkitd /usr/local/bin/buildkitd
-COPY --from=buildkit-bin /usr/bin/buildctl /usr/local/bin/buildctl
-COPY --from=buildkit-bin /usr/bin/buildkit-runc /usr/local/bin/runc
+COPY --from=buildkit-rootless /usr/bin/buildkitd /usr/local/bin/buildkitd
+COPY --from=buildkit-rootless /usr/bin/buildctl /usr/local/bin/buildctl
+COPY --from=buildkit-rootless /usr/bin/buildkit-runc /usr/local/bin/runc
+COPY --from=buildkit-rootless /usr/bin/rootlesskit /usr/local/bin/rootlesskit
 RUN ln -sf /usr/local/bin/runc /usr/bin/runc
 COPY buildkitd.toml /etc/buildkit/buildkitd.toml
 COPY podman-containers.conf /etc/containers/containers.conf
 COPY podman-storage.conf /etc/containers/storage.conf
 COPY podman-registries.conf /etc/containers/registries.conf
 COPY --from=executor-builder /coin-executor /usr/local/bin/coin-executor
-RUN chmod +x /usr/local/bin/coin-executor /usr/local/bin/buildkitd /usr/local/bin/buildctl /usr/local/bin/runc
+RUN chmod +x /usr/local/bin/coin-executor /usr/local/bin/buildkitd /usr/local/bin/buildctl /usr/local/bin/runc /usr/local/bin/rootlesskit
 
 # Buildpack builder baked as tar (loaded into podman at bootstrap; avoids registry pull in pod).
 COPY paketo-builder.tar /usr/share/coin/paketo-builder.tar
 
-# coin-agent: buildkitd/podman требуют root (rootless нужен RootlessKit). Jenkins remoting ok as root.
-USER root
+# coin-agent: Switch back to jenkins user for rootless operations
+RUN mkdir -p /home/jenkins/.local/share/containers/storage /run/user/1000 \
+  && chown -R 1000:1000 /home/jenkins/.local /run/user/1000
+
+ENV XDG_RUNTIME_DIR=/run/user/1000
+USER 1000

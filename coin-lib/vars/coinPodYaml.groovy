@@ -17,7 +17,7 @@ def call(String cfgJson) {
     def jnlpReq = jnlpRes.requests ?: [cpu: '500m', memory: '1Gi']
     def jnlpLim = jnlpRes.limits ?: [memory: '4Gi']
 
-    def procMount = '        procMount: Unmasked'
+    def procMount = ''
     def podmanVolumesBlock = '''  volumes:
     - name: podman-storage
       emptyDir:
@@ -25,7 +25,7 @@ def call(String cfgJson) {
 '''
     def podmanVolumeMountsBlock = '''      volumeMounts:
         - name: podman-storage
-          mountPath: /var/lib/containers/storage
+          mountPath: /home/jenkins/.local/share/containers/storage
 '''
 
     def tpl = libraryResource('coin-pod-template.yaml')

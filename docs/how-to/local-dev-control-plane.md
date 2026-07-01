@@ -73,7 +73,7 @@ Jenkins: http://localhost:8080 → **demo-go-app** / **main** → Build Now → 
 | `lookup nexus: no such host` | `COIN_REGISTRY_PREFIX=localhost:8082/coin-docker` |
 | manifest sha256 mismatch | Новый gp-content semver + `make seed-jenkins-lib` (Nexus immutable) |
 | Pod killed (ephemeral-storage) | `bash scripts/prune-k3s-disk.sh --all` |
-| buildpack pod pending | Диск + `procMount: Unmasked` в pod template |
+| buildpack pod pending | Недостаточно места на диске для pod template |
 
 ## Ссылки
 

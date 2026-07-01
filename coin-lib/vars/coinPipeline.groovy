@@ -105,16 +105,17 @@ def call() {
                     export PATH="/usr/local/bin:${PATH}"
 
                     if command -v podman >/dev/null 2>&1; then
-                      if [ ! -S /var/run/docker.sock ]; then
-                        mkdir -p /var/lib/containers/storage /run/containers/storage /run/podman
-                        nohup podman system service --time=0 unix:///var/run/docker.sock \
+                      if [ ! -S /tmp/docker.sock ]; then
+                        mkdir -p /home/jenkins/.local/share/containers/storage
+                        export DOCKER_HOST="unix:///tmp/docker.sock"
+                        nohup podman system service --time=0 unix:///tmp/docker.sock \\
                           >/tmp/podman.log 2>&1 &
                         echo $! >/tmp/podman.pid
                       fi
 
                       podman_ready=0
                       for i in $(seq 1 60); do
-                        if [ -S /var/run/docker.sock ]; then
+                        if [ -S /tmp/docker.sock ]; then
                           podman_ready=1
                           break
                         fi

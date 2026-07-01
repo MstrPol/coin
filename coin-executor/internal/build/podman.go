@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-const podmanSocketPath = "/var/run/docker.sock"
+const podmanSocketPath = "/tmp/docker.sock"
 
 func ensurePodman() error {
 	if _, err := os.Stat(podmanSocketPath); err != nil {

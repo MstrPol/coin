@@ -9,6 +9,9 @@ spec:
   containers:
     - name: jnlp
       image: ${jnlpImage}
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
       resources:
         requests:
           cpu: "100m"
@@ -21,24 +24,19 @@ spec:
       args: ["infinity"]
       tty: true
       securityContext:
-        runAsUser: 0
+        runAsUser: 1000
+        runAsGroup: 1000
       env:
         - name: COIN_REGISTRY_PREFIX
           value: "localhost:8082/coin-docker"
-      volumeMounts:
-        - name: docker-sock
-          mountPath: /var/run/docker.sock
       resources:
         requests:
           cpu: "500m"
           memory: "1Gi"
         limits:
           memory: "4Gi"
-  volumes:
-    - name: docker-sock
-      hostPath:
-        path: /var/run/docker.sock
-        type: Socket
+  securityContext:
+    fsGroup: 1000
 """.stripIndent()
 }
 
@@ -100,7 +98,7 @@ def run(script) {
                             set -eu
                             REG_HOST="${COIN_REGISTRY_PREFIX:-localhost:8082/coin-docker}"
                             REG_HOST="${REG_HOST%%/*}"
-                            echo "${COIN_REGISTRY_PASSWORD}" | docker login "${REG_HOST}" \
+                            echo "${COIN_REGISTRY_PASSWORD}" | podman login "${REG_HOST}" \
                               -u "${COIN_REGISTRY_USER}" --password-stdin || true
                         '''
                         coinRunStage('build')

@@ -44,7 +44,7 @@ Resolved manifest обязан содержать выбранный `build` obj
 - BuildKit/buildpack как основные build paths;
 - для local pilot `buildkitd` **не** стартует в bootstrap на arm64; `podman system service` — обязательный bootstrap step;
 - default engine для `go-app` — `buildkit`;
-- Docker socket хоста не используется; для buildpack engine `pack` работает через `podman system service` внутри agent pod (`unix:///var/run/docker.sock`);
+- Docker socket хоста не используется; для buildpack engine `pack` работает через `podman system service` внутри agent pod (`unix:///tmp/docker.sock`);
 - произвольные GP `scripts/*.sh` не являются runtime build path;
 - project config не задает `build.engine` в первой итерации.
 

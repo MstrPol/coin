@@ -1,4 +1,4 @@
-// Registry auth для BuildKit (buildkitd читает /root/.docker/config.json).
+// Registry auth для BuildKit (buildkitd читает ~/.docker/config.json).
 
 /**
  * Материализует Docker config с Nexus credentials из withCredentials.
@@ -9,9 +9,9 @@ def call() {
         set -eu
         REG_HOST="${COIN_REGISTRY_PREFIX:-nexus:8082/coin-docker}"
         REG_HOST="${REG_HOST%%/*}"
-        mkdir -p /root/.docker
+        mkdir -p ~/.docker
         AUTH="$(printf '%s' "${COIN_REGISTRY_USER}:${COIN_REGISTRY_PASSWORD}" | base64 | tr -d '\\n')"
-        printf '{"auths":{"%s":{"auth":"%s"}}}\\n' "${REG_HOST}" "${AUTH}" > /root/.docker/config.json
-        chmod 600 /root/.docker/config.json
+        printf '{"auths":{"%s":{"auth":"%s"}}}\\n' "${REG_HOST}" "${AUTH}" > ~/.docker/config.json
+        chmod 600 ~/.docker/config.json
     '''
 }
