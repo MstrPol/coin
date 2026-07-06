@@ -2,24 +2,29 @@ schema: spec-driven
 
 context: |
   Coin Control Plane v2 — local pilot до corp gate.
-  SoT: coin-api + PostgreSQL (metadata) + Nexus (immutable packages).
-  Product config v2 strict: coin.goldenPath + coin.version (no template/templateVersion).
+  Источники правды: coin-api + PostgreSQL (metadata) + Nexus (immutable packages).
+  Product config v2 strict: coin.goldenPath + coin.version (без template/templateVersion).
   coin-lib — Jenkins glue only; build logic в coin-executor.
-  Enabling team — UI-first: Component Studio, draft → canary → stable.
-  ADR: docs/adr/. Active changes: openspec/changes/.
-  E2E acceptance: samples/demo-go-app green.
+  Enabling team работает UI-first: Component Studio, draft → canary → stable.
+  ADR хранятся в docs/adr/. Активные changes — в openspec/changes/.
+  E2E acceptance: samples/demo-go-app должен быть green.
+  Все OpenSpec-артефакты писать на русском языке. Исключение — обязательные
+  служебные маркеры OpenSpec DSL, если CLI требует их для валидации.
 
 rules:
   proposal:
-    - "Писать на русском согласно существующим ADR"
+    - "Писать артефакт на русском языке"
     - "Всегда включать Non-goals"
     - "Ссылаться на docs/adr/ для постоянных решений"
   design:
+    - "Писать артефакт на русском языке"
     - "Открытые BLOCKING вопросы — таблица с вариантами A/B"
     - "Corp gate: не планировать fleet rollout до corp"
   tasks:
+    - "Писать артефакт на русском языке"
     - "Чанки ≤ 1 PR где возможно"
     - "BLOCKING ADR — отдельная задача в начале"
   specs:
-    - "Scenario format: WHEN/THEN"
+    - "Писать артефакт на русском языке"
+    - "Формат Scenario: WHEN/THEN"
     - "Не дублировать Jenkins glue scope (coin-lib-scope)"

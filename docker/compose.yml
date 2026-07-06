@@ -102,7 +102,6 @@ services:
       COIN_API_TOKEN: ${COIN_API_TOKEN:-dev-local-token}
       COIN_PUBLISHER_API_KEY: ${COIN_PUBLISHER_API_KEY:-dev-local-publisher-key}
       KUBECONFIG_PATH: /kubeconfig/config
-      COIN_REGISTRY_PREFIX: localhost:${NEXUS_DOCKER_PORT:-8082}/${NEXUS_DOCKER_REPO:-coin-docker}
       COIN_REGISTRY_RUNTIME_PREFIX: nexus:${NEXUS_DOCKER_PORT:-8082}/${NEXUS_DOCKER_REPO:-coin-docker}
     volumes:
       - jenkins-home:/var/jenkins_home

@@ -87,6 +87,11 @@ Orchestration — только `coin-lib` (`coinPipeline()`), не Groovy из N
 
 ```json
 {
+  "destinations": {
+    "imageRegistryPrefix": "localhost:8082/coin-docker",
+    "buildCacheEnabled": true,
+    "artifactRepositoryBase": "http://nexus:8081/repository/maven-releases"
+  },
   "build": {
     "engine": "buildkit",
     "buildkit": {
@@ -97,7 +102,6 @@ Orchestration — только `coin-lib` (`coinPipeline()`), не Groovy из N
         "image": "runtime",
         "artifact": "artifact"
       },
-      "cacheRef": "nexus:8082/coin-cache/demo-go-app:buildkit",
       "containerfile": {
         "url": "http://nexus:8081/repository/maven-releases/coin/gp/content/go-app/1.0.2/...",
         "sha256": "sha256:..."
@@ -194,9 +198,9 @@ Buildpack на arm64 pilot: builder jammy-base amd64, работает чере�
 
 ## Registry cache
 
-`cacheRefTemplate` в GP content подставляет `{{registryHost}}` и `{{project}}`.
+Registry cache ref вычисляет `coin-executor` из `manifest.destinations.imageRegistryPrefix`, `project.groupId`, `project.artifactId`, `project.name` и suffix `-cache`.
 
-Пример: `nexus:8082/coin-cache/demo-go-app:buildkit`.
+Пример: `localhost:8082/coin-docker/com.example.team/demo-go-app/demo-go-app-cache`.
 
 ---
 

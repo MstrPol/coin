@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"strings"
 
 	"coin.local/coin-api/internal/canary"
 	"coin.local/coin-api/internal/catalog"
@@ -84,15 +82,13 @@ func (s *Service) Resolve(ctx context.Context, name, pinRaw string, opts Resolve
 	}
 
 	doc, hash, err := s.builder.Build(manifest.GPRelease{
-		Name:      release.Name,
-		Version:   release.Version,
-		Parts:     release.Parts,
-		Content:   release.Content,
-		Branching: release.Branching,
-	}, manifest.BuildOptions{
-		Project:      opts.Project,
-		RegistryHost: registryHostForManifest(),
-	})
+		Name:         release.Name,
+		Version:      release.Version,
+		Destinations: release.Destinations,
+		Parts:        release.Parts,
+		Content:      release.Content,
+		Branching:    release.Branching,
+	}, manifest.BuildOptions{})
 	if err != nil {
 		return Result{}, err
 	}
@@ -250,9 +246,3 @@ func (s *Service) RefreshWildcards(ctx context.Context, gpName, version string, 
 	return nil
 }
 
-func registryHostForManifest() string {
-	if host := strings.TrimSpace(os.Getenv("COIN_REGISTRY_HOST")); host != "" {
-		return strings.TrimSuffix(host, "/")
-	}
-	return "nexus:8082"
-}

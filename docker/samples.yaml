@@ -6,7 +6,7 @@
 samples:
   - repo: demo-go-app
     starter: go-app
-    goldenPath: go-app
+    goldenPath: gp-01-07
 
   - repo: demo-go-app-docker
     starter: go-app-docker

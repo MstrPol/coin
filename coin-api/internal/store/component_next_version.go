@@ -92,14 +92,6 @@ func (s *Store) nextSemverComponentVersion(
 	return latest, next, false, nil
 }
 
-// NextGPContentVersion returns semver after bump for gp-content/{name}.
-func (s *Store) NextGPContentVersion(ctx context.Context, name, bump string) (currentVersion, nextVersion string, isFirst bool, err error) {
-	if name == "" {
-		return "", "", false, fmt.Errorf("gp-content name is required")
-	}
-	return s.nextSemverComponentVersion(ctx, "gp-content", name, bump)
-}
-
 func latestPublishedSemver(versions []ComponentVersionListItem) string {
 	var best string
 	for _, v := range versions {

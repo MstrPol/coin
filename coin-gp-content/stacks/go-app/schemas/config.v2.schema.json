@@ -27,7 +27,7 @@
     "project": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "artifactId"],
+      "required": ["name", "groupId", "artifactId"],
       "properties": {
         "name": {
           "type": "string",
@@ -38,10 +38,8 @@
           "minLength": 1
         },
         "groupId": {
-          "type": "string"
-        },
-        "repository": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       }
     },
@@ -77,63 +75,9 @@
           }
         }
       }
-    },
-    "pipeline": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "test": { "$ref": "#/$defs/stage" },
-        "build": { "$ref": "#/$defs/stage" },
-        "publish": { "$ref": "#/$defs/stage" }
-      }
-    },
-    "rn": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "serviceUrl": { "type": "string" },
-        "codeRepository": { "type": "string" }
-      }
-    },
-    "deliverables": {
-      "type": "object",
-      "minProperties": 1,
-      "additionalProperties": { "$ref": "#/$defs/deliverable" },
-      "description": "Product outputs map; default is app:image when omitted"
     }
   },
   "$defs": {
-    "deliverable": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["type"],
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": ["image", "liquibase-image", "artifact"]
-        },
-        "format": {
-          "type": "string",
-          "enum": ["zip"]
-        },
-        "context": { "type": "string" },
-        "path": { "type": "string" },
-        "source": { "type": "string" },
-        "dependsOn": { "type": "string" },
-        "sources": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["path"],
-            "properties": {
-              "path": { "type": "string" },
-              "as": { "type": "string" }
-            }
-          }
-        }
-      }
-    },
     "stage": {
       "type": "object",
       "additionalProperties": false,

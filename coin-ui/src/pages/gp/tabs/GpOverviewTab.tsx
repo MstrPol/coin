@@ -36,7 +36,7 @@ export default function GpOverviewTab() {
         <div className="rounded-lg border border-emerald-900/50 bg-emerald-950/30 px-4 py-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-emerald-200">
             Profile <span className="font-mono">{name}</span> создан. Создайте первый draft с
-            composition (agent + gp-content + branching-model), затем promote в stable release.
+            composition (agent + branching-model) и pipeline на release detail, затем promote в stable release.
           </p>
           <div className="flex gap-2">
             <Link

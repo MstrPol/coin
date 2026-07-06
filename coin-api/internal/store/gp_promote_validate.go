@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+
+	"coin.local/coin-api/internal/manifest"
 )
 
 var ErrGPCompositionHasDraftPins = errors.New("gp composition has draft component pins")
@@ -46,6 +48,15 @@ func (s *Store) validateGPCompositionPublishedPins(ctx context.Context, gpName, 
 }
 
 func (s *Store) loadGPCompositionInput(ctx context.Context, gpName, gpVersion string) (PublishGPReleaseInput, error) {
+	var dest manifest.Destinations
+	if err := s.pool.QueryRow(ctx, `
+		SELECT image_registry_prefix, build_cache_enabled, artifact_repository_base
+		FROM gp_releases
+		WHERE name = $1 AND version = $2
+	`, gpName, gpVersion).Scan(&dest.ImageRegistryPrefix, &dest.BuildCacheEnabled, &dest.ArtifactRepositoryBase); err != nil {
+		return PublishGPReleaseInput{}, err
+	}
+
 	rows, err := s.pool.Query(ctx, `
 		SELECT gc.component_type, gc.component_name, gc.component_version
 		FROM gp_composition gc
@@ -58,7 +69,7 @@ func (s *Store) loadGPCompositionInput(ctx context.Context, gpName, gpVersion st
 	defer rows.Close()
 
 	composition := make(map[string]string)
-	var agentStack, gpContent, branching string
+	var agentStack, branching string
 	for rows.Next() {
 		var typ, name, version string
 		if err := rows.Scan(&typ, &name, &version); err != nil {
@@ -68,9 +79,6 @@ func (s *Store) loadGPCompositionInput(ctx context.Context, gpName, gpVersion st
 		case "agent":
 			composition["agent"] = version
 			agentStack = name
-		case "gp-content":
-			composition["gp-content"] = version
-			gpContent = name
 		case "branching-model":
 			composition["branching-model"] = version
 			branching = name
@@ -82,9 +90,9 @@ func (s *Store) loadGPCompositionInput(ctx context.Context, gpName, gpVersion st
 	return PublishGPReleaseInput{
 		Name:               gpName,
 		Version:            gpVersion,
+		Destinations:       dest,
 		Composition:        composition,
 		AgentStackName:     agentStack,
-		GPContentName:      gpContent,
 		BranchingModelName: branching,
 	}, nil
 }
@@ -111,6 +119,9 @@ func (s *Store) validateGPReleasePromoteReady(ctx context.Context, gpName, gpVer
 		return nil, err
 	}
 	if err := validateGPReleaseComposition(s, ctx, prep, rules, componentResolveModeForGPPromote); err != nil {
+		return nil, err
+	}
+	if err := s.validateGPReleasePipeline(ctx, gpName, gpVersion); err != nil {
 		return nil, err
 	}
 	return nil, nil

@@ -1,29 +1,42 @@
-schemaVersion: 2
+schemaVersion: 3
 name: go-app-docker
 kind: gp-content
+validateSchema: schemas/config.v2.schema.json
 
-capabilities:
-  deliverables:
-    - image
-
-build:
-  engine: dockerfile
-  dockerfile:
-    path: Dockerfile
-    imageTarget: runtime
-    testTarget: test
-    cacheRefTemplate: "{{registryHost}}/coin-cache/{{project}}:dockerfile"
-
+parameters:
 pipeline:
   stages:
-    - id: validate
+    - id: ul91ak
       name: Validate
-    - id: test
+      steps:
+        - action: run
+          run:
+            engine: dockerfile
+            output: validate
+            dockerfile:
+              path: Dockerfile
+    - id: 45s9cv
       name: Test
-    - id: build
+      steps:
+        - action: run
+          run:
+            engine: dockerfile
+            output: test
+            dockerfile:
+              path: Dockerfile
+    - id: t6onxo
       name: Build
-    - id: publish
+      steps:
+        - action: build
+          build:
+            id: ffubk4
+            type: image
+            engine: dockerfile
+            dockerfile:
+              path: Dockerfile
+    - id: 99j5lg
       name: Publish
-
-artifacts:
-  validateSchema: schemas/config.v2.schema.json
+      steps:
+        - action: publish
+          publish:
+            buildStepId: ffubk4

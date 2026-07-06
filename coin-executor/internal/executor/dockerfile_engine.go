@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -12,6 +13,8 @@ import (
 	"coin.local/coin-executor/internal/outputs"
 )
 
+const managedContainerfileDir = ".coin/containerfiles"
+
 func (r Runner) materializeContainerfile(m *manifest.Manifest) error {
 	if m.Build.Buildkit == nil {
 		return fmt.Errorf("manifest build.buildkit is required")
@@ -21,6 +24,44 @@ func (r Runner) materializeContainerfile(m *manifest.Manifest) error {
 		m.Build.Buildkit.Containerfile,
 		m,
 	)
+}
+
+func (r Runner) materializeStepContainerfile(m *manifest.Manifest, cf *manifest.InlineContainerfileStep) (string, error) {
+	if cf == nil {
+		return "", fmt.Errorf("step containerfile is required")
+	}
+	destPath := filepath.Join(managedContainerfileDir, "step.Containerfile")
+	cref := manifest.ContentRef{}
+	if cf.ContentRef != nil {
+		cref.URL = cf.ContentRef["url"]
+		cref.SHA256 = cf.ContentRef["sha256"]
+		if cref.SHA256 == "" {
+			cref.SHA256 = cf.Digest
+		}
+	}
+	if strings.TrimSpace(cref.URL) == "" && strings.TrimSpace(cf.Body) != "" {
+		dest := filepath.Join(r.Workspace, destPath)
+		if err := os.WriteFile(dest, []byte(cf.Body), 0o644); err != nil {
+			return "", err
+		}
+		return destPath, nil
+	}
+	if strings.TrimSpace(cref.URL) == "" {
+		return "", fmt.Errorf("step containerfile contentRef or body is required")
+	}
+	return destPath, r.materializeContentFile(destPath, cref, m)
+}
+
+func (r Runner) materializeNamedContainerfile(m *manifest.Manifest, id string) (string, error) {
+	ref, ok := m.Containerfile(id)
+	if !ok {
+		return "", fmt.Errorf("manifest artifacts.containerfiles missing %q", id)
+	}
+	destPath := filepath.Join(managedContainerfileDir, id+".Containerfile")
+	return destPath, r.materializeContentFile(destPath, manifest.ContentRef{
+		URL:    ref.URL,
+		SHA256: ref.SHA256,
+	}, m)
 }
 
 func (r Runner) materializeDockerfileEngine(m *manifest.Manifest) error {
@@ -49,7 +90,7 @@ func (r Runner) materializeContentFile(destPath string, cref manifest.ContentRef
 	return content.Materialize(dest, contentRoot, cref)
 }
 
-func (r Runner) runDockerfileEngineTarget(m *manifest.Manifest, target string) error {
+func (r Runner) runDockerfileEngineTarget(cfg *config.Config, m *manifest.Manifest, target string) error {
 	if m.Build.Dockerfile == nil {
 		return fmt.Errorf("manifest build.dockerfile is required")
 	}
@@ -60,13 +101,17 @@ func (r Runner) runDockerfileEngineTarget(m *manifest.Manifest, target string) e
 		Workspace:  r.Workspace,
 		Dockerfile: m.Build.Dockerfile.Dockerfile,
 		Target:     target,
-		CacheRef:   m.Build.Dockerfile.CacheRef,
+		CacheRef:   cacheRefForProject(cfg, m),
 	})
 }
 
 func (r Runner) runDockerfileEngineImage(cfg *config.Config, m *manifest.Manifest, push bool) error {
 	if m.Build.Dockerfile == nil {
 		return fmt.Errorf("manifest build.dockerfile is required")
+	}
+	if !m.HasDeliverable("image") {
+		fmt.Println("==> skip image build (GP manifest has no image deliverable)")
+		return nil
 	}
 	if err := r.materializeDockerfileEngine(m); err != nil {
 		return err
@@ -81,7 +126,7 @@ func (r Runner) runDockerfileEngineImage(cfg *config.Config, m *manifest.Manifes
 		Workspace:  r.Workspace,
 		Dockerfile: m.Build.Dockerfile.Dockerfile,
 		Target:     m.Build.Dockerfile.ImageTarget,
-		CacheRef:   m.Build.Dockerfile.CacheRef,
+		CacheRef:   cacheRefForProject(cfg, m),
 		Output:     output,
 	}); err != nil {
 		return err

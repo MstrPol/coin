@@ -12,10 +12,10 @@ ${PODMAN_VOLUMES_BLOCK}
 ${PROC_MOUNT}
 ${PODMAN_VOLUME_MOUNTS_BLOCK}
       env:
-        - name: COIN_REGISTRY_PREFIX
-          value: "${REGISTRY_PREFIX}"
         - name: BUILDKIT_HOST
           value: "unix:///tmp/buildkit.sock"
+        - name: COIN_REGISTRY_PREFIX
+          value: "${COIN_REGISTRY_PREFIX}"
         - name: COIN_BUILD_ENGINE
           value: "${COIN_BUILD_ENGINE}"
       resources:

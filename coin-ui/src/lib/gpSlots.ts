@@ -1,8 +1,7 @@
-export const GP_DRAFT_SLOT_ORDER = ["agent", "gp-content", "branching-model"] as const;
+export const GP_DRAFT_SLOT_ORDER = ["agent", "branching-model"] as const;
 
 export const SLOT_LABELS: Record<string, string> = {
   agent: "Agent / executor stack (CI runtime)",
-  "gp-content": "GP content (build policy, Containerfile, schema)",
   "branching-model": "Branching model (versioning + publish policy)",
 };
 
@@ -15,7 +14,6 @@ export type GpDraftSlotSpec = {
 
 export const GP_DRAFT_SLOT_SPECS: GpDraftSlotSpec[] = [
   { key: "agent", type: "agent" },
-  { key: "gp-content", type: "gp-content" },
   { key: "branching-model", type: "branching-model", pickComponent: true },
 ];
 

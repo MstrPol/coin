@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://coin.local/schemas/pipeline-inline.schema.json",
+  "title": "Build Stack pipeline-inline (schemaVersion 3)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "name", "kind", "validateSchema", "pipeline"],
+  "properties": {
+    "schemaVersion": { "const": 3 },
+    "name": { "type": "string", "minLength": 1 },
+    "kind": { "const": "gp-content" },
+    "validateSchema": { "type": "string", "minLength": 1 },
+    "parameters": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/parameter" },
+      "default": []
+    },
+    "pipeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stages"],
+      "properties": {
+        "stages": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/stage" }
+        }
+      }
+    }
+  },
+  "not": {
+    "anyOf": [
+      { "required": ["build"] },
+      { "required": ["deliverables"] },
+      { "required": ["artifacts"] }
+    ]
+  },
+  "$defs": {
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "type": { "enum": ["string", "boolean", "number", "enum"] },
+        "default": {},
+        "required": { "type": "boolean", "default": false },
+        "allowedValues": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "enum" } }, "required": ["type"] },
+          "then": { "required": ["allowedValues"] }
+        }
+      ]
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "steps"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]{5,6}$" },
+        "name": { "type": "string", "minLength": 1 },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/step" }
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action"],
+      "properties": {
+        "action": { "enum": ["run", "build", "publish"] },
+        "run": { "$ref": "#/$defs/runBlock" },
+        "build": { "$ref": "#/$defs/buildBlock" },
+        "publish": { "$ref": "#/$defs/publishBlock" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "action": { "const": "run" } }, "required": ["action"] },
+          "then": { "required": ["run"] }
+        },
+        {
+          "if": { "properties": { "action": { "const": "build" } }, "required": ["action"] },
+          "then": { "required": ["build"] }
+        },
+        {
+          "if": { "properties": { "action": { "const": "publish" } }, "required": ["action"] },
+          "then": { "required": ["publish"] }
+        }
+      ]
+    },
+    "containerfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "body": { "type": "string", "minLength": 1 },
+        "contentRef": { "type": "object" },
+        "digest": { "type": "string" }
+      }
+    },
+    "dockerfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 }
+      }
+    },
+    "runBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engine"],
+      "properties": {
+        "engine": { "enum": ["buildkit", "dockerfile"] },
+        "output": { "enum": ["validate", "test", "image", "artifact", ""] },
+        "containerfile": { "$ref": "#/$defs/containerfile" },
+        "dockerfile": { "$ref": "#/$defs/dockerfile" }
+      }
+    },
+    "buildBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "engine"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]{5,6}$" },
+        "type": { "enum": ["image", "liquibase-image", "artifact"] },
+        "engine": { "enum": ["buildkit", "dockerfile"] },
+        "containerfile": { "$ref": "#/$defs/containerfile" },
+        "dockerfile": { "$ref": "#/$defs/dockerfile" },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repositorySuffix": { "type": "string" }
+          }
+        },
+        "artifact": {
+          "type": "object",
+          "properties": {
+            "format": { "enum": ["zip", "tar"] },
+            "paths": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "publishBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["buildStepId"],
+      "properties": {
+        "buildStepId": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

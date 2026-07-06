@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local pilot: publish lib (Nexus) + gp-content + branching-model + GP profile/release (3-pin GP).
+# Local pilot: publish lib (Nexus) + branching-model + GP profile/release (2-pin + embedded pipeline).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -80,28 +80,8 @@ COIN_API_URL="${API}" \
 COIN_API_KEY="${KEY}" \
   "${REPO_ROOT}/coin-branching-models/scripts/publish-branching-model.sh" trunk-based 1.0.0
 
-echo "==> publish gp-content stacks"
-chmod +x "${REPO_ROOT}/coin-gp-content/scripts/"*.sh "${REPO_ROOT}/coin-gp-content/scripts/lib/"*.sh
-GP_CONTENT_STACKS=(go-app go-app-docker)
-for stack in "${GP_CONTENT_STACKS[@]}"; do
-  echo "    gp-content/${stack}@1.0.0"
-  NEXUS_URL="${NEXUS_URL:-http://localhost:8081}" \
-  NEXUS_USER="${NEXUS_USER:-admin}" \
-  NEXUS_PASSWORD="${NEXUS_ADMIN_PASSWORD:-coin12345}" \
-  COIN_API_URL="${API}" \
-  COIN_API_KEY="${KEY}" \
-    "${REPO_ROOT}/coin-gp-content/scripts/publish-content.sh" "${stack}" 1.0.0
-done
-
 AGENT_VER="$(component_version agent coin-agent)"
 BRANCHING_VER="$(component_version branching-model trunk-based)"
-
-for stack in "${GP_CONTENT_STACKS[@]}"; do
-  if [[ -z "$(component_version gp-content "${stack}")" ]]; then
-    echo "missing gp-content/${stack} version" >&2
-    exit 1
-  fi
-done
 
 for pair in "agent:${AGENT_VER}" "branching-model:${BRANCHING_VER}"; do
   if [[ -z "${pair#*:}" ]]; then
@@ -110,27 +90,31 @@ for pair in "agent:${AGENT_VER}" "branching-model:${BRANCHING_VER}"; do
   fi
 done
 
+GP_STACKS=(go-app go-app-docker)
 GP_VER="${COIN_E2E_VERSION:-1.0.0}"
 BRANCHING_MODEL="trunk-based"
+DESTINATIONS="$(jq -n \
+  --arg image "${COIN_GP_IMAGE_REGISTRY_PREFIX:-localhost:8082/coin-docker}" \
+  --arg artifact "${COIN_GP_ARTIFACT_REPOSITORY_BASE:-http://nexus:8081/repository/maven-releases}" \
+  '{imageRegistryPrefix: $image, buildCacheEnabled: true, artifactRepositoryBase: $artifact}')"
 
-for stack in "${GP_CONTENT_STACKS[@]}"; do
+for stack in "${GP_STACKS[@]}"; do
   echo "==> create GP profile ${stack} (if missing)"
   api_post "/v1/admin/golden-paths/profiles" "$(jq -n --arg n "${stack}" '{name: $n, actor: "seed"}')" || true
 
-  content_ver="$(component_version gp-content "${stack}")"
-  echo "==> publish GP ${stack}@${GP_VER} (agent@${AGENT_VER}, gp-content@${content_ver}, branching-model@${BRANCHING_VER})"
+  echo "==> publish GP ${stack}@${GP_VER} (agent@${AGENT_VER}, branching-model@${BRANCHING_VER}, embedded pipeline)"
   composition="$(jq -n \
     --arg agent "${AGENT_VER}" \
-    --arg content "${content_ver}" \
     --arg branching "${BRANCHING_VER}" \
-    '{"agent": $agent, "gp-content": $content, "branching-model": $branching}')"
+    '{"agent": $agent, "branching-model": $branching}')"
   gp_body="$(jq -n \
     --arg ver "${GP_VER}" \
     --arg stack "${stack}" \
     --arg bm "${BRANCHING_MODEL}" \
     --arg agent "coin-agent" \
     --argjson comp "${composition}" \
-    '{version: $ver, agentStackName: $agent, gpContentName: $stack, composition: $comp, branchingModelName: $bm, actor: "seed"}')"
+    --argjson destinations "${DESTINATIONS}" \
+    '{version: $ver, destinations: $destinations, agentStackName: $agent, composition: $comp, branchingModelName: $bm, actor: "seed"}')"
   gp_tmp="$(mktemp)"
   gp_code="$(curl -sS -o "${gp_tmp}" -w '%{http_code}' -X POST "${API}/v1/admin/golden-paths/${stack}/versions" "${AUTH[@]}" -d "${gp_body}")"
   if [[ "${gp_code}" != "201" && "${gp_code}" != "409" ]]; then
@@ -140,7 +124,7 @@ for stack in "${GP_CONTENT_STACKS[@]}"; do
   fi
   rm -f "${gp_tmp}"
 
-  echo "==> verify /golden-paths/${stack}/versions/${GP_VER}/manifest (branching)"
+  echo "==> verify /golden-paths/${stack}/versions/${GP_VER}/manifest (branching + pipeline)"
   curl -fsS "${API}/v1/golden-paths/${stack}/versions/${GP_VER}/manifest" \
     -H "Authorization: Bearer ${COIN_API_TOKEN:-dev-local-token}" \
     | jq -e --arg bm "${BRANCHING_VER}" \
@@ -148,27 +132,12 @@ for stack in "${GP_CONTENT_STACKS[@]}"; do
   curl -fsS "${API}/v1/golden-paths/${stack}/versions/${GP_VER}/manifest" \
     -H "Authorization: Bearer ${COIN_API_TOKEN:-dev-local-token}" \
     | jq -e 'has("lib") | not' >/dev/null
+  curl -fsS "${API}/v1/golden-paths/${stack}/versions/${GP_VER}/manifest" \
+    -H "Authorization: Bearer ${COIN_API_TOKEN:-dev-local-token}" \
+    | jq -e '.destinations.imageRegistryPrefix and .destinations.artifactRepositoryBase and (.pipeline.stages | length > 0) and (has("credentials") | not) and ((has("build") | not) or (.build | length == 0))' >/dev/null
 done
 
-echo "==> decoupled GP profile xxx -> gp-content/go-app (catalog pin)"
-api_post "/v1/admin/golden-paths/profiles" "$(jq -n '{name: "xxx", description: "decoupled pilot", actor: "seed"}')" || true
-go_content_ver="$(component_version gp-content go-app)"
-decoupled_body="$(jq -n \
-  --arg ver "${GP_VER}" \
-  --arg agent "${AGENT_VER}" \
-  --arg content "${go_content_ver}" \
-  --arg branching "${BRANCHING_VER}" \
-  '{version: $ver, agentStackName: "coin-agent", gpContentName: "go-app", composition: {"agent": $agent, "gp-content": $content, "branching-model": $branching}, branchingModelName: "trunk-based", actor: "seed"}')"
-dec_tmp="$(mktemp)"
-dec_code="$(curl -sS -o "${dec_tmp}" -w '%{http_code}' -X POST "${API}/v1/admin/golden-paths/xxx/versions" "${AUTH[@]}" -d "${decoupled_body}")"
-if [[ "${dec_code}" != "201" && "${dec_code}" != "409" ]]; then
-  echo "publish GP xxx (decoupled) failed HTTP ${dec_code}: $(cat "${dec_tmp}")" >&2
-  rm -f "${dec_tmp}"
-  exit 1
-fi
-rm -f "${dec_tmp}"
-
-echo "OK: jenkins-lib stack seeded (${GP_CONTENT_STACKS[*]}@${GP_VER}, trunk-based@${BRANCHING_VER}, coin-agent@${AGENT_VER}, xxx->go-app)"
+echo "OK: jenkins-lib stack seeded (${GP_STACKS[*]}@${GP_VER}, trunk-based@${BRANCHING_VER}, coin-agent@${AGENT_VER})"
 
 echo "==> Jenkins: coin-lib Nexus HTTP retriever (primary path)"
 chmod +x "${ROOT}/scripts/coin-lib-http.sh"

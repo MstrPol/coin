@@ -87,7 +87,7 @@ cd docker && make endpoints
 
 **Симптом:** `docker push` / build не резолвит registry из pod.
 
-**Fix:** `COIN_REGISTRY_PREFIX=localhost:8082/coin-docker` (host docker.sock). Уже в `Jenkinsfile.coin`.
+**Fix:** проверьте `manifest.destinations.imageRegistryPrefix` у GP release. Local pilot должен указывать на доступный Docker registry prefix.
 
 ### exec format error (coin-executor)
 

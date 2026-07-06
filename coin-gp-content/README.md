@@ -14,19 +14,15 @@ stacks/
 └── go-app-df/        # build.engine: dockerfile
 ```
 
-`content.yaml` — SoT для `build`, typed `pipeline.stages`, `validateSchema`, `cacheRefTemplate`.
+`content.yaml` — SoT для `build`, typed `pipeline.stages`, `validateSchema` и GP-owned deliverables. Physical publish/cache destinations задаются в GP version, не в gp-content.
 
 **Superseded:** `scripts/*.sh` как runtime path, отдельные pipeline/validate/dockerfile component types.
 
 ## Publish
 
-**Primary path (UI-first):** Component Studio (`/studio`) → validate → register → publish canary.
+**Primary path:** GP release detail в coin-ui — pipeline-inline v3 редактируется на draft release; promote materializes manifest.
 
-```text
-coin-ui /studio → gp-content draft → Nexus register → canary → promote stable
-```
-
-**Deprecated:** shell publish для ручного bootstrap / legacy CI:
+**Seed source only:** `stacks/*` копируются в `coin-api/internal/gpcontent/seed/pipelines/` при bootstrap. Shell publish **deprecated**:
 
 ```bash
 ./scripts/publish-content.sh go-app 1.0.2

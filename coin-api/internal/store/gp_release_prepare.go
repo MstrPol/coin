@@ -20,7 +20,7 @@ func (s *Store) prepareGPRelease(ctx context.Context, in PublishGPReleaseInput) 
 		return preparedGPRelease{}, err
 	}
 
-	gpSlots, err := validateNewGPComposition(in.AgentStackName, in.GPContentName, in.BranchingModelName, in.Composition)
+	gpSlots, err := validateNewGPComposition(in.AgentStackName, in.BranchingModelName, in.Composition)
 	if err != nil {
 		return preparedGPRelease{}, fmt.Errorf("%w: %v", ErrInvalidComposition, err)
 	}

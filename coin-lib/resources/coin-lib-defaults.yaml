@@ -8,8 +8,6 @@ jenkins:
     apiToken: coin-api-token
     nexus: nexus-admin
     docker: nexus-docker
-  registry:
-    prefix: nexus:8082/coin-docker
 
 pod:
   jnlp:

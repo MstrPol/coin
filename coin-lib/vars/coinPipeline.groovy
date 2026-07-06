@@ -100,10 +100,39 @@ def call() {
 
             stage('Bootstrap') {
                 coinLog.section('⚙️', 'Bootstrap')
-                coinLog.step('Start podman in agent container')
+                coinLog.step('Start build services in agent container')
                 sh '''
                     set -eu
                     export PATH="/usr/local/bin:${PATH}"
+
+                    if command -v buildkitd >/dev/null 2>&1; then
+                      buildkit_sock="${BUILDKIT_HOST#unix://}"
+                      if [ ! -S "${buildkit_sock}" ]; then
+                        nohup buildkitd --config /etc/buildkit/buildkitd.toml \
+                          --addr "${BUILDKIT_HOST}" >/tmp/buildkitd.log 2>&1 &
+                        echo $! >/tmp/buildkitd.pid
+                      fi
+
+                      buildkit_ready=0
+                      for i in $(seq 1 60); do
+                        if [ -S "${buildkit_sock}" ]; then
+                          buildkit_ready=1
+                          break
+                        fi
+                        if [ -f /tmp/buildkitd.pid ] && ! kill -0 "$(cat /tmp/buildkitd.pid)" 2>/dev/null; then
+                          echo "buildkitd exited" >&2
+                          tail -100 /tmp/buildkitd.log >&2 || true
+                          exit 1
+                        fi
+                        sleep 1
+                      done
+
+                      if [ "${buildkit_ready}" != 1 ]; then
+                        echo "buildkitd not ready after 60s" >&2
+                        tail -100 /tmp/buildkitd.log >&2 || true
+                        exit 1
+                      fi
+                    fi
 
                     if command -v podman >/dev/null 2>&1; then
                       if [ ! -S /var/run/docker.sock ]; then
@@ -136,7 +165,7 @@ def call() {
 
                     coin-executor version
                 '''
-                coinLog.ok('coin-agent ready (podman + coin-executor)')
+                coinLog.ok('coin-agent ready (buildkit + podman + coin-executor)')
                 coinLog.sectionEnd()
             }
 

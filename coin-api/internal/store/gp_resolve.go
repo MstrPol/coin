@@ -8,7 +8,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"coin.local/coin-api/internal/gpcontent"
 	"coin.local/coin-api/internal/pin"
 )
 
@@ -41,12 +40,18 @@ func (s *Store) GetGPReleaseForResolve(ctx context.Context, name, version string
 		statusFilter = "status IN ('published', 'draft')"
 	}
 	query := fmt.Sprintf(`
-		SELECT name, version FROM gp_releases
+		SELECT name, version, image_registry_prefix, build_cache_enabled, artifact_repository_base FROM gp_releases
 		WHERE name=$1 AND version=$2 AND %s
 	`, statusFilter)
 
 	var row ReleaseRow
-	err := s.pool.QueryRow(ctx, query, name, version).Scan(&row.Name, &row.Version)
+	err := s.pool.QueryRow(ctx, query, name, version).Scan(
+		&row.Name,
+		&row.Version,
+		&row.Destinations.ImageRegistryPrefix,
+		&row.Destinations.BuildCacheEnabled,
+		&row.Destinations.ArtifactRepositoryBase,
+	)
 	if err == pgx.ErrNoRows {
 		return ReleaseRow{}, ErrNotFound
 	}
@@ -83,6 +88,9 @@ func (s *Store) CreateDraftGPRelease(ctx context.Context, in PublishGPReleaseInp
 	if in.Name == "" || in.Version == "" {
 		return GPReleaseRow{}, fmt.Errorf("name and version are required")
 	}
+	if err := validateReleaseDestinations(in.Destinations); err != nil {
+		return GPReleaseRow{}, err
+	}
 
 	prep, err := s.prepareGPRelease(ctx, in)
 	if err != nil {
@@ -105,10 +113,10 @@ func (s *Store) CreateDraftGPRelease(ctx context.Context, in PublishGPReleaseInp
 
 	var releaseID int64
 	err = tx.QueryRow(ctx, `
-		INSERT INTO gp_releases (name, version, status)
-		VALUES ($1, $2, 'draft')
+		INSERT INTO gp_releases (name, version, status, image_registry_prefix, build_cache_enabled, artifact_repository_base)
+		VALUES ($1, $2, 'draft', $3, $4, $5)
 		RETURNING id
-	`, in.Name, in.Version).Scan(&releaseID)
+	`, in.Name, in.Version, in.Destinations.ImageRegistryPrefix, in.Destinations.BuildCacheEnabled, in.Destinations.ArtifactRepositoryBase).Scan(&releaseID)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return GPReleaseRow{}, ErrDuplicateGPRelease
@@ -139,22 +147,17 @@ func (s *Store) CreateDraftGPRelease(ctx context.Context, in PublishGPReleaseInp
 		return GPReleaseRow{}, err
 	}
 
-	// Seed artifact bodies from latest published release (draft editor starting point).
+	// Seed pipeline body from latest published release or embedded default.
 	seeded := false
 	if latest, err := s.latestPublishedVersion(ctx, in.Name); err == nil && latest != "" {
-		if err := s.copyArtifactsBetween(ctx, in.Name, latest, in.Version); err == nil {
+		if err := s.copyPipelineBetween(ctx, in.Name, latest, in.Version); err == nil {
 			seeded = true
 		}
 	}
 	if !seeded {
-		if contentName, contentVer, err := s.gpContentVersionFromComposition(ctx, in.Name, in.Version); err == nil {
-			_ = s.seedGPArtifactsFromGPContent(ctx, releaseID, contentName, contentVer)
-			seeded = true
-		}
+		_ = s.seedGPReleasePipeline(ctx, releaseID, in.Name, in.Version)
 	}
-	if !seeded {
-		_ = gpcontent.SeedArtifactsToRelease(ctx, s.pool, in.Name, releaseID)
-	}
+	_ = s.seedGPReleaseSchemaArtifact(ctx, releaseID)
 
 	return GPReleaseRow{Name: in.Name, Version: in.Version, Status: "draft"}, nil
 }

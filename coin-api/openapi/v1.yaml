@@ -524,11 +524,83 @@ paths:
         "401":
           description: Unauthorized
 
-  /v1/admin/gp-content/preview:
-    post:
-      summary: Preview gp-content manifest subset (executor SoT)
+  /v1/admin/golden-paths/{name}/versions/{version}/pipeline:
+    get:
+      summary: Get embedded pipeline-inline body for GP release
       security:
         - adminKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pipeline body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GPReleasePipelineBody"
+        "404":
+          description: Not found
+        "401":
+          description: Unauthorized
+    put:
+      summary: Save embedded pipeline-inline body on GP draft release
+      security:
+        - adminKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: pipeline-inline v3 model (kind golden-path)
+      responses:
+        "200":
+          description: Saved
+        "404":
+          description: Not found
+        "409":
+          description: Published release is immutable
+        "422":
+          description: Invalid pipeline body
+        "401":
+          description: Unauthorized
+
+  /v1/admin/golden-paths/{name}/versions/{version}/pipeline/preview:
+    post:
+      summary: Preview pipeline manifest subset for GP release draft
+      security:
+        - adminKey: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -543,7 +615,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/GpContentPreviewResult"
         "400":
-          description: Invalid content yaml
+          description: Invalid pipeline model
         "401":
           description: Unauthorized
 
@@ -1106,6 +1178,7 @@ components:
         - manifestHash
         - goldenPath
         - runtime
+        - destinations
         - build
         - pipeline
       properties:
@@ -1132,6 +1205,8 @@ components:
               description: Universal coin-agent image ref
             digest:
               type: string
+        destinations:
+          $ref: "#/components/schemas/GPDestinations"
         branching:
           type: object
           description: Branching model rules from composition branching-model slot (schema v2)
@@ -1188,9 +1263,6 @@ components:
         testTarget:
           type: string
           example: test
-        cacheRef:
-          type: string
-          example: "localhost:8082/coin-cache/demo-go-app:dockerfile"
 
     ManifestBuildkit:
       type: object
@@ -1209,11 +1281,22 @@ components:
             test: test
             image: runtime
             artifact: artifact
-        cacheRef:
-          type: string
-          example: "localhost:8082/coin-cache/demo-go-app:buildkit"
         containerfile:
           $ref: "#/components/schemas/ContentRef"
+
+    GPDestinations:
+      type: object
+      required: [imageRegistryPrefix, buildCacheEnabled, artifactRepositoryBase]
+      properties:
+        imageRegistryPrefix:
+          type: string
+          example: "localhost:8082/coin-docker"
+        buildCacheEnabled:
+          type: boolean
+          example: true
+        artifactRepositoryBase:
+          type: string
+          example: "http://nexus:8081/repository/maven-releases"
 
     ManifestStage:
       type: object
@@ -1255,9 +1338,6 @@ components:
                   type: object
                   additionalProperties:
                     type: string
-                cacheRefTemplate:
-                  type: string
-                  example: "{{registryHost}}/coin-cache/{{project}}:buildkit"
             dockerfile:
               type: object
               properties:
@@ -1270,9 +1350,6 @@ components:
                 testTarget:
                   type: string
                   example: test
-                cacheRefTemplate:
-                  type: string
-                  example: "{{registryHost}}/coin-cache/{{project}}:dockerfile"
         capabilities:
           type: object
           properties:
@@ -1280,7 +1357,7 @@ components:
               type: array
               items:
                 type: string
-                enum: [image, artifact]
+                enum: [image, liquibase-image, artifact]
         validateSchema:
           type: object
           required: [artifactKey, sha256]
@@ -1297,6 +1374,185 @@ components:
               type: string
             sha256:
               type: string
+        artifacts:
+          type: object
+          properties:
+            containerfiles:
+              type: array
+              items:
+                $ref: "#/components/schemas/BuildStackContainerfileRef"
+
+    BuildStackVNext:
+      type: object
+      additionalProperties: false
+      required: [name, build, deliverables, pipeline, artifacts]
+      properties:
+        name:
+          type: string
+        parameters:
+          type: array
+          items:
+            $ref: "#/components/schemas/BuildStackParameter"
+        build:
+          type: object
+          additionalProperties: false
+          required: [targets]
+          properties:
+            targets:
+              type: array
+              minItems: 1
+              items:
+                $ref: "#/components/schemas/BuildStackTarget"
+        deliverables:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/BuildStackDeliverable"
+        pipeline:
+          type: object
+          additionalProperties: false
+          required: [stages]
+          properties:
+            stages:
+              type: array
+              minItems: 1
+              items:
+                $ref: "#/components/schemas/BuildStackStage"
+        artifacts:
+          type: object
+          additionalProperties: false
+          required: [validateSchema]
+          properties:
+            validateSchema:
+              type: string
+            containerfiles:
+              type: array
+              items:
+                $ref: "#/components/schemas/BuildStackContainerfile"
+
+    BuildStackParameter:
+      type: object
+      additionalProperties: false
+      required: [name, type]
+      properties:
+        name:
+          type: string
+          pattern: "^[A-Z][A-Z0-9_]*$"
+        type:
+          type: string
+          enum: [string, boolean, number, enum]
+        default: {}
+        required:
+          type: boolean
+        allowedValues:
+          type: array
+          items:
+            type: string
+
+    BuildStackTarget:
+      type: object
+      additionalProperties: false
+      required: [id, engine]
+      properties:
+        id:
+          type: string
+          pattern: "^[a-z][a-z0-9-]*$"
+        engine:
+          type: string
+          enum: [buildkit, dockerfile]
+        containerfile:
+          type: string
+        target:
+          type: string
+        dockerfile:
+          type: string
+        output:
+          type: string
+          enum: [image, artifact, test, validate]
+
+    BuildStackDeliverable:
+      type: object
+      additionalProperties: false
+      required: [id, type, targetId]
+      properties:
+        id:
+          type: string
+          pattern: "^[a-z][a-z0-9-]*$"
+        type:
+          type: string
+          enum: [image, liquibase-image, artifact]
+        targetId:
+          type: string
+          pattern: "^[a-z][a-z0-9-]*$"
+        image:
+          type: object
+          additionalProperties: false
+          properties:
+            repositorySuffix:
+              type: string
+        artifact:
+          type: object
+          additionalProperties: false
+          properties:
+            format:
+              type: string
+              enum: [zip, tar]
+            paths:
+              type: array
+              items:
+                type: string
+
+    BuildStackStage:
+      type: object
+      additionalProperties: false
+      required: [id, name, steps]
+      properties:
+        id:
+          type: string
+          pattern: "^[a-z][a-z0-9-]*$"
+        name:
+          type: string
+        steps:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/BuildStackStageStep"
+
+    BuildStackStageStep:
+      type: object
+      additionalProperties: false
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [run-target, build-deliverable, publish-deliverable]
+        targetId:
+          type: string
+        deliverableId:
+          type: string
+
+    BuildStackContainerfile:
+      type: object
+      additionalProperties: false
+      required: [id, path]
+      properties:
+        id:
+          type: string
+          pattern: "^[a-z][a-z0-9-]*$"
+        path:
+          type: string
+
+    BuildStackContainerfileRef:
+      type: object
+      additionalProperties: false
+      required: [id, artifactKey]
+      properties:
+        id:
+          type: string
+        artifactKey:
+          type: string
+        sha256:
+          type: string
 
     ContentRef:
       type: object
@@ -1570,18 +1826,19 @@ components:
 
     PublishGPRelease:
       type: object
-      required: [version, composition, agentStackName, gpContentName, branchingModelName]
+      required: [version, destinations, composition, agentStackName, branchingModelName]
       properties:
         version:
           type: string
           example: "1.0.1"
+        destinations:
+          $ref: "#/components/schemas/GPDestinations"
         composition:
           type: object
           additionalProperties:
             type: string
           example:
             agent: "1.0.0"
-            gp-content: "1.0.0"
             branching-model: "1.0.0"
         agentStackName:
           type: string
@@ -1590,10 +1847,6 @@ components:
         branchingModelName:
           type: string
           example: trunk-based
-        gpContentName:
-          type: string
-          example: go-app
-          description: Registry name of the gp-content component (may differ from GP profile name)
         gitExportTag:
           type: string
           example: go-app/v1.0.1
@@ -1602,14 +1855,13 @@ components:
 
     UpdateGPDraft:
       type: object
-      required: [composition, agentStackName, gpContentName, branchingModelName]
+      required: [destinations, composition, agentStackName, branchingModelName]
       properties:
+        destinations:
+          $ref: "#/components/schemas/GPDestinations"
         agentStackName:
           type: string
           example: coin-agent
-        gpContentName:
-          type: string
-          example: go-app
         branchingModelName:
           type: string
           example: trunk-based
@@ -1619,7 +1871,6 @@ components:
             type: string
           example:
             agent: "1.0.0"
-            gp-content: "1.0.0"
             branching-model: "1.0.0"
         actor:
           type: string
@@ -1851,7 +2102,7 @@ components:
 
     GPRelease:
       type: object
-      required: [name, version, status, createdAt]
+      required: [name, version, status, destinations, createdAt]
       properties:
         name:
           type: string
@@ -1859,6 +2110,8 @@ components:
           type: string
         status:
           type: string
+        destinations:
+          $ref: "#/components/schemas/GPDestinations"
         manifestHash:
           type: string
         manifestUrl:
@@ -1912,6 +2165,20 @@ components:
         name:
           type: string
         version:
+          type: string
+
+    GPReleasePipelineBody:
+      type: object
+      required: [schemaVersion, body, sha256]
+      properties:
+        schemaVersion:
+          type: integer
+          example: 3
+        body:
+          type: object
+          additionalProperties: true
+          description: pipeline-inline v3 document (kind golden-path)
+        sha256:
           type: string
 
     GPReleaseDetail:
@@ -2000,15 +2267,15 @@ components:
 
     GpContentPreviewRequest:
       type: object
-      required: [contentYaml]
+      description: |
+        Build Stack preview request. `model` is the Build Stack vNext canonical contract.
+        `contentYaml` is legacy input kept only until the vNext preview handler cutover.
       properties:
+        model:
+          $ref: "#/components/schemas/BuildStackVNext"
         contentYaml:
           type: string
         componentName:
-          type: string
-        project:
-          type: string
-        registryHost:
           type: string
 
     GpContentPreviewResult:
@@ -2031,15 +2298,30 @@ components:
           type: array
           items:
             type: string
+        parameters:
+          type: array
+          items:
+            $ref: "#/components/schemas/BuildStackParameter"
         build:
           type: object
           additionalProperties: true
+          description: Resolved manifest build preview, including Build Stack vNext targets
+        deliverables:
+          type: array
+          items:
+            $ref: "#/components/schemas/BuildStackDeliverable"
         pipeline:
           type: object
           additionalProperties: true
+          description: Resolved manifest pipeline preview
+        artifacts:
+          type: object
+          additionalProperties: true
+          description: Package artifact refs, including named Containerfile refs
         capabilities:
           type: object
           additionalProperties: true
+          deprecated: true
 
     AdminPrincipal:
       type: object

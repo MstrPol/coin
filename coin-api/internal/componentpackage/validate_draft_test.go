@@ -1,6 +1,7 @@
 package componentpackage
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -52,56 +53,21 @@ trunk:
 	}
 }
 
-func TestValidateDraftPackage_gpContent(t *testing.T) {
+func TestValidateDraftPackage_gpContentDeprecated(t *testing.T) {
 	t.Parallel()
-	validYAML := `schemaVersion: 2
-name: go-app
-kind: gp-content
-capabilities:
-  deliverables:
-    - image
-    - artifact
-build:
-  engine: buildkit
-  buildkit:
-    targets:
-      validate: validate
-      test: test
-      image: runtime
-      artifact: artifact
-    cacheRefTemplate: "{{registryHost}}/coin-cache/{{project}}:buildkit"
-pipeline:
-  stages:
-    - id: test
-      name: Test
-artifacts:
-  validateSchema: schemas/config.v2.schema.json
-  containerfile: dockerfiles/Containerfile
-`
 	res := ValidateDraftPackage("gp-content", "go-app", "1.0.0", []DraftArtifact{
-		{Path: "content.yaml", Body: []byte(validYAML), SHA256: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
-		{Path: "dockerfiles/Containerfile", Body: []byte("FROM scratch\n"), SHA256: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
-	})
-	if !res.Valid {
-		t.Fatalf("expected valid, issues: %+v", res.Issues)
-	}
-
-	res = ValidateDraftPackage("gp-content", "go-app", "1.0.0", []DraftArtifact{
-		{Path: "content.yaml", Body: []byte(validYAML), SHA256: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+		{Path: "content.yaml", Body: []byte("schemaVersion: 3\nname: go-app\n"), SHA256: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
 	})
 	if res.Valid {
-		t.Fatal("expected missing containerfile")
+		t.Fatal("expected gp-content type rejection")
 	}
-
-	v1YAML := `name: go-app
-kind: gp-content
-build:
-  engine: buildkit
-`
-	res = ValidateDraftPackage("gp-content", "go-app", "1.0.0", []DraftArtifact{
-		{Path: "content.yaml", Body: []byte(v1YAML), SHA256: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
-	})
-	if res.Valid {
-		t.Fatal("expected v1 schema rejection")
+	found := false
+	for _, iss := range res.Issues {
+		if iss.Field == "componentType" && strings.Contains(iss.Message, "removed") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected deprecation issue, got %+v", res.Issues)
 	}
 }

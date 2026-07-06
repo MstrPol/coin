@@ -24,12 +24,13 @@ import (
 	"coin.local/coin-api/internal/catalog"
 	"coin.local/coin-api/internal/config"
 	"coin.local/coin-api/internal/docs"
+	"coin.local/coin-api/internal/manifest"
 	"coin.local/coin-api/internal/metrics"
-	"coin.local/coin-api/internal/version"
 	"coin.local/coin-api/internal/nexus"
 	"coin.local/coin-api/internal/report"
 	"coin.local/coin-api/internal/resolve"
 	"coin.local/coin-api/internal/store"
+	"coin.local/coin-api/internal/version"
 )
 
 type Server struct {
@@ -101,12 +102,12 @@ func (s *Server) Router() http.Handler {
 				r.With(shortTimeout).Get("/golden-paths/{name}/versions/{version}/health", s.getHealth)
 				r.With(shortTimeout).Get("/golden-paths/{name}/versions/{version}/artifacts", s.listArtifacts)
 				r.With(shortTimeout).Get("/golden-paths/{name}/versions/{version}/artifacts/{key}", s.getArtifact)
+				r.With(shortTimeout).Get("/golden-paths/{name}/versions/{version}/pipeline", s.getGPReleasePipeline)
+				r.With(shortTimeout).Post("/golden-paths/{name}/versions/{version}/pipeline/preview", s.gpReleasePipelinePreview)
 				r.With(shortTimeout).Get("/golden-paths/{name}/resolve-preview", s.resolvePreview)
-				r.With(shortTimeout).Post("/gp-content/preview", s.gpContentPreview)
 				r.With(shortTimeout).Get("/golden-paths/{name}/projects/{project}/canary-context", s.canaryContext)
 				r.With(shortTimeout).Get("/components", s.listComponents)
 				r.With(shortTimeout).Get("/components/agent/{name}/next-version", s.nextAgentVersion)
-				r.With(shortTimeout).Get("/components/gp-content/{name}/next-version", s.nextGPContentVersion)
 				r.With(shortTimeout).Get("/components/{type}/{name}", s.getComponentDetail)
 				r.With(shortTimeout).Get("/components/{type}/{name}/versions", s.listComponentVersions)
 				r.With(shortTimeout).Get("/components/{type}/{name}/versions/{version}", s.getComponentVersionDetail)
@@ -132,6 +133,7 @@ func (s *Server) Router() http.Handler {
 				r.With(shortTimeout).Post("/golden-paths/{name}/versions/{version}/promote", s.promoteDraftGPRelease)
 				r.With(shortTimeout).Delete("/golden-paths/{name}/versions/{version}", s.deleteGPReleaseDraft)
 				r.With(shortTimeout).Patch("/golden-paths/{name}/versions/{version}", s.updateGPReleaseDraft)
+				r.With(shortTimeout).Put("/golden-paths/{name}/versions/{version}/pipeline", s.putGPReleasePipeline)
 				r.With(shortTimeout).Patch("/golden-paths/{name}/catalog", s.updateCatalog)
 				r.With(shortTimeout).Patch("/golden-paths/{name}/canary", s.updateCanary)
 				r.With(shortTimeout).Patch("/projects/{name}/canary-mode", s.updateProjectCanaryMode)
@@ -248,20 +250,20 @@ func (s *Server) resolveManifest(w http.ResponseWriter, r *http.Request) {
 }
 
 type buildReportBody struct {
-	Project         string `json:"project"`
-	GroupID         string `json:"groupId"`
-	ArtifactID      string `json:"artifactId"`
-	GoldenPath      string `json:"goldenPath"`
-	Version         string `json:"version"`
-	ConfigVersion   string `json:"configVersion"`
-	Branch          string `json:"branch"`
-	BuildURL        string `json:"buildUrl"`
-	Result          string `json:"result"`
-	ManifestHash    string `json:"manifestHash"`
-	GitURL          string `json:"gitUrl"`
-	Channel         string `json:"channel"`
-	RequestedPin    string `json:"requestedPin"`
-	FailedStage     string `json:"failedStage"`
+	Project         string           `json:"project"`
+	GroupID         string           `json:"groupId"`
+	ArtifactID      string           `json:"artifactId"`
+	GoldenPath      string           `json:"goldenPath"`
+	Version         string           `json:"version"`
+	ConfigVersion   string           `json:"configVersion"`
+	Branch          string           `json:"branch"`
+	BuildURL        string           `json:"buildUrl"`
+	Result          string           `json:"result"`
+	ManifestHash    string           `json:"manifestHash"`
+	GitURL          string           `json:"gitUrl"`
+	Channel         string           `json:"channel"`
+	RequestedPin    string           `json:"requestedPin"`
+	FailedStage     string           `json:"failedStage"`
 	ResolvedVersion string           `json:"resolvedVersion"`
 	Outputs         []map[string]any `json:"outputs"`
 }
@@ -441,7 +443,6 @@ func (s *Server) createDraftComponentVersion(w http.ResponseWriter, r *http.Requ
 	})
 }
 
-
 func (s *Server) promoteComponentVersion(w http.ResponseWriter, r *http.Request) {
 	typ := chi.URLParam(r, "type")
 	name := chi.URLParam(r, "name")
@@ -610,21 +611,21 @@ func (s *Server) validateComponentPackage(w http.ResponseWriter, r *http.Request
 }
 
 type publishGPReleaseBody struct {
-	Version            string            `json:"version"`
-	Composition        map[string]string `json:"composition"`
-	AgentStackName     string            `json:"agentStackName"`
-	GPContentName      string            `json:"gpContentName"`
-	BranchingModelName string            `json:"branchingModelName"`
-	Actor              string            `json:"actor"`
+	Version            string                `json:"version"`
+	Destinations       manifest.Destinations `json:"destinations"`
+	Composition        map[string]string     `json:"composition"`
+	AgentStackName     string                `json:"agentStackName"`
+	BranchingModelName string                `json:"branchingModelName"`
+	Actor              string                `json:"actor"`
 }
 
 type createDraftBody struct {
-	Version            string            `json:"version"`
-	Composition        map[string]string `json:"composition"`
-	AgentStackName     string            `json:"agentStackName"`
-	GPContentName      string            `json:"gpContentName"`
-	BranchingModelName string            `json:"branchingModelName"`
-	Actor              string            `json:"actor"`
+	Version            string                `json:"version"`
+	Destinations       manifest.Destinations `json:"destinations"`
+	Composition        map[string]string     `json:"composition"`
+	AgentStackName     string                `json:"agentStackName"`
+	BranchingModelName string                `json:"branchingModelName"`
+	Actor              string                `json:"actor"`
 }
 
 func (s *Server) publishGPRelease(w http.ResponseWriter, r *http.Request) {
@@ -646,9 +647,9 @@ func (s *Server) publishGPRelease(w http.ResponseWriter, r *http.Request) {
 
 	result, err := s.admin.PublishGPRelease(r.Context(), chi.URLParam(r, "name"), admin.PublishGPReleaseRequest{
 		Version:            req.Version,
+		Destinations:       req.Destinations,
 		Composition:        req.Composition,
 		AgentStackName:     req.AgentStackName,
-		GPContentName:      req.GPContentName,
 		BranchingModelName: req.BranchingModelName,
 		Actor:              req.Actor,
 	})
@@ -695,9 +696,9 @@ func (s *Server) createDraftGPRelease(w http.ResponseWriter, r *http.Request) {
 
 	release, err := s.admin.CreateDraftGPRelease(r.Context(), chi.URLParam(r, "name"), admin.CreateDraftRequest{
 		Version:            req.Version,
+		Destinations:       req.Destinations,
 		Composition:        req.Composition,
 		AgentStackName:     req.AgentStackName,
-		GPContentName:      req.GPContentName,
 		BranchingModelName: req.BranchingModelName,
 		Actor:              req.Actor,
 	})
@@ -730,7 +731,7 @@ func (s *Server) promoteDraftGPRelease(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, store.ErrGPCompositionHasDraftPins) {
 		blockers, _ := s.admin.ValidateGPReleasePromoteBlockers(r.Context(), name, version)
 		writeJSON(w, http.StatusConflict, map[string]any{
-			"error":         err.Error(),
+			"error":        err.Error(),
 			"blockingPins": blockers,
 		})
 		return
@@ -811,9 +812,9 @@ func (s *Server) updateGPReleaseDraft(w http.ResponseWriter, r *http.Request) {
 	}
 
 	release, err := s.admin.UpdateGPReleaseDraft(r.Context(), name, version, admin.CreateDraftRequest{
+		Destinations:       req.Destinations,
 		Composition:        req.Composition,
 		AgentStackName:     req.AgentStackName,
-		GPContentName:      req.GPContentName,
 		BranchingModelName: req.BranchingModelName,
 		Actor:              req.Actor,
 	})
@@ -1029,12 +1030,12 @@ func (s *Server) getComponentVersionDetail(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	resp := map[string]any{
-		"type":       detail.Type,
-		"name":       detail.Name,
-		"version":    detail.Version,
-		"status":     detail.Status,
-		"metadata":   json.RawMessage(detail.Metadata),
-		"createdAt":  detail.CreatedAt,
+		"type":      detail.Type,
+		"name":      detail.Name,
+		"version":   detail.Version,
+		"status":    detail.Status,
+		"metadata":  json.RawMessage(detail.Metadata),
+		"createdAt": detail.CreatedAt,
 	}
 	if len(detail.ContentRef) > 0 {
 		resp["contentRef"] = json.RawMessage(detail.ContentRef)
@@ -1133,21 +1134,6 @@ func (s *Server) nextAgentVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := s.admin.NextAgentVersion(r.Context(), stack, runtime)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, res)
-}
-
-func (s *Server) nextGPContentVersion(w http.ResponseWriter, r *http.Request) {
-	name := chi.URLParam(r, "name")
-	bump := r.URL.Query().Get("bump")
-	if bump == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bump query param required (major, minor, patch)"})
-		return
-	}
-	res, err := s.admin.NextGPContentVersion(r.Context(), name, bump)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return

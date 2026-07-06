@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"time"
+
+	"coin.local/coin-api/internal/manifest"
 )
 
 type DashboardStats struct {
@@ -14,26 +16,27 @@ type DashboardStats struct {
 }
 
 type ProjectRow struct {
-	Name         string     `json:"name"`
-	GroupID      string     `json:"groupId,omitempty"`
-	ArtifactID   string     `json:"artifactId,omitempty"`
-	GitRepoName  string     `json:"gitRepoName,omitempty"`
-	GitRepoURL   string     `json:"gitRepoUrl,omitempty"`
-	GoldenPath   string     `json:"goldenPath"`
-	Version      string     `json:"version"`
-	CanaryMode   string     `json:"canaryMode"`
-	Branch       string     `json:"branch,omitempty"`
-	LastBuildAt  *time.Time `json:"lastBuildAt,omitempty"`
+	Name        string     `json:"name"`
+	GroupID     string     `json:"groupId,omitempty"`
+	ArtifactID  string     `json:"artifactId,omitempty"`
+	GitRepoName string     `json:"gitRepoName,omitempty"`
+	GitRepoURL  string     `json:"gitRepoUrl,omitempty"`
+	GoldenPath  string     `json:"goldenPath"`
+	Version     string     `json:"version"`
+	CanaryMode  string     `json:"canaryMode"`
+	Branch      string     `json:"branch,omitempty"`
+	LastBuildAt *time.Time `json:"lastBuildAt,omitempty"`
 }
 
 type GPReleaseListItem struct {
-	Name         string    `json:"name"`
-	Version      string    `json:"version"`
-	Status       string    `json:"status"`
-	ManifestHash *string   `json:"manifestHash,omitempty"`
-	ManifestURL  *string   `json:"manifestUrl,omitempty"`
-	GitExportTag *string   `json:"gitExportTag,omitempty"`
-	CreatedAt    time.Time `json:"createdAt"`
+	Name         string                `json:"name"`
+	Version      string                `json:"version"`
+	Status       string                `json:"status"`
+	Destinations manifest.Destinations `json:"destinations"`
+	ManifestHash *string               `json:"manifestHash,omitempty"`
+	ManifestURL  *string               `json:"manifestUrl,omitempty"`
+	GitExportTag *string               `json:"gitExportTag,omitempty"`
+	CreatedAt    time.Time             `json:"createdAt"`
 }
 
 func (s *Store) DashboardStats(ctx context.Context) (DashboardStats, error) {
@@ -56,7 +59,7 @@ func (s *Store) DashboardStats(ctx context.Context) (DashboardStats, error) {
 
 func (s *Store) ListGPReleases(ctx context.Context, name string, includeDrafts bool) ([]GPReleaseListItem, error) {
 	query := `
-		SELECT name, version, status, manifest_hash, manifest_url, git_export_tag, created_at
+		SELECT name, version, status, image_registry_prefix, build_cache_enabled, artifact_repository_base, manifest_hash, manifest_url, git_export_tag, created_at
 		FROM gp_releases
 		WHERE 1=1
 	`
@@ -81,6 +84,9 @@ func (s *Store) ListGPReleases(ctx context.Context, name string, includeDrafts b
 		var row GPReleaseListItem
 		if err := rows.Scan(
 			&row.Name, &row.Version, &row.Status,
+			&row.Destinations.ImageRegistryPrefix,
+			&row.Destinations.BuildCacheEnabled,
+			&row.Destinations.ArtifactRepositoryBase,
 			&row.ManifestHash, &row.ManifestURL, &row.GitExportTag, &row.CreatedAt,
 		); err != nil {
 			return nil, err

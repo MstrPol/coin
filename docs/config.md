@@ -22,7 +22,7 @@ jenkins:
 project:
   name: my-service
   groupId: com.example.team
-  repository: Nexus_PROD
+  artifactId: my-service
 ```
 
 ---
@@ -69,7 +69,9 @@ Credentials → env при publish: `COIN_REGISTRY_USER`, `COIN_REGISTRY_PASSWOR
 |------|-------------|----------|
 | `project.name` | **Да** | Имя сервиса |
 | `project.groupId` | **Да** | Домен команды |
-| `project.repository` | **Да** | Логическое имя репозитория Nexus |
+| `project.artifactId` | **Да** | Artifact ID сервиса |
+
+`project` не содержит destination fields: `repository`, `imageRepository`, `dockerRepository`, `mavenRepository`, `pypiRepository`.
 
 ---
 
@@ -94,6 +96,12 @@ Credentials → env при publish: `COIN_REGISTRY_USER`, `COIN_REGISTRY_PASSWOR
 | Pipeline stages | `manifest.pipeline.stages` (typed `id`, без script URLs) |
 | coin-executor CLI | Baked в agent image (не отдельный platform component) |
 | Config schema | `manifest.validateSchema` |
+| Deliverables | GP/Build Stack → `manifest.capabilities.deliverables` |
+| Image registry prefix | `manifest.destinations.imageRegistryPrefix` |
+| Artifact repository base URL | `manifest.destinations.artifactRepositoryBase` |
+| Build cache on/off | `manifest.destinations.buildCacheEnabled` |
+
+Product config также не содержит секции `deliverables`, build/publish commands, cache refs или registry/repository URLs.
 
 ---
 
@@ -103,8 +111,8 @@ Credentials → env при publish: `COIN_REGISTRY_USER`, `COIN_REGISTRY_PASSWOR
 
 | Слой | Источник | Примеры |
 |------|----------|---------|
-| lib | `coin-lib/resources/coin-lib-defaults.yaml` + env | `coin.apiUrl`, credential IDs, registry prefix |
-| GP | resolved `manifest.json` | `runtime.image`, `pipeline.stages`, `build.engine` |
+| lib | `coin-lib/resources/coin-lib-defaults.yaml` + env | `coin.apiUrl`, credential IDs |
+| GP | resolved `manifest.json` | `runtime.image`, `pipeline.stages`, `build.engine`, `destinations` |
 | project | `.coin/config.yaml` | `coin.goldenPath`, `project.*`, `jenkins.credentials.docker` |
 
 В workspace pod пишутся runtime artifacts (в `.gitignore`):

@@ -6,12 +6,13 @@ Build engine contract: `manifest.build.engine` dispatch in coin-executor, single
 ## Requirements
 ### Requirement: Build engine in manifest
 
-Manifest SHALL include `build.engine` with value `buildkit` or `dockerfile`.
+Manifest SHALL derive build engine dispatch from inline pipeline step `run.engine` and `build.engine` fields. Manifest MUST NOT require top-level `build.engine` or `build.targets` catalog for pipeline-inline stacks.
 
-#### Scenario: Resolve emits build engine
+#### Scenario: Resolve emits per-step engines
 
-- **WHEN** product resolves GP with gp-content defining build.engine
-- **THEN** manifest MUST contain matching `build.engine` field
+- **WHEN** product resolves GP with pipeline-inline gp-content containing buildkit and dockerfile steps
+- **THEN** manifest pipeline steps MUST retain per-step `engine` values for executor dispatch
+- **AND** manifest MUST NOT require top-level `build.engine` as sole dispatch source
 
 ### Requirement: Single agent runtime image
 
@@ -24,12 +25,29 @@ Jenkins pod SHALL use single container from manifest `runtime.image` (coin-agent
 
 ### Requirement: Typed pipeline stages
 
-Pipeline stages SHALL be typed executor stage names without shell script references.
+Pipeline stages SHALL remain typed executor stage names. Each stage executes inline steps (`run`, `build`, `publish`) without GP shell scripts or Jenkins Shared Library business logic.
 
-#### Scenario: Stage execution via executor
+#### Scenario: Stage execution via inline steps
 
-- **WHEN** Jenkins runs Test stage
-- **THEN** coin-lib MUST invoke coin-executor run --stage test without GP shell scripts
+- **WHEN** Jenkins runs Test stage from manifest with inline `run` step
+- **THEN** coin-executor MUST dispatch the run step using inline engine config
+- **AND** coin-lib MUST invoke executor without interpreting build logic in Groovy
+
+### Requirement: Inline step dispatch in executor
+
+coin-executor SHALL execute pipeline-inline steps directly from manifest without requiring separate manifest `build.targets` or `deliverables` sections.
+
+#### Scenario: Execute run step
+
+- **WHEN** executor runs stage step with `action: run`, `run.engine: buildkit` and step-local `containerfile.contentRef`
+- **THEN** executor MUST materialize containerfile from that step ref and run the configured target
+- **AND** MUST NOT require top-level `artifacts.containerfiles` catalog
+
+#### Scenario: Execute build then publish
+
+- **WHEN** stage contains `build` step with `build.id: app` followed later by `publish` with `buildStepId: app`
+- **THEN** executor MUST build output during build step
+- **AND** publish step MUST publish the output associated with `build.id: app`
 
 ### Requirement: Build engine E2E
 
@@ -56,15 +74,6 @@ For `build.engine` `dockerfile`, coin-executor SHALL build from Dockerfile path 
 - **WHEN** executor runs build stage for dockerfile engine with `build.dockerfile.path` `Dockerfile`
 - **THEN** executor MUST use workspace `Dockerfile` as build definition
 - **AND** MUST NOT write `.coin/Containerfile` from Nexus content ref
-
-### Requirement: Artifact deliverable buildkit only
-
-GP content with `build.engine` `dockerfile` SHALL NOT declare `artifact` in `capabilities.deliverables`. validate-package MUST reject artifact deliverable for BYO engine.
-
-#### Scenario: Reject artifact on BYO GP
-
-- **WHEN** draft gp-content has engine dockerfile and deliverables include artifact
-- **THEN** validate-package MUST fail validation
 
 ### Requirement: Buildpack engine removed
 

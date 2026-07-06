@@ -11,7 +11,6 @@ type compositionApplier func(parts *manifest.Composition, meta map[string]any, c
 
 var compositionAppliers = map[string]compositionApplier{
 	"agent":           applyAgentComposition,
-	"gp-content":      applyGPContentComposition,
 	"pipeline":        applyPipelineComposition,
 	"branching-model": applyBranchingModelComposition,
 }
@@ -27,12 +26,6 @@ func applyCompositionSlot(parts *manifest.Composition, typ, compName, compVersio
 func applyAgentComposition(parts *manifest.Composition, meta map[string]any, _, _ string) {
 	parts.AgentImage = metaString(meta, "image")
 	parts.AgentDigest = metaString(meta, "digest")
-}
-
-func applyGPContentComposition(parts *manifest.Composition, meta map[string]any, compName, compVersion string) {
-	parts.GPContentName = compName
-	parts.GPContentVersion = compVersion
-	_ = meta
 }
 
 func applyPipelineComposition(parts *manifest.Composition, meta map[string]any, _, compVersion string) {

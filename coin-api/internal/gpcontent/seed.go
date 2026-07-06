@@ -15,6 +15,11 @@ import (
 //go:embed seed/schema/config.v2.schema.json seed/go-app/1.0.0/dockerfiles/Containerfile
 var seedFS embed.FS
 
+// ValidateSchemaBytes returns embedded config schema for GP release seeding.
+func ValidateSchemaBytes() ([]byte, error) {
+	return seedFS.ReadFile("seed/schema/config.v2.schema.json")
+}
+
 type seedArtifact struct {
 	key     string
 	relPath string

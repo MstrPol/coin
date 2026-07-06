@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import BranchingModelEditor from "../studio/BranchingModelEditor";
-import GpContentEditor from "../studio/GpContentEditor";
 import type { ComponentVersionDetail, ValidateComponentPackageResult } from "../../api/types";
 import { api, getActor } from "../../lib/api";
 import {
@@ -12,17 +11,6 @@ import {
   validateBranchingModelClient,
   type BranchingModel,
 } from "../../lib/branchingModelYaml";
-import {
-  buildGpContentManifestSubset,
-  defaultContainerfile,
-  defaultGpContent,
-  GP_CONTAINERFILE_ARTIFACT,
-  GP_CONTENT_ARTIFACT,
-  parseGpContentYaml,
-  serializeGpContent,
-  validateGpContentClient,
-  type GpContentModel,
-} from "../../lib/gpContentYaml";
 import { platformCatalogPath, platformHubPath, supportsDraftDelete } from "../../lib/platformComponentPaths";
 import { platformTypeConfig } from "../../lib/platformComponentTypes";
 
@@ -52,8 +40,6 @@ export default function PlatformComponentEditor({
   const navigate = useNavigate();
   const [detail, setDetail] = useState<ComponentVersionDetail | null>(null);
   const [branchingModel, setBranchingModel] = useState<BranchingModel | null>(null);
-  const [gpContent, setGpContent] = useState<GpContentModel | null>(null);
-  const [containerfile, setContainerfile] = useState("");
   const [yamlPreview, setYamlPreview] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,32 +70,12 @@ export default function PlatformComponentEditor({
         const model = parseBranchingModelYaml(art.body, name);
         setBranchingModel(model);
         setYamlPreview(art.body);
-        setGpContent(null);
-      } else if (config.editor === "gp-content") {
-        const art = await api.getComponentArtifact(type, name, version, GP_CONTENT_ARTIFACT);
-        const model = parseGpContentYaml(art.body, name);
-        setGpContent(model);
-        setYamlPreview(art.body);
-        setBranchingModel(null);
-        try {
-          const cf = await api.getComponentArtifact(type, name, version, GP_CONTAINERFILE_ARTIFACT);
-          setContainerfile(cf.body);
-        } catch {
-          setContainerfile(defaultContainerfile());
-        }
       }
     } catch {
       if (config.editor === "branching-model") {
         const model = defaultBranchingModel(name);
         setBranchingModel(model);
         setYamlPreview(serializeBranchingModel(model));
-        setGpContent(null);
-      } else if (config.editor === "gp-content") {
-        const model = defaultGpContent(name);
-        setGpContent(model);
-        setContainerfile(defaultContainerfile());
-        setYamlPreview(serializeGpContent(model));
-        setBranchingModel(null);
       }
       setArtifacts([]);
     }
@@ -125,19 +91,13 @@ export default function PlatformComponentEditor({
     if (branchingModel && config?.editor === "branching-model") {
       setYamlPreview(serializeBranchingModel(branchingModel));
     }
-    if (gpContent && config?.editor === "gp-content") {
-      setYamlPreview(serializeGpContent(gpContent));
-    }
-  }, [branchingModel, gpContent, config]);
+  }, [branchingModel, config]);
 
   async function persistDraft(): Promise<boolean> {
     if (!config || readOnly) return false;
     if (config.editor === "branching-model" && branchingModel) {
       const body = serializeBranchingModel(branchingModel);
       await api.saveComponentArtifact(type, name, version, config.primaryArtifact, body);
-    } else if (config.editor === "gp-content" && gpContent) {
-      await api.saveComponentArtifact(type, name, version, GP_CONTENT_ARTIFACT, serializeGpContent(gpContent));
-      await api.saveComponentArtifact(type, name, version, GP_CONTAINERFILE_ARTIFACT, containerfile);
     } else {
       return false;
     }
@@ -164,7 +124,6 @@ export default function PlatformComponentEditor({
   async function runValidate(): Promise<ValidateComponentPackageResult | null> {
     if (!config || readOnly) return null;
     if (config.editor === "branching-model" && !branchingModel) return null;
-    if (config.editor === "gp-content" && !gpContent) return null;
     setValidating(true);
     setError(null);
     setMessage(null);
@@ -172,9 +131,7 @@ export default function PlatformComponentEditor({
       const clientIssues =
         config.editor === "branching-model" && branchingModel
           ? validateBranchingModelClient(branchingModel, name)
-          : config.editor === "gp-content" && gpContent
-            ? validateGpContentClient(gpContent, name)
-            : [];
+          : [];
       if (clientIssues.length > 0) {
         const result: ValidateComponentPackageResult = {
           valid: false,
@@ -203,7 +160,6 @@ export default function PlatformComponentEditor({
   async function publishToStable() {
     if (!config || readOnly) return;
     if (config.editor === "branching-model" && !branchingModel) return;
-    if (config.editor === "gp-content" && !gpContent) return;
     setPublishing(true);
     setError(null);
     setMessage(null);
@@ -216,9 +172,7 @@ export default function PlatformComponentEditor({
       const manifest =
         config.editor === "branching-model" && branchingModel
           ? buildManifestSubset(type, branchingModel)
-          : config.editor === "gp-content" && gpContent
-            ? buildGpContentManifestSubset(gpContent)
-            : {};
+          : {};
       await api.registerComponentPackage(type, name, version, {
         manifest,
         actor: getActor() || undefined,
@@ -255,7 +209,17 @@ export default function PlatformComponentEditor({
     return (
       <div className="space-y-4">
         <PlatformBackLink type={type} />
-        <p className="text-red-400">Тип {type} не поддерживается</p>
+        {type === "gp-content" ? (
+          <p className="text-amber-200">
+            Тип gp-content удалён. Редактируйте pipeline на{" "}
+            <Link to={`/gp/${encodeURIComponent(name)}`} className="text-sky-400 hover:underline">
+              GP release detail
+            </Link>
+            .
+          </p>
+        ) : (
+          <p className="text-red-400">Тип {type} не поддерживается</p>
+        )}
       </div>
     );
   }
@@ -314,20 +278,7 @@ export default function PlatformComponentEditor({
               disabled={readOnly}
             />
           )}
-          {config.editor === "gp-content" && gpContent && (
-            <GpContentEditor
-              model={gpContent}
-              containerfile={containerfile}
-              componentName={name}
-              onChange={(m, cf) => {
-                setGpContent(m);
-                setContainerfile(cf);
-                setDirty(true);
-                setValidation(null);
-              }}
-              disabled={readOnly}
-            />
-          )}
+
         </section>
 
         <section className="space-y-4">
@@ -456,7 +407,7 @@ function LifecyclePanel({
 }
 
 function PlatformBackLink({ type }: { type: string }) {
-  const to = platformCatalogPath(type) ?? "/platform/build-stacks";
+  const to = platformCatalogPath(type) ?? "/platform/branching-models";
   return (
     <Link to={to} className="text-sm text-sky-400 hover:underline">
       ← Platform catalog

@@ -18,10 +18,10 @@ type Options struct {
 }
 
 func RunTarget(opts Options) error {
-	if err := ensurePodman(); err == nil {
-		return RunPodmanTarget(opts)
-	}
 	if err := ensureBuildkit(); err != nil {
+		if podmanErr := ensurePodman(); podmanErr == nil {
+			return RunPodmanTarget(opts)
+		}
 		return err
 	}
 	dockerfilePath := opts.Dockerfile

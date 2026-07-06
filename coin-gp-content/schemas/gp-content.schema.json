@@ -28,7 +28,7 @@
           "minItems": 1,
           "items": {
             "type": "string",
-            "enum": ["image", "artifact"]
+            "enum": ["image", "liquibase-image", "artifact"]
           }
         }
       }
@@ -45,7 +45,7 @@
         "buildkit": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["targets", "cacheRefTemplate"],
+          "required": ["targets"],
           "properties": {
             "targets": {
               "type": "object",
@@ -54,17 +54,13 @@
                 "type": "string",
                 "minLength": 1
               }
-            },
-            "cacheRefTemplate": {
-              "type": "string",
-              "minLength": 1
             }
           }
         },
         "dockerfile": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["path", "cacheRefTemplate"],
+          "required": ["path"],
           "properties": {
             "path": {
               "type": "string",
@@ -75,10 +71,6 @@
               "minLength": 1
             },
             "testTarget": {
-              "type": "string",
-              "minLength": 1
-            },
-            "cacheRefTemplate": {
               "type": "string",
               "minLength": 1
             }

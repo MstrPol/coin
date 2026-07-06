@@ -11,15 +11,15 @@ func TestBuilderBranchingSection(t *testing.T) {
 		Rules: map[string]any{
 			"branches": []any{
 				map[string]any{
-					"name":    "main",
-					"pattern": `^main$`,
+					"name":       "main",
+					"pattern":    `^main$`,
 					"versioning": map[string]any{"template": "v{base}-main-snapshot-{n}"},
-					"publish": false,
+					"publish":    false,
 				},
 			},
 		},
 	}
-	doc, _, err := b.Build(release, BuildOptions{Project: "demo-go-app", RegistryHost: "localhost:8082"})
+	doc, _, err := b.Build(release, BuildOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

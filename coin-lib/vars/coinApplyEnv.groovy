@@ -16,9 +16,6 @@ def call(Map cfg) {
     if (cfg.coin?.apiUrl) {
         env.COIN_API_URL = cfg.coin.apiUrl.toString()
     }
-    if (cfg.jenkins?.registry?.prefix) {
-        env.COIN_REGISTRY_PREFIX = cfg.jenkins.registry.prefix.toString()
-    }
     if (cfg.jenkins?.credentials?.apiToken) {
         env.COIN_API_TOKEN_CRED = cfg.jenkins.credentials.apiToken.toString()
     }

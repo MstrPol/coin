@@ -9,23 +9,22 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"coin.local/coin-api/internal/compatibility"
-	"coin.local/coin-api/internal/gpcontent"
 	"coin.local/coin-api/internal/manifest"
 	"coin.local/coin-api/internal/pin"
 )
 
 var (
-	ErrDuplicateGPRelease   = errors.New("gp release already exists")
-	ErrComponentNotFound    = errors.New("component version not found")
-	ErrInvalidComposition   = errors.New("invalid composition")
+	ErrDuplicateGPRelease = errors.New("gp release already exists")
+	ErrComponentNotFound  = errors.New("component version not found")
+	ErrInvalidComposition = errors.New("invalid composition")
 )
 
 type PublishGPReleaseInput struct {
 	Name               string
 	Version            string
+	Destinations       manifest.Destinations
 	Composition        map[string]string
 	AgentStackName     string
-	GPContentName      string
 	BranchingModelName string
 	Actor              string
 }
@@ -44,6 +43,9 @@ func (s *Store) PublishGPRelease(ctx context.Context, in PublishGPReleaseInput) 
 	}
 	if pin.IsSnapshotVersion(in.Version) {
 		return GPReleaseRow{}, fmt.Errorf("published version cannot contain snapshot suffix")
+	}
+	if err := validateReleaseDestinations(in.Destinations); err != nil {
+		return GPReleaseRow{}, err
 	}
 
 	prep, err := s.prepareGPRelease(ctx, in)
@@ -67,10 +69,10 @@ func (s *Store) PublishGPRelease(ctx context.Context, in PublishGPReleaseInput) 
 	defer tx.Rollback(ctx)
 
 	err = tx.QueryRow(ctx, `
-		INSERT INTO gp_releases (name, version, status)
-		VALUES ($1, $2, 'published')
+		INSERT INTO gp_releases (name, version, status, image_registry_prefix, build_cache_enabled, artifact_repository_base)
+		VALUES ($1, $2, 'published', $3, $4, $5)
 		RETURNING id
-	`, in.Name, in.Version).Scan(&releaseID)
+	`, in.Name, in.Version, in.Destinations.ImageRegistryPrefix, in.Destinations.BuildCacheEnabled, in.Destinations.ArtifactRepositoryBase).Scan(&releaseID)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return GPReleaseRow{}, ErrDuplicateGPRelease
@@ -110,13 +112,18 @@ func (s *Store) PublishGPRelease(ctx context.Context, in PublishGPReleaseInput) 
 	}
 
 	seeded := false
-	if contentName, contentVer, err := s.gpContentVersionFromComposition(ctx, in.Name, in.Version); err == nil {
-		if err := s.seedGPArtifactsFromGPContent(ctx, releaseID, contentName, contentVer); err == nil {
+	if latest, err := s.latestPublishedVersion(ctx, in.Name); err == nil && latest != "" {
+		if err := s.copyPipelineBetween(ctx, in.Name, latest, in.Version); err == nil {
 			seeded = true
 		}
 	}
 	if !seeded {
-		_ = gpcontent.SeedArtifactsToRelease(ctx, s.pool, in.Name, releaseID)
+		_ = s.seedGPReleasePipeline(ctx, releaseID, in.Name, in.Version)
+	}
+	_ = s.seedGPReleaseSchemaArtifact(ctx, releaseID)
+
+	if err := s.validateGPReleasePipeline(ctx, in.Name, in.Version); err != nil {
+		return GPReleaseRow{}, err
 	}
 
 	return GPReleaseRow{
@@ -125,6 +132,16 @@ func (s *Store) PublishGPRelease(ctx context.Context, in PublishGPReleaseInput) 
 		Version: in.Version,
 		Status:  "published",
 	}, nil
+}
+
+func validateReleaseDestinations(dest manifest.Destinations) error {
+	if dest.ImageRegistryPrefix == "" {
+		return fmt.Errorf("destinations.imageRegistryPrefix is required")
+	}
+	if dest.ArtifactRepositoryBase == "" {
+		return fmt.Errorf("destinations.artifactRepositoryBase is required")
+	}
+	return nil
 }
 
 func (s *Store) componentVersionResolvable(ctx context.Context, typ, name, version string, mode ComponentResolveMode) (bool, error) {
@@ -177,17 +194,6 @@ func (s *Store) loadCompatibilityRules(ctx context.Context) ([]compatibility.Rul
 }
 
 func (s *Store) loadContentBundle(ctx context.Context, gpName, gpVersion string, mode ComponentResolveMode) (manifest.ContentBundle, error) {
-	contentName, contentVer, err := s.gpContentVersionFromComposition(ctx, gpName, gpVersion)
-	if err != nil {
-		return manifest.ContentBundle{}, err
-	}
-	return s.materializeGPContentBundle(ctx, contentName, contentVer, mode)
-}
-
-func (s *Store) materializeGPContentBundle(ctx context.Context, name, version string, mode ComponentResolveMode) (manifest.ContentBundle, error) {
-	meta, crefRaw, err := s.getGPContentRefs(ctx, name, version, mode)
-	if err != nil {
-		return manifest.ContentBundle{}, err
-	}
-	return contentBundleFromRawRef(meta, crefRaw)
+	_ = mode
+	return s.loadContentBundleFromPipeline(ctx, gpName, gpVersion)
 }

@@ -2,11 +2,13 @@
 
 ## Purpose
 
-Platform-native two-state lifecycle for gp-content and branching-model; GP promote gate and canary resolve rules.
+Platform-native two-state lifecycle for `branching-model` and `agent`; GP promote gate and canary resolve rules. Embedded pipeline lifecycle is GP release lifecycle.
+
 ## Requirements
+
 ### Requirement: Two-state component lifecycle
 
-Platform components `gp-content`, `branching-model`, and `agent` SHALL use a two-state lifecycle: `draft` and `published`.
+Platform components `branching-model` and `agent` SHALL use a two-state lifecycle: `draft` and `published`. Component type `gp-content` SHALL NOT be registered or published in the platform component registry.
 
 The `canary` status SHALL NOT exist for component versions.
 
@@ -14,17 +16,17 @@ Component type `executor` SHALL NOT be registered, resolved, or validated as a p
 
 #### Scenario: Create draft component version
 
-- **WHEN** enabling team creates a new `gp-content`, `branching-model`, or `agent` version from Platform UI or Jenkins register
+- **WHEN** enabling team creates a new `branching-model` or `agent` version from Platform UI or Jenkins register
 - **THEN** coin-api MUST store the version with `status = draft`
-- **AND** for `gp-content` and `branching-model` artifact bodies MUST be editable in PostgreSQL until publish
+- **AND** for `branching-model` artifact bodies MUST be editable in PostgreSQL until publish
 - **AND** for `agent` metadata (`image`, `digest`) MUST be editable while `status = draft`
 - **AND** MUST NOT create or require a paired `executor` component version
 
 #### Scenario: Publish draft to stable
 
-- **WHEN** enabling team promotes a validated draft component version from Platform UI
+- **WHEN** enabling team promotes a validated draft `branching-model` or `agent` component version from Platform UI
 - **THEN** coin-api MUST set `status = published` and make the version immutable
-- **AND** for `gp-content` and `branching-model` MUST upload immutable package to Nexus as today
+- **AND** for `branching-model` MUST upload immutable package to Nexus as today
 - **AND** for `agent` MUST NOT require Nexus content_ref; `metadata.image` and `metadata.digest` MUST be present and valid before promote
 - **AND** CI register flows MUST NOT promote `agent` versions automatically
 - **AND** MUST NOT transition through a `canary` component status
@@ -43,39 +45,39 @@ Component type `executor` SHALL NOT be registered, resolved, or validated as a p
 
 ### Requirement: Component resolve by channel
 
-coin-api resolve SHALL apply component status rules based on resolve channel and GP release status.
+coin-api resolve SHALL apply component status rules based on resolve channel and GP release status for external composition pins.
 
-#### Scenario: Stable channel requires published pins
+#### Scenario: Stable channel requires published external pins
 
 - **WHEN** product CI resolves GP on stable channel
-- **THEN** all composition pins (`agent`, `gp-content`, `branching-model`) MUST have `status = published`
+- **THEN** agent and branching-model composition pins MUST have `status = published`
 
-#### Scenario: Canary channel allows draft component pins
+#### Scenario: Canary channel allows draft branching-model pin
 
 - **WHEN** product CI resolves GP on canary channel
 - **AND** the resolved GP release is a draft or is designated on the canary line
-- **THEN** `gp-content` and `branching-model` pins MAY have `status = draft` or `published`
-- **AND** `agent` pin MUST have `status = published`
+- **THEN** branching-model pin MAY have `status = draft` or `published`
+- **AND** agent pin MUST have `status = published`
 
-#### Scenario: GP draft composition allows draft pins
+#### Scenario: GP draft composition allows draft branching pin
 
 - **WHEN** publisher creates or updates a GP draft release
-- **THEN** coin-api MUST accept `gp-content` and `branching-model` pins with `status = draft` or `published`
+- **THEN** coin-api MUST accept branching-model pin with `status = draft` or `published`
 - **AND** MUST require `agent` pin with `status = published`
 
 ### Requirement: GP promote requires published component pins
 
-Promoting a GP draft to `published` SHALL require every composition pin to reference a `published` component version.
+Promoting a GP draft to `published` SHALL require every external composition pin to reference a `published` component version and embedded pipeline to be valid.
 
-#### Scenario: Promote blocked by draft gp-content
+#### Scenario: Promote blocked by draft branching-model pin
 
-- **WHEN** publisher promotes GP draft with `gp-content/go-app@1.2.0-draft` where that version has `status = draft`
+- **WHEN** publisher promotes GP draft with branching-model pin in `draft` status
 - **THEN** coin-api MUST reject with HTTP 409 Conflict
 - **AND** the error MUST list blocking pins with type, name, version, and status
 
-#### Scenario: Promote succeeds with all published pins
+#### Scenario: Promote succeeds with published external pins and valid pipeline
 
-- **WHEN** publisher promotes GP draft where agent, gp-content, and branching-model pins are all `published`
+- **WHEN** publisher promotes GP draft where agent and branching-model pins are `published` and embedded pipeline is valid
 - **THEN** coin-api MUST transition GP release to `published`
 
 ### Requirement: Draft pin instability warning
@@ -96,9 +98,7 @@ The coin-ui SHALL warn when a composition or canary line uses draft component pi
 
 ### Requirement: Admin API delete component draft
 
-coin-api SHALL expose `DELETE /v1/admin/components/{type}/{name}/versions/{version}` to remove a component version with `status = draft`.
-
-The endpoint MUST apply to platform component types with draft lifecycle: `agent`, `gp-content`, and `branching-model`.
+coin-api SHALL expose `DELETE /v1/admin/components/{type}/{name}/versions/{version}` for platform component types with draft lifecycle: `agent` and `branching-model` only.
 
 The endpoint MUST NOT delete versions with `status = published`.
 

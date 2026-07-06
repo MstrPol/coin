@@ -13,8 +13,7 @@ func TestValidateDoc_buildkit(t *testing.T) {
 		Build: Build{
 			Engine: "buildkit",
 			Buildkit: &BuildkitBlock{
-				Targets:          map[string]string{"test": "test"},
-				CacheRefTemplate: "{{registryHost}}/cache/{{project}}",
+				Targets: map[string]string{"test": "test"},
 			},
 		},
 		Pipeline: Pipeline{Stages: []Stage{{ID: "test", Name: "Test"}}},
@@ -52,8 +51,7 @@ func TestValidateDoc_byoRejectsArtifact(t *testing.T) {
 		Build: Build{
 			Engine: "dockerfile",
 			Dockerfile: &DockerfileBlock{
-				Path:             "Dockerfile",
-				CacheRefTemplate: "{{registryHost}}/cache",
+				Path: "Dockerfile",
 			},
 		},
 		Pipeline:  Pipeline{Stages: []Stage{{ID: "build", Name: "Build"}}},
@@ -65,6 +63,37 @@ func TestValidateDoc_byoRejectsArtifact(t *testing.T) {
 	}
 }
 
+func TestValidateDoc_rejectsInvalidDeliverables(t *testing.T) {
+	doc := Doc{
+		SchemaVersion: 2,
+		Name:          "go-app",
+		Kind:          "gp-content",
+		Capabilities:  Capabilities{Deliverables: []string{"image", "image", "wheel"}},
+		Build: Build{
+			Engine:   "buildkit",
+			Buildkit: &BuildkitBlock{Targets: map[string]string{"image": "runtime"}},
+		},
+		Pipeline: Pipeline{Stages: []Stage{{ID: "build", Name: "Build"}}},
+		Artifacts: Artifacts{
+			ValidateSchema: "schemas/config.v2.schema.json",
+			Containerfile:  "dockerfiles/Containerfile",
+		},
+	}
+	issues, _ := ValidateDoc(doc, PreviewOptions{ComponentName: "go-app", HasContainerfileArtifact: true})
+	if len(issues) == 0 {
+		t.Fatal("expected invalid deliverables to be rejected")
+	}
+}
+
+func TestValidateDoc_vNextCatalogSupersededFromLegacyHelper(t *testing.T) {
+	doc := validVNextDoc()
+	issues, _ := ValidateDoc(doc, PreviewOptions{ComponentName: "go-app"})
+	if len(issues) == 0 {
+		t.Fatal("expected v2 catalog superseded rejection")
+	}
+	assertIssueField(t, issues, "content.yaml.schemaVersion")
+}
+
 func TestPreview_byoNoContainerfileRef(t *testing.T) {
 	doc := Doc{
 		SchemaVersion: 2,
@@ -74,15 +103,14 @@ func TestPreview_byoNoContainerfileRef(t *testing.T) {
 		Build: Build{
 			Engine: "dockerfile",
 			Dockerfile: &DockerfileBlock{
-				Path:             "Dockerfile",
-				ImageTarget:      "runtime",
-				CacheRefTemplate: "{{registryHost}}/coin-cache/{{project}}:dockerfile",
+				Path:        "Dockerfile",
+				ImageTarget: "runtime",
 			},
 		},
 		Pipeline:  Pipeline{Stages: []Stage{{ID: "build", Name: "Build"}}},
 		Artifacts: Artifacts{ValidateSchema: "schemas/config.v2.schema.json"},
 	}
-	res := Preview(doc, PreviewOptions{ComponentName: "go-app-docker", Project: "demo"})
+	res := Preview(doc, PreviewOptions{ComponentName: "go-app-docker"})
 	if !res.Valid {
 		t.Fatalf("preview invalid: %v", res.Issues)
 	}
@@ -96,4 +124,54 @@ func TestPreview_byoNoContainerfileRef(t *testing.T) {
 	if _, has := df["containerfile"]; has {
 		t.Fatal("BYO preview must not include containerfile ref")
 	}
+	if _, has := df["cacheRef"]; has {
+		t.Fatal("BYO preview must not include cacheRef")
+	}
+}
+
+func validVNextDoc() Doc {
+	return Doc{
+		SchemaVersion: 2,
+		Name:          "go-app",
+		Kind:          "gp-content",
+		Parameters: []Parameter{
+			{Name: "GO_VERSION", Type: "string", Default: "1.22", Required: true},
+		},
+		Build: Build{
+			Targets: []BuildTarget{
+				{ID: "app-image", Engine: "buildkit", Containerfile: "app", Target: "runtime"},
+				{ID: "app-artifact", Engine: "buildkit", Containerfile: "app", Target: "artifact"},
+			},
+		},
+		Deliverables: []Deliverable{
+			{ID: "app", Type: "image", TargetID: "app-image"},
+			{ID: "app-zip", Type: "artifact", TargetID: "app-artifact"},
+		},
+		Pipeline: Pipeline{Stages: []Stage{
+			{
+				ID:   "build",
+				Name: "Build",
+				Steps: []StageStep{
+					{Action: "build-deliverable", DeliverableID: "app"},
+					{Action: "build-deliverable", DeliverableID: "app-zip"},
+				},
+			},
+		}},
+		Artifacts: Artifacts{
+			ValidateSchema: "schemas/config.v2.schema.json",
+			Containerfiles: []ContainerfileSpec{
+				{ID: "app", Path: "dockerfiles/app.Containerfile"},
+			},
+		},
+	}
+}
+
+func assertIssueField(t *testing.T, issues []Issue, field string) {
+	t.Helper()
+	for _, issue := range issues {
+		if issue.Field == field {
+			return
+		}
+	}
+	t.Fatalf("expected issue field %q in %v", field, issues)
 }

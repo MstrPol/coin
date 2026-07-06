@@ -12,7 +12,7 @@ func TestContentBundleFromV2Manifest(t *testing.T) {
 		"schemaVersion": 2,
 		"package": {"url": "http://nexus/pkg.zip", "sha256": "abc"},
 		"manifest": {
-			"build": {"engine": "buildkit", "buildkit": {"dockerfile": "dockerfiles/Containerfile", "cacheRefTemplate": "{{registryHost}}/cache"}},
+			"build": {"engine": "buildkit", "buildkit": {"dockerfile": "dockerfiles/Containerfile"}},
 			"pipeline": {"stages": [{"id": "test", "name": "Test"}]},
 			"validateSchema": {"artifactKey": "schemas/config.v2.schema.json", "sha256": "s1"},
 			"containerfile": {"artifactKey": "dockerfiles/Containerfile", "sha256": "s2"}
@@ -39,8 +39,8 @@ func TestApplyCompositionSlotRegistry(t *testing.T) {
 	applyCompositionSlot(&parts, "agent", "coin-agent", "1.0.0", map[string]any{
 		"image": "nexus:8082/coin-docker/coin-agent:1.0.0", "digest": "sha256:abc",
 	})
-	applyCompositionSlot(&parts, "gp-content", "go-app", "1.0.0", nil)
-	if parts.AgentImage == "" || parts.GPContentName != "go-app" {
+	applyCompositionSlot(&parts, "branching-model", "trunk-based", "1.0.0", nil)
+	if parts.AgentImage == "" || parts.BranchingModelName != "trunk-based" {
 		t.Fatalf("parts=%+v", parts)
 	}
 }

@@ -15,7 +15,6 @@ import CreateGPProfile from "./pages/CreateGPProfile";
 import PromoteCanaryPage from "./pages/PromoteCanaryPage";
 import ResolvePreview from "./pages/ResolvePreview";
 import PlatformRuntimePage from "./pages/platform/PlatformRuntimePage";
-import PlatformBuildStacksPage from "./pages/platform/PlatformBuildStacksPage";
 import PlatformComponentEditorPage from "./pages/platform/PlatformComponentEditorPage";
 import PlatformComponentHubLayout from "./pages/platform/PlatformComponentHubLayout";
 import PlatformOverviewTab from "./pages/platform/tabs/PlatformOverviewTab";
@@ -74,31 +73,17 @@ export default function App() {
           <Route path="platform-settings" element={<Navigate to="/audit" replace />} />
           <Route path="audit" element={<AuditLog />} />
           <Route path="platform/runtime" element={<PlatformRuntimePage />} />
-          <Route path="platform/build-stacks" element={<PlatformBuildStacksPage />} />
+          <Route path="platform/build-stacks" element={<Navigate to="/gp" replace />} />
+          <Route path="platform/build-stacks/*" element={<Navigate to="/gp" replace />} />
           <Route path="platform/branching-models" element={<BranchingModelsPage />} />
           <Route element={<RequireRole min="publisher" />}>
             <Route path="platform/runtime/new" element={<PlatformNewProfilePage familyId="runtime" />} />
-            <Route
-              path="platform/build-stacks/new"
-              element={<PlatformNewProfilePage familyId="build-stacks" />}
-            />
             <Route
               path="platform/branching-models/new"
               element={<PlatformNewProfilePage familyId="branching-models" />}
             />
           </Route>
           <Route path="platform/runtime/:name" element={<PlatformComponentHubLayout familyId="runtime" />}>
-            <Route index element={<PlatformOverviewTab />} />
-            <Route path="releases" element={<PlatformReleasesTab />} />
-            <Route element={<RequireRole min="publisher" />}>
-              <Route path="releases/new-draft" element={<PlatformNewDraftPage />} />
-            </Route>
-            <Route path="releases/:version" element={<PlatformComponentReleaseDetail />} />
-          </Route>
-          <Route
-            path="platform/build-stacks/:name"
-            element={<PlatformComponentHubLayout familyId="build-stacks" />}
-          >
             <Route index element={<PlatformOverviewTab />} />
             <Route path="releases" element={<PlatformReleasesTab />} />
             <Route element={<RequireRole min="publisher" />}>
@@ -122,25 +107,17 @@ export default function App() {
             element={<PlatformFlatReleaseRedirect familyId="runtime" />}
           />
           <Route
-            path="platform/build-stacks/:name/:version"
-            element={<PlatformFlatReleaseRedirect familyId="build-stacks" />}
-          />
-          <Route
             path="platform/branching-models/:name/:version"
             element={<PlatformFlatReleaseRedirect familyId="branching-models" />}
           />
           <Route path="platform/jenkins-lib" element={<Navigate to="/platform/runtime" replace />} />
           <Route path="platform/components" element={<Navigate to="/platform/runtime" replace />} />
-          <Route path="studio" element={<Navigate to="/platform/build-stacks" replace />} />
-          <Route path="studio/*" element={<Navigate to="/platform/build-stacks" replace />} />
+          <Route path="studio" element={<Navigate to="/gp" replace />} />
+          <Route path="studio/*" element={<Navigate to="/gp" replace />} />
           <Route element={<RequireRole min="publisher" />}>
             <Route
               path="platform/runtime/:name/:version/edit"
               element={<PlatformAgentMetadataEditorPage familyId="runtime" />}
-            />
-            <Route
-              path="platform/build-stacks/:name/:version/edit"
-              element={<PlatformComponentEditorPage compType="gp-content" />}
             />
             <Route
               path="platform/branching-models/:name/:version/edit"

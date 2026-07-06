@@ -42,7 +42,6 @@ export const navGroups: NavGroup[] = [
     label: "Platform",
     items: [
       { label: "Runtime", to: "/platform/runtime" },
-      { label: "Build stacks", to: "/platform/build-stacks" },
       { label: "Branching models", to: "/platform/branching-models" },
     ],
   },

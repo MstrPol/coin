@@ -50,9 +50,9 @@ ADR: [adr/gp-component-package-model.md](adr/gp-component-package-model.md) (ame
 | **coin-lib** | Jenkins glue (resolve, pod, stages); ZIP из Nexus HTTP |
 | **coin-ui** | Admin SPA + Platform catalogs + promote wizard |
 
-## Manifest (v1, сокращённо)
+## Manifest (v1 hard cut, сокращённо)
 
-`manifestVersion` остаётся `1`: local pilot использует hard cut контракта, поэтому superseded поля удаляются без compatibility shim.
+`manifestVersion` остаётся `1`: local pilot использует hard cut контракта, поэтому superseded поля удаляются без compatibility shim. Build Stack vNext описан в [adr/build-stack-vnext-contract.md](adr/build-stack-vnext-contract.md).
 
 ```json
 {
@@ -63,18 +63,28 @@ ADR: [adr/gp-component-package-model.md](adr/gp-component-package-model.md) (ame
     "image": "nexus:8082/coin-docker/coin-agent:1.0.0",
     "digest": "sha256:…"
   },
+  "destinations": {
+    "imageRegistryPrefix": "docker-dev.registry.domain.ru",
+    "buildCacheEnabled": true,
+    "artifactRepositoryBase": "http://nexus:8081/repository/maven-releases"
+  },
+  "parameters": [
+    { "name": "GO_VERSION", "type": "string", "default": "1.22", "required": true }
+  ],
   "build": {
-    "engine": "buildkit",
-    "buildkit": {
-      "dockerfile": ".coin/Containerfile",
-      "targets": {
-        "validate": "validate",
-        "test": "test",
-        "image": "runtime",
-        "artifact": "artifact"
-      },
-      "containerfile": { "url": "…", "sha256": "sha256:…" }
-    }
+    "targets": [
+      { "id": "app-image", "engine": "buildkit", "containerfile": "app", "target": "runtime" },
+      { "id": "app-artifact", "engine": "buildkit", "containerfile": "app", "target": "artifact" }
+    ]
+  },
+  "deliverables": [
+    { "id": "app", "type": "image", "targetId": "app-image" },
+    { "id": "app-zip", "type": "artifact", "targetId": "app-artifact" }
+  ],
+  "artifacts": {
+    "containerfiles": [
+      { "id": "app", "url": "…", "sha256": "sha256:…" }
+    ]
   },
   "validateSchema": {
     "url": "http://nexus:8081/repository/maven-releases/coin/gp/content/go-app/1.0.2/config.v2.schema.json",
@@ -89,14 +99,15 @@ ADR: [adr/gp-component-package-model.md](adr/gp-component-package-model.md) (ame
   },
   "pipeline": {
     "stages": [
-      { "id": "validate", "name": "Validate" },
-      { "id": "test", "name": "Test" },
-      { "id": "build", "name": "Build" },
-      { "id": "publish", "name": "Publish" }
+      { "id": "validate", "name": "Validate", "steps": [{ "action": "run-target", "targetId": "app-image" }] },
+      { "id": "build", "name": "Build", "steps": [{ "action": "build-deliverable", "deliverableId": "app" }] },
+      { "id": "publish", "name": "Publish", "steps": [{ "action": "publish-deliverable", "deliverableId": "app" }] }
     ]
   }
 }
 ```
+
+Product repo не задаёт build/publish outputs. Deliverables являются частью GP/Build Stack policy и материализуются в manifest как named outputs; в P0 разрешены несколько deliverables одного type.
 
 Stage `publish`: coin-lib skip при `params.publish=false`; eligibility — `manifest.branching` + `COIN_PUBLISH_REQUEST`. См. [adr/gp-branching-model.md](adr/gp-branching-model.md).
 
@@ -111,7 +122,7 @@ coin-api собирает manifest через **composition slot registry** (н�
 
 1. `gp_composition` → pin component type/name/version per slot
 2. Materializer загружает package / metadata (`content_ref` v2 или legacy)
-3. `manifest.Builder` денормализует только GP identity + секции composition pins (`runtime`, `build`, `pipeline`, `validateSchema`, `capabilities`, `branching`)
+3. `manifest.Builder` денормализует GP identity + destinations версии GP + секции composition pins (`runtime`, `build`, `pipeline`, `validateSchema`, `capabilities`, `branching`)
 
 CI fallback при недоступном API — **только Nexus** (manifest blob + component packages), не PG bodies.
 
@@ -139,7 +150,7 @@ sequenceDiagram
   POD->>EX: report → API
 ```
 
-Build dispatch по `manifest.build.engine` — см. [adr/coin-ci-runtime.md](adr/coin-ci-runtime.md).
+Build dispatch идёт по `manifest.build.targets[].engine` — см. [adr/build-stack-vnext-contract.md](adr/build-stack-vnext-contract.md) и [adr/coin-ci-runtime.md](adr/coin-ci-runtime.md).
 
 ## Миграция с v1
 

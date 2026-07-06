@@ -98,10 +98,6 @@ if [[ "${register_code}" != "200" ]]; then
 fi
 rm -f "${register_tmp}"
 
-echo "==> publish-canary"
-api_post "/v1/admin/components/${COMP_TYPE}/${MODEL}/versions/${VERSION}/publish-canary" \
-  "$(jq -n --arg a "${ACTOR}" '{actor: $a}')"
-
 echo "==> promote to published (Nexus upload + final content_ref)"
 promote_tmp="$(mktemp)"
 promote_code="$(curl -sS -o "${promote_tmp}" -w '%{http_code}' -X POST \

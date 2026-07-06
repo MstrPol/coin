@@ -50,7 +50,7 @@ jenkins:
 project:
   name: <service-name>
   groupId: <team-domain>
-  repository: Nexus_PROD
+  artifactId: <artifact-id>
 ```
 
 Mapping: [migrate-config-v1-to-v2.md](../how-to/migrate-config-v1-to-v2.md)

@@ -28,19 +28,23 @@ The coin-ui SHALL provide a GP hub at `/gp/{name}` as the primary place to manag
 - **WHEN** enabling team opens the Releases tab
 - **THEN** the UI MUST list releases for that GP only (published and drafts per existing filters)
 
-#### Scenario: Release detail shows version composition
+### Requirement: Release detail shows version composition
 
-- **WHEN** enabling team opens release detail for GP `xxx` version `1.0.0`
-- **THEN** the UI MUST show the composition table for **that version** (agent, gp-content, branching-model pins)
+GP release detail SHALL show external composition pins for that version and embedded pipeline authoring controls on draft releases. Composition table MUST list agent and branching-model pins only and MUST NOT reference gp-content or Platform build stacks.
+
+#### Scenario: Published release composition table
+
+- **WHEN** enabling team opens release detail for GP `go-app` version `1.0.0`
+- **THEN** the UI MUST show the composition table for **that version** with agent and branching-model pins only
 - **AND** agent pin MUST link to `/platform/runtime/{agentName}/releases/{version}`
-- **AND** gp-content pin MUST link to `/platform/build-stacks/{name}/releases/{version}` or edit route for draft
 - **AND** branching-model pin MUST link to `/platform/branching-models/{name}/releases/{version}` or edit route for draft
-- **AND** MUST NOT link to flat catalog URLs or Component Studio
+- **AND** MUST NOT show gp-content composition row or link to `/platform/build-stacks`
 
-#### Scenario: Draft release detail actions
+#### Scenario: Draft release detail includes pipeline editor
 
-- **WHEN** publisher opens release detail for a draft
-- **THEN** the UI MUST offer promote and delete draft actions
+- **WHEN** publisher opens release detail for a GP draft
+- **THEN** the UI MUST offer embedded pipeline editor (Parameters + Pipeline stages) on the same page
+- **AND** MUST offer promote and delete draft actions
 - **AND** MUST NOT offer delete for published releases
 
 ### Requirement: Hub draft-only primary action
@@ -97,4 +101,20 @@ GP release detail SHALL live under the GP hub URL hierarchy.
 
 - **WHEN** user opens `/releases/go-app/1.0.0`
 - **THEN** the UI MUST redirect to `/gp/go-app/releases/1.0.0`
+
+### Requirement: GP release detail pipeline tab
+
+GP release detail for draft releases SHALL be the primary authoring surface for embedded pipeline-inline model.
+
+#### Scenario: Pipeline section on draft release detail
+
+- **WHEN** publisher opens GP draft release detail
+- **THEN** the UI MUST show pipeline editor section before or alongside composition pins
+- **AND** MUST call GP release pipeline preview API on edit
+
+#### Scenario: Published release pipeline read-only
+
+- **WHEN** publisher opens published GP release detail
+- **THEN** the UI MUST show pipeline content as read-only
+- **AND** MUST NOT offer pipeline save controls
 

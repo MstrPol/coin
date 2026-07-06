@@ -39,7 +39,7 @@ jenkins:
 project:
   name: my-service
   groupId: com.example.team
-  repository: Nexus_PROD
+  artifactId: my-service
 ```
 
 ### 3. Jenkinsfile

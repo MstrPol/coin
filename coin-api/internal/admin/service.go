@@ -12,6 +12,7 @@ import (
 
 	"coin.local/coin-api/internal/canary"
 	"coin.local/coin-api/internal/catalog"
+	"coin.local/coin-api/internal/manifest"
 	"coin.local/coin-api/internal/nexus"
 	"coin.local/coin-api/internal/pin"
 	"coin.local/coin-api/internal/resolve"
@@ -37,21 +38,21 @@ type PublishComponentRequest struct {
 }
 
 type CreateDraftRequest struct {
-	Version            string            `json:"version"`
-	Composition        map[string]string `json:"composition"`
-	AgentStackName     string            `json:"agentStackName"`
-	GPContentName      string            `json:"gpContentName"`
-	BranchingModelName string            `json:"branchingModelName"`
-	Actor              string            `json:"actor"`
+	Version            string                `json:"version"`
+	Destinations       manifest.Destinations `json:"destinations"`
+	Composition        map[string]string     `json:"composition"`
+	AgentStackName     string                `json:"agentStackName"`
+	BranchingModelName string                `json:"branchingModelName"`
+	Actor              string                `json:"actor"`
 }
 
 type PublishGPReleaseRequest struct {
-	Version            string            `json:"version"`
-	Composition        map[string]string `json:"composition"`
-	AgentStackName     string            `json:"agentStackName"`
-	GPContentName      string            `json:"gpContentName"`
-	BranchingModelName string            `json:"branchingModelName"`
-	Actor              string            `json:"actor"`
+	Version            string                `json:"version"`
+	Destinations       manifest.Destinations `json:"destinations"`
+	Composition        map[string]string     `json:"composition"`
+	AgentStackName     string                `json:"agentStackName"`
+	BranchingModelName string                `json:"branchingModelName"`
+	Actor              string                `json:"actor"`
 }
 
 type PublishGPReleaseResult struct {
@@ -108,9 +109,9 @@ func (s *Service) CreateDraftGPRelease(ctx context.Context, name string, req Cre
 	return s.store.CreateDraftGPRelease(ctx, store.PublishGPReleaseInput{
 		Name:               name,
 		Version:            req.Version,
+		Destinations:       req.Destinations,
 		Composition:        req.Composition,
 		AgentStackName:     req.AgentStackName,
-		GPContentName:      req.GPContentName,
 		BranchingModelName: req.BranchingModelName,
 		Actor:              req.Actor,
 	})
@@ -128,21 +129,29 @@ func (s *Service) UpdateGPReleaseDraft(ctx context.Context, name, version string
 	return s.store.UpdateGPReleaseDraft(ctx, store.PublishGPReleaseInput{
 		Name:               name,
 		Version:            version,
+		Destinations:       req.Destinations,
 		Composition:        req.Composition,
 		AgentStackName:     req.AgentStackName,
-		GPContentName:      req.GPContentName,
 		BranchingModelName: req.BranchingModelName,
 		Actor:              req.Actor,
 	})
+}
+
+func (s *Service) GetGPReleasePipelineBody(ctx context.Context, name, version string) (store.GPReleasePipelineBody, error) {
+	return s.store.GetGPReleasePipelineBody(ctx, name, version)
+}
+
+func (s *Service) SaveGPReleasePipelineBody(ctx context.Context, name, version string, raw []byte) error {
+	return s.store.SaveGPReleasePipelineBody(ctx, name, version, raw)
 }
 
 func (s *Service) PublishGPRelease(ctx context.Context, name string, req PublishGPReleaseRequest) (PublishGPReleaseResult, error) {
 	release, err := s.store.PublishGPRelease(ctx, store.PublishGPReleaseInput{
 		Name:               name,
 		Version:            req.Version,
+		Destinations:       req.Destinations,
 		Composition:        req.Composition,
 		AgentStackName:     req.AgentStackName,
-		GPContentName:      req.GPContentName,
 		BranchingModelName: req.BranchingModelName,
 		Actor:              req.Actor,
 	})
@@ -384,10 +393,10 @@ func (s *Service) ListComponentArtifacts(ctx context.Context, typ, name, version
 }
 
 type CanaryOverview struct {
-	Policy       store.CanaryPolicyRow `json:"policy"`
-	Catalog      store.CatalogPolicyRow `json:"catalog"`
-	InCanary     int                   `json:"inCanary"`
-	TotalProjects int                  `json:"totalProjects"`
+	Policy        store.CanaryPolicyRow  `json:"policy"`
+	Catalog       store.CatalogPolicyRow `json:"catalog"`
+	InCanary      int                    `json:"inCanary"`
+	TotalProjects int                    `json:"totalProjects"`
 }
 
 func (s *Service) GetCanaryOverview(ctx context.Context, gpName string) (CanaryOverview, error) {
@@ -535,27 +544,5 @@ func (s *Service) NextAgentVersion(ctx context.Context, stack, runtime string) (
 		CurrentRev:  current,
 		NextRev:     next,
 		NextVersion: version,
-	}, nil
-}
-
-type NextGPContentVersionResult struct {
-	Name           string `json:"name"`
-	Bump           string `json:"bump"`
-	CurrentVersion string `json:"currentVersion"`
-	NextVersion    string `json:"nextVersion"`
-	IsFirst        bool   `json:"isFirst"`
-}
-
-func (s *Service) NextGPContentVersion(ctx context.Context, name, bump string) (NextGPContentVersionResult, error) {
-	current, next, isFirst, err := s.store.NextGPContentVersion(ctx, name, bump)
-	if err != nil {
-		return NextGPContentVersionResult{}, err
-	}
-	return NextGPContentVersionResult{
-		Name:           name,
-		Bump:           bump,
-		CurrentVersion: current,
-		NextVersion:    next,
-		IsFirst:        isFirst,
 	}, nil
 }

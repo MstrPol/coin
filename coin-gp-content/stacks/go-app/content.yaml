@@ -1,33 +1,152 @@
-schemaVersion: 2
+schemaVersion: 3
 name: go-app
 kind: gp-content
+validateSchema: schemas/config.v2.schema.json
 
-capabilities:
-  deliverables:
-    - image
-    - artifact
-
-build:
-  engine: buildkit
-  buildkit:
-    targets:
-      validate: validate
-      test: test
-      image: runtime
-      artifact: artifact
-    cacheRefTemplate: "{{registryHost}}/coin-cache/{{project}}:buildkit"
-
+parameters:
+  - name: GO_VERSION
+    type: string
+    default: 1.22
+    required: true
 pipeline:
   stages:
-    - id: validate
+    - id: h6cw5j
       name: Validate
-    - id: test
+      steps:
+        - action: run
+          run:
+            engine: buildkit
+            output: validate
+            containerfile:
+              body: |
+                # Coin managed Containerfile: Go build targets for BuildKit engine.
+                FROM --platform=$TARGETPLATFORM golang:1.22-bookworm AS base
+                WORKDIR /src
+                COPY go.mod ./
+                RUN go mod download
+                COPY . .
+                
+                FROM base AS validate
+                RUN test -f go.mod && test -f main.go
+                
+                FROM base AS test
+                RUN go test ./...
+                
+                FROM base AS artifact
+                RUN mkdir -p /out && CGO_ENABLED=0 go build -buildvcs=false -trimpath -o /out/app .
+                
+                FROM --platform=$TARGETPLATFORM gcr.io/distroless/static-debian12:nonroot AS runtime
+                WORKDIR /app
+                COPY --from=artifact /out/app /app/app
+                EXPOSE 8080
+                USER nonroot:nonroot
+                ENTRYPOINT ["/app/app"]
+                
+    - id: 2qf7c2
       name: Test
-    - id: build
+      steps:
+        - action: run
+          run:
+            engine: buildkit
+            output: test
+            containerfile:
+              body: |
+                # Coin managed Containerfile: Go build targets for BuildKit engine.
+                FROM --platform=$TARGETPLATFORM golang:1.22-bookworm AS base
+                WORKDIR /src
+                COPY go.mod ./
+                RUN go mod download
+                COPY . .
+                
+                FROM base AS validate
+                RUN test -f go.mod && test -f main.go
+                
+                FROM base AS test
+                RUN go test ./...
+                
+                FROM base AS artifact
+                RUN mkdir -p /out && CGO_ENABLED=0 go build -buildvcs=false -trimpath -o /out/app .
+                
+                FROM --platform=$TARGETPLATFORM gcr.io/distroless/static-debian12:nonroot AS runtime
+                WORKDIR /app
+                COPY --from=artifact /out/app /app/app
+                EXPOSE 8080
+                USER nonroot:nonroot
+                ENTRYPOINT ["/app/app"]
+                
+    - id: ist1nl
       name: Build
-    - id: publish
+      steps:
+        - action: build
+          build:
+            id: r8e2hy
+            type: image
+            engine: buildkit
+            containerfile:
+              body: |
+                # Coin managed Containerfile: Go build targets for BuildKit engine.
+                FROM --platform=$TARGETPLATFORM golang:1.22-bookworm AS base
+                WORKDIR /src
+                COPY go.mod ./
+                RUN go mod download
+                COPY . .
+                
+                FROM base AS validate
+                RUN test -f go.mod && test -f main.go
+                
+                FROM base AS test
+                RUN go test ./...
+                
+                FROM base AS artifact
+                RUN mkdir -p /out && CGO_ENABLED=0 go build -buildvcs=false -trimpath -o /out/app .
+                
+                FROM --platform=$TARGETPLATFORM gcr.io/distroless/static-debian12:nonroot AS runtime
+                WORKDIR /app
+                COPY --from=artifact /out/app /app/app
+                EXPOSE 8080
+                USER nonroot:nonroot
+                ENTRYPOINT ["/app/app"]
+                
+        - action: build
+          build:
+            id: 3xe8i5
+            type: artifact
+            engine: buildkit
+            containerfile:
+              body: |
+                # Coin managed Containerfile: Go build targets for BuildKit engine.
+                FROM --platform=$TARGETPLATFORM golang:1.22-bookworm AS base
+                WORKDIR /src
+                COPY go.mod ./
+                RUN go mod download
+                COPY . .
+                
+                FROM base AS validate
+                RUN test -f go.mod && test -f main.go
+                
+                FROM base AS test
+                RUN go test ./...
+                
+                FROM base AS artifact
+                RUN mkdir -p /out && CGO_ENABLED=0 go build -buildvcs=false -trimpath -o /out/app .
+                
+                FROM --platform=$TARGETPLATFORM gcr.io/distroless/static-debian12:nonroot AS runtime
+                WORKDIR /app
+                COPY --from=artifact /out/app /app/app
+                EXPOSE 8080
+                USER nonroot:nonroot
+                ENTRYPOINT ["/app/app"]
+                
+            artifact:
+              format: zip
+              paths:
+                - /out/app
+    - id: jrxyzd
       name: Publish
-
-artifacts:
-  validateSchema: schemas/config.v2.schema.json
-  containerfile: dockerfiles/Containerfile
+      steps:
+        - action: publish
+          publish:
+            buildStepId: r8e2hy
+        - action: publish
+          publish:
+            buildStepId: 3xe8i5

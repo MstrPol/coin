@@ -1,7 +1,7 @@
 // Рендер K8s pod YAML из шаблона библиотеки и merged config.
 
 /**
- * Подставляет runtime image, registry prefix и resource limits в coin-pod-template.yaml.
+ * Подставляет runtime image и resource limits в coin-pod-template.yaml.
  * cfg передаётся как JSON-строка, чтобы не тащить LazyMap через CPS между нодами.
  *
  * @param cfgJson merged config, сериализованный в JSON
@@ -10,8 +10,8 @@
 def call(String cfgJson) {
     def cfg = new groovy.json.JsonSlurper().parseText(cfgJson)
     def runtimeImage = cfg.runtime?.image
-    def registryPrefix = cfg.jenkins?.registry?.prefix ?: 'localhost:8082/coin-docker'
     def buildEngine = cfg.build?.engine?.toString() ?: 'buildkit'
+    def registryPrefix = runtimeImage.toString().replaceFirst('/[^/:]+:[^/]+$', '')
     def pod = cfg.pod ?: [:]
     def jnlpRes = pod.jnlp ?: [:]
     def jnlpReq = jnlpRes.requests ?: [cpu: '500m', memory: '1Gi']
@@ -31,7 +31,7 @@ def call(String cfgJson) {
     def tpl = libraryResource('coin-pod-template.yaml')
     return tpl
         .replace('${RUNTIME_IMAGE}', runtimeImage.toString())
-        .replace('${REGISTRY_PREFIX}', registryPrefix.toString())
+        .replace('${COIN_REGISTRY_PREFIX}', registryPrefix)
         .replace('${COIN_BUILD_ENGINE}', buildEngine)
         .replace('${JNLP_CPU_REQUEST}', jnlpReq.cpu.toString())
         .replace('${JNLP_MEMORY_REQUEST}', jnlpReq.memory.toString())

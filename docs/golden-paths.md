@@ -1,5 +1,7 @@
 # Golden Paths (Control Plane v2)
 
+> **2026-07:** Pipeline-inline v3 хранится как **embedded body** GP release (не component `gp-content`). Composition — 2 pin: `agent` + `branching-model`. Authoring — GP hub → release detail. См. [adr/gp-embedded-pipeline.md](adr/gp-embedded-pipeline.md).
+
 ## Модель
 
 | Сущность | Описание |

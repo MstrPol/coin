@@ -58,8 +58,9 @@ print(json.dumps({
 PY
 )"
 
-draft_body="$(jq -n --arg ver "${GP_DRAFT}" --arg agent "${agent}" --arg gc "${gc}" --arg bm "${BM_DRAFT}" --arg a "${ACTOR}" \
-  '{version: $ver, agentStackName: "coin-agent", gpContentName: "go-app", branchingModelName: "trunk-based", composition: {agent: $agent, "gp-content": $gc, "branching-model": $bm}, actor: $a}')"
+destinations="$(curl -fsS "${API}/v1/admin/golden-paths/${GP}/versions/${GP_STABLE}" "${AUTH[@]}" | jq -c '.destinations')"
+draft_body="$(jq -n --arg ver "${GP_DRAFT}" --arg agent "${agent}" --arg gc "${gc}" --arg bm "${BM_DRAFT}" --arg a "${ACTOR}" --argjson destinations "${destinations}" \
+  '{version: $ver, destinations: $destinations, agentStackName: "coin-agent", gpContentName: "go-app", branchingModelName: "trunk-based", composition: {agent: $agent, "gp-content": $gc, "branching-model": $bm}, actor: $a}')"
 
 echo "==> GP draft with draft branching-model pin"
 code="$(api_post_code "/v1/admin/golden-paths/${GP}/drafts" "${draft_body}")"

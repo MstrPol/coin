@@ -50,9 +50,7 @@ coinPipeline()
 
 ### Deliverables (product contract)
 
-`.coin/config.yaml` V1 расширяется секцией `deliverables`:
-- P0 types: `image`, `liquibase-image`, `artifact(format=zip)`
-- Product version по `docs/branching.md` (git tags), GP version — metadata only
+> **Superseded (2026-07):** product-level `deliverables` удалены из `.coin/config.yaml`. GP/Build Stack полностью задаёт P0 deliverables (`image`, `liquibase-image`, `artifact`), а product config хранит только GP pin, project identity и Jenkins glue.
 
 ### Extension policy
 

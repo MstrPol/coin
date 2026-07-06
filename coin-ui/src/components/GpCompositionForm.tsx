@@ -20,9 +20,6 @@ export type GpCompositionFormProps = {
   agentStackName: string;
   agentStackOptions: string[];
   onAgentStackChange: (v: string) => void;
-  gpContentName: string;
-  gpContentOptions: string[];
-  onGpContentChange: (v: string) => void;
   branchingModelName: string;
   branchingModelOptions: string[];
   onBranchingModelChange: (v: string) => void;
@@ -37,9 +34,6 @@ export default function GpCompositionForm({
   agentStackName,
   agentStackOptions,
   onAgentStackChange,
-  gpContentName,
-  gpContentOptions,
-  onGpContentChange,
   branchingModelName,
   branchingModelOptions,
   onBranchingModelChange,
@@ -51,20 +45,17 @@ export default function GpCompositionForm({
 }: GpCompositionFormProps) {
   function componentName(key: string): string {
     if (key === "agent") return agentStackName;
-    if (key === "gp-content") return gpContentName;
     return branchingModelName;
   }
 
   function componentPrefix(key: string): string {
     if (key === "agent") return "agent";
-    if (key === "gp-content") return "gp-content";
     return "branching-model";
   }
 
   function onNameChange(key: string, value: string) {
     if (readOnly) return;
     if (key === "agent") onAgentStackChange(value);
-    else if (key === "gp-content") onGpContentChange(value);
     else onBranchingModelChange(value);
   }
 
@@ -73,7 +64,7 @@ export default function GpCompositionForm({
     if (!ver) return [];
     const status = versionStatuses[key]?.[ver];
     if (status !== "draft") return [];
-    const compType = key === "gp-content" ? "gp-content" : key === "branching-model" ? "branching-model" : "agent";
+    const compType = key === "branching-model" ? "branching-model" : "agent";
     return [{ type: compType, name: componentName(key), version: ver }];
   });
 
@@ -86,12 +77,7 @@ export default function GpCompositionForm({
       </div>
       <div className="space-y-4 sm:space-y-3">
         {GP_DRAFT_SLOT_ORDER.map((key) => {
-          const nameOptions =
-            key === "agent"
-              ? agentStackOptions
-              : key === "gp-content"
-                ? gpContentOptions
-                : branchingModelOptions;
+          const nameOptions = key === "agent" ? agentStackOptions : branchingModelOptions;
           const versions = versionOptions[key] ?? [];
           const prefix = componentPrefix(key);
           const selectedVersion = composition[key] ?? "";

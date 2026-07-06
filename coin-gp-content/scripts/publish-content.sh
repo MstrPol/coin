@@ -71,38 +71,103 @@ nexus_upload() {
 nexus_upload "${CONTENT_URL}" "${ZIP}"
 
 mkdir -p "${PAYLOAD_DIR}"
-python3 - "${STACK_DIR}" "${PAYLOAD_DIR}" "${CONTENT_URL}" "${SHA256}" <<'PY'
+python3 - "${STACK_DIR}" "${PAYLOAD_DIR}" "${CONTENT_URL}" "${SHA256}" "${STACK}" "${VERSION}" <<'PY'
 import json, hashlib, pathlib, sys, yaml
 
 stack = pathlib.Path(sys.argv[1])
 out = pathlib.Path(sys.argv[2])
 content_url = sys.argv[3]
 content_sha = sys.argv[4]
+stack_name = sys.argv[5]
+version = sys.argv[6]
 content = yaml.safe_load((stack / "content.yaml").read_text())
 
 def sha(p: pathlib.Path) -> str:
     return f"sha256:{hashlib.sha256(p.read_bytes()).hexdigest()}"
 
+artifacts = content.get("artifacts") or {}
+vs = content.get("validateSchema") or artifacts.get("validateSchema")
+if isinstance(vs, dict):
+    vs = vs.get("artifactKey")
+schema_version = content.get("schemaVersion", 2)
+
+def materialize_containerfile(body: str) -> dict:
+    digest = f"sha256:{hashlib.sha256(body.encode()).hexdigest()}"
+    key = f"containerfile:{digest}"
+    return {
+        "contentRef": {
+            "url": f"coin://gp-content/{stack_name}@{version}/{key}",
+            "sha256": digest,
+        },
+        "digest": digest,
+        "_artifact_key": key,
+        "_body": body,
+    }
+
+def materialize_steps(steps: list):
+    out = []
+    extra_keys = []
+    for step in steps or []:
+        item = dict(step)
+        for block_key in ("run", "build"):
+            block = item.get(block_key)
+            if not isinstance(block, dict):
+                continue
+            cf = block.get("containerfile")
+            if isinstance(cf, dict) and cf.get("body"):
+                mat = materialize_containerfile(cf["body"])
+                block = dict(block)
+                block["containerfile"] = {
+                    "contentRef": mat["contentRef"],
+                    "digest": mat["digest"],
+                }
+                item[block_key] = block
+                extra_keys.append((mat["_artifact_key"], mat["_body"]))
+        out.append(item)
+    return out, extra_keys
+
 stages = []
+extra_artifacts = []
 for st in content.get("pipeline", {}).get("stages", []):
     item = {"id": st["id"], "name": st["name"]}
     if st.get("when"):
         item["when"] = st["when"]
+    if st.get("steps"):
+        if schema_version >= 3:
+            steps, extras = materialize_steps(st["steps"])
+            item["steps"] = steps
+            extra_artifacts.extend(extras)
+        else:
+            item["steps"] = st["steps"]
     stages.append(item)
 
-vs = content["validateSchema"]["artifactKey"]
 build = content.get("build") or {}
 
 cref = {
+    "parameters": content.get("parameters") or [],
     "pipeline": {"stages": stages},
-    "build": build,
     "validateSchema": {"artifactKey": vs, "sha256": sha(stack / vs)},
 }
+if schema_version < 3:
+    cref["build"] = build
+    cref["deliverables"] = content.get("deliverables") or []
 keys = [vs]
-if content.get("containerfile"):
+containerfiles = []
+for cf in artifacts.get("containerfiles") or []:
+    key = cf["path"]
+    containerfiles.append({"id": cf["id"], "artifactKey": key, "sha256": sha(stack / key)})
+    keys.append(key)
+if containerfiles:
+    cref["artifacts"] = {"containerfiles": containerfiles}
+elif content.get("containerfile"):
     cf = content["containerfile"]["artifactKey"]
     cref["containerfile"] = {"artifactKey": cf, "sha256": sha(stack / cf)}
     keys.append(cf)
+
+inline_bodies = {}
+for key, body in extra_artifacts:
+    keys.append(key)
+    inline_bodies[key] = body
 
 controls = content.get("controls") or {}
 capabilities = content.get("capabilities") or {}
@@ -116,11 +181,23 @@ meta = {
 (out / "content-ref.json").write_text(json.dumps(cref))
 (out / "metadata.json").write_text(json.dumps(meta))
 (out / "keys.json").write_text(json.dumps(keys))
+(out / "inline-bodies.json").write_text(json.dumps(inline_bodies))
 PY
 
 echo "==> upload gp-content artifact bodies to Nexus"
 jq -r '.[]' "${PAYLOAD_DIR}/keys.json" | while IFS= read -r key; do
   file="${STACK_DIR}/${key}"
+  if [[ ! -f "${file}" ]]; then
+    body="$(jq -r --arg k "${key}" '.[$k] // empty' "${PAYLOAD_DIR}/inline-bodies.json")"
+    if [[ -n "${body}" ]]; then
+      file="${PAYLOAD_DIR}/inline-${key//[:/]/_}"
+      printf '%s' "${body}" > "${file}"
+    fi
+  fi
+  if [[ ! -f "${file}" ]]; then
+    echo "==> skip missing artifact file for key ${key}"
+    continue
+  fi
   artifact_url="$(gp_content_artifact_url "${STACK}" "${VERSION}" "${key}")"
   nexus_upload "${artifact_url}" "${file}"
 done
@@ -152,7 +229,9 @@ if [[ "${register_code}" == "409" ]]; then
     -H "X-API-Key: ${API_KEY}" \
     -d "{\"metadata\":${meta_json},\"contentRef\":${cref_json}}")"
   if [[ "${update_code}" != "200" ]]; then
-    if [[ "${update_code}" == "405" ]]; then
+    if [[ "${update_code}" == "409" ]]; then
+      echo "==> warn: published content_ref is immutable (HTTP 409), keep existing ref"
+    elif [[ "${update_code}" == "405" ]]; then
       echo "==> warn: coin-api PATCH not available (HTTP 405), content_ref unchanged"
     else
       echo "coin-api content_ref update failed HTTP ${update_code}" >&2
@@ -164,13 +243,29 @@ rm -f "${register_tmp}"
 
 jq -r '.[]' "${PAYLOAD_DIR}/keys.json" | while IFS= read -r key; do
   file="${STACK_DIR}/${key}"
+  if [[ ! -f "${file}" ]]; then
+    body="$(jq -r --arg k "${key}" '.[$k] // empty' "${PAYLOAD_DIR}/inline-bodies.json")"
+    if [[ -n "${body}" ]]; then
+      file="${PAYLOAD_DIR}/inline-${key//[:/]/_}"
+      printf '%s' "${body}" > "${file}"
+    fi
+  fi
+  if [[ ! -f "${file}" ]]; then
+    echo "==> skip coin-api artifact ${key} (no file)"
+    continue
+  fi
   enc_key="$(jq -rn --arg k "${key}" '$k|@uri')"
   echo "==> artifact ${key}"
-  jq -n --rawfile b "${file}" '{body: $b}' | curl -fsS -X PUT \
+  put_tmp="$(mktemp)"
+  put_code="$(jq -n --rawfile b "${file}" '{body: $b}' | curl -sS -o "${put_tmp}" -w '%{http_code}' -X PUT \
     "${COIN_API_URL}/v1/admin/components/gp-content/${STACK}/versions/${VERSION}/artifacts/${enc_key}" \
     -H "Content-Type: application/json" \
     -H "X-API-Key: ${API_KEY}" \
-    -d @-
+    -d @-)"
+  if [[ "${put_code}" != "200" && "${put_code}" != "201" ]]; then
+    echo "==> warn: artifact body ${key} not updated in coin-api (HTTP ${put_code}): $(cat "${put_tmp}")" >&2
+  fi
+  rm -f "${put_tmp}"
 done
 
 rm -rf "${PAYLOAD_DIR}"

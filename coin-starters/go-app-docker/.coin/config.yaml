@@ -10,4 +10,3 @@ project:
   name: my-service
   artifactId: my-service
   groupId: com.example.team
-  repository: maven-releases

@@ -2,8 +2,6 @@ package store
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net/url"
 	"strings"
 
@@ -23,30 +21,39 @@ func DefaultBranchingModelForGP(gpName string) string {
 }
 
 type gpContentContentRef struct {
-	Capabilities map[string]any `json:"capabilities"`
+	Capabilities map[string]any       `json:"capabilities"`
+	Parameters   []manifest.Parameter `json:"parameters"`
 	Pipeline     struct {
 		Stages []struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
+			ID    string               `json:"id"`
+			Name  string               `json:"name"`
+			Steps []manifest.StageStep `json:"steps"`
 		} `json:"stages"`
 	} `json:"pipeline"`
 	Build struct {
-		Engine   string `json:"engine"`
+		Engine   string                 `json:"engine"`
+		Targets  []manifest.BuildTarget `json:"targets"`
 		Buildkit struct {
-			Targets          map[string]string `json:"targets"`
-			CacheRefTemplate string            `json:"cacheRefTemplate"`
+			Targets map[string]string `json:"targets"`
 		} `json:"buildkit"`
 		Dockerfile struct {
-			Path             string `json:"path"`
-			ImageTarget      string `json:"imageTarget"`
-			TestTarget       string `json:"testTarget"`
-			CacheRefTemplate string `json:"cacheRefTemplate"`
+			Path        string `json:"path"`
+			ImageTarget string `json:"imageTarget"`
+			TestTarget  string `json:"testTarget"`
 		} `json:"dockerfile"`
 	} `json:"build"`
 	ValidateSchema struct {
 		ArtifactKey string `json:"artifactKey"`
 		SHA256      string `json:"sha256"`
 	} `json:"validateSchema"`
+	Artifacts struct {
+		Containerfiles []struct {
+			ID          string `json:"id"`
+			ArtifactKey string `json:"artifactKey"`
+			SHA256      string `json:"sha256"`
+		} `json:"containerfiles"`
+	} `json:"artifacts"`
+	Deliverables  []manifest.Deliverable `json:"deliverables"`
 	Containerfile struct {
 		ArtifactKey string `json:"artifactKey"`
 		SHA256      string `json:"sha256"`
@@ -54,124 +61,57 @@ type gpContentContentRef struct {
 }
 
 type gpContentMetadata struct {
+	Name          string         `json:"-"`
+	Version       string         `json:"-"`
 	URL           string         `json:"url"`
 	SHA256        string         `json:"sha256"`
 	BuildControls map[string]any `json:"buildControls"`
 	Capabilities  map[string]any `json:"capabilities"`
 }
 
-func (s *Store) getGPContentRefs(ctx context.Context, name, version string, mode ComponentResolveMode) (gpContentMetadata, json.RawMessage, error) {
-	allowed := allowedComponentStatuses(mode)
-	var metaRaw, crefRaw []byte
-	err := s.pool.QueryRow(ctx, `
-		SELECT cv.metadata, COALESCE(cv.content_ref, 'null'::jsonb)
-		FROM component_versions cv
-		JOIN components c ON c.id = cv.component_id
-		WHERE c.type = 'gp-content' AND c.name = $1 AND cv.version = $2
-		  AND cv.status::text = ANY($3)
-	`, name, version, allowed).Scan(&metaRaw, &crefRaw)
-	if err == pgx.ErrNoRows {
-		return gpContentMetadata{}, nil, fmt.Errorf("gp-content/%s@%s not found or not visible for resolve mode %q", name, version, mode)
-	}
-	if err != nil {
-		return gpContentMetadata{}, nil, err
-	}
-	var meta gpContentMetadata
-	if err := json.Unmarshal(metaRaw, &meta); err != nil {
-		return gpContentMetadata{}, nil, fmt.Errorf("gp-content metadata: %w", err)
-	}
-	return meta, json.RawMessage(crefRaw), nil
-}
-
 func contentBundleFromGPContent(meta gpContentMetadata, cref gpContentContentRef) manifest.ContentBundle {
 	stages := make([]manifest.TypedStage, 0, len(cref.Pipeline.Stages))
 	for _, st := range cref.Pipeline.Stages {
 		stages = append(stages, manifest.TypedStage{
-			ID:   st.ID,
-			Name: st.Name,
+			ID:    st.ID,
+			Name:  st.Name,
+			Steps: st.Steps,
 		})
 	}
 	capabilities := meta.Capabilities
 	if len(capabilities) == 0 {
 		capabilities = cref.Capabilities
 	}
+	containerfiles := make([]manifest.NamedContentRef, 0, len(cref.Artifacts.Containerfiles))
+	for _, cf := range cref.Artifacts.Containerfiles {
+		containerfiles = append(containerfiles, manifest.NamedContentRef{
+			ID:          cf.ID,
+			ArtifactKey: cf.ArtifactKey,
+			SHA256:      cf.SHA256,
+		})
+	}
 	return manifest.ContentBundle{
+		Name:                  meta.Name,
+		Version:               meta.Version,
 		BundleURL:             meta.URL,
 		BundleSHA256:          meta.SHA256,
 		BuildControls:         meta.BuildControls,
 		Capabilities:          capabilities,
+		Parameters:            cref.Parameters,
 		SchemaArtifactKey:     cref.ValidateSchema.ArtifactKey,
 		SchemaSHA256:          cref.ValidateSchema.SHA256,
 		ContainerfileKey:      cref.Containerfile.ArtifactKey,
 		ContainerfileSHA256:   cref.Containerfile.SHA256,
+		Containerfiles:        containerfiles,
+		Targets:               cref.Build.Targets,
+		Deliverables:          cref.Deliverables,
 		BuildEngine:           cref.Build.Engine,
 		BuildkitTargets:       cref.Build.Buildkit.Targets,
 		DockerfilePath:        cref.Build.Dockerfile.Path,
 		DockerfileImageTarget: cref.Build.Dockerfile.ImageTarget,
 		DockerfileTestTarget:  cref.Build.Dockerfile.TestTarget,
-		CacheRefTemplate:      cacheRefTemplateFromContent(cref),
 		Stages:                stages,
 	}
-}
-
-func cacheRefTemplateFromContent(cref gpContentContentRef) string {
-	if t := strings.TrimSpace(cref.Build.Buildkit.CacheRefTemplate); t != "" {
-		return t
-	}
-	return strings.TrimSpace(cref.Build.Dockerfile.CacheRefTemplate)
-}
-
-func (s *Store) seedGPArtifactsFromGPContent(ctx context.Context, releaseID int64, name, version string) error {
-	_, crefRaw, err := s.getGPContentRefs(ctx, name, version, ComponentResolveDraft)
-	if err != nil {
-		return err
-	}
-	var cref gpContentContentRef
-	if isContentRefV2(crefRaw) {
-		bundle, err := contentBundleFromV2Manifest(gpContentMetadata{}, crefRaw)
-		if err != nil {
-			return err
-		}
-		cref.ValidateSchema.ArtifactKey = bundle.SchemaArtifactKey
-		cref.ValidateSchema.SHA256 = bundle.SchemaSHA256
-		cref.Containerfile.ArtifactKey = bundle.ContainerfileKey
-		cref.Containerfile.SHA256 = bundle.ContainerfileSHA256
-	} else if err := json.Unmarshal(crefRaw, &cref); err != nil {
-		return fmt.Errorf("gp-content content_ref: %w", err)
-	}
-	keys := []string{cref.ValidateSchema.ArtifactKey}
-	if cf := strings.TrimSpace(cref.Containerfile.ArtifactKey); cf != "" {
-		keys = append(keys, cf)
-	}
-
-	var componentVersionID int64
-	err = s.pool.QueryRow(ctx, `
-		SELECT cv.id FROM component_versions cv
-		JOIN components c ON c.id = cv.component_id
-		WHERE c.type = 'gp-content' AND c.name = $1 AND cv.version = $2
-	`, name, version).Scan(&componentVersionID)
-	if err != nil {
-		return err
-	}
-
-	for _, key := range keys {
-		body, sha, err := s.loadComponentArtifactBody(ctx, componentVersionID, key)
-		if err == pgx.ErrNoRows {
-			continue
-		}
-		if err != nil {
-			return err
-		}
-		_, err = s.pool.Exec(ctx, `
-			INSERT INTO gp_artifact_bodies (gp_release_id, artifact_key, body, sha256)
-			VALUES ($1, $2, $3, $4)
-			ON CONFLICT (gp_release_id, artifact_key) DO UPDATE SET body = EXCLUDED.body, sha256 = EXCLUDED.sha256
-		`, releaseID, key, body, sha)
-		if err != nil {
-			return fmt.Errorf("seed gp artifact %s: %w", key, err)
-		}
-	}
-	return nil
 }
 
 func (s *Store) loadComponentArtifactBody(ctx context.Context, componentVersionID int64, key string) ([]byte, string, error) {
@@ -202,21 +142,6 @@ func (s *Store) loadComponentArtifactBody(ctx context.Context, componentVersionI
 		}
 	}
 	return nil, "", pgx.ErrNoRows
-}
-
-func (s *Store) gpContentVersionFromComposition(ctx context.Context, gpName, gpVersion string) (string, string, error) {
-	var name, ver string
-	err := s.pool.QueryRow(ctx, `
-		SELECT gc.component_name, gc.component_version
-		FROM gp_composition gc
-		JOIN gp_releases gr ON gr.id = gc.gp_release_id
-		WHERE gr.name = $1 AND gr.version = $2
-		  AND gc.component_type = 'gp-content'
-	`, gpName, gpVersion).Scan(&name, &ver)
-	if err == pgx.ErrNoRows {
-		return "", "", fmt.Errorf("gp-content not in composition for %s@%s", gpName, gpVersion)
-	}
-	return name, ver, err
 }
 
 func (s *Store) SaveComponentArtifactBody(ctx context.Context, typ, name, version, artifactKey string, body []byte, sha256sum string) error {

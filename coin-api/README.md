@@ -26,6 +26,11 @@ curl -X POST http://localhost:8090/v1/admin/golden-paths/go-app/versions \
   -H "Content-Type: application/json" \
   -d '{
     "version": "1.0.1",
+    "destinations": {
+      "imageRegistryPrefix": "localhost:8082/coin-docker",
+      "buildCacheEnabled": true,
+      "artifactRepositoryBase": "http://nexus:8081/repository/maven-releases"
+    },
     "composition": {
       "agent": "1.0.0",
       "gp-content": "1.0.0",

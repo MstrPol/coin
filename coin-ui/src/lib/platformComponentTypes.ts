@@ -16,13 +16,6 @@ export const PLATFORM_COMPONENT_TYPES: PlatformComponentType[] = [
     primaryArtifact: "model.yaml",
     editor: "branching-model",
   },
-  {
-    type: "gp-content",
-    label: "GP content",
-    description: "Build engine policy, pipeline stages, Containerfile (content.yaml)",
-    primaryArtifact: "content.yaml",
-    editor: "gp-content",
-  },
 ];
 
 export function platformTypeConfig(type: string): PlatformComponentType | undefined {

@@ -6,6 +6,8 @@
 
 > **Amendment (2026-06):** component-level `canary` **superseded**. Lifecycle: `draft` → `published` only. Canary rollout — **GP-level** (`catalog.latest_canary`); draft pins на canary line разрешены для `gp-content` / `branching-model`. Component Studio (`/studio`) удалён в пользу Platform entity routes.
 
+> **Superseded (2026-07):** platform component type **`gp-content`** удалён. Pipeline-inline v3 — embedded body GP release. Composition — 2 pin (`agent`, `branching-model`). См. [gp-embedded-pipeline.md](gp-embedded-pipeline.md).
+
 ## Контекст
 
 Golden Path release собирается из platform components (`agent`, `executor`, `gp-content`, `branching-model`). Jenkins Shared Library (`coin-lib`) **не** является platform component — см. [jenkins-lib-outside-platform.md](jenkins-lib-outside-platform.md). Сегодня каждый тип прошёл свой путь публикации:

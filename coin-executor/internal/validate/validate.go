@@ -41,8 +41,11 @@ func Project(cfg *config.Config, m *manifest.Manifest, workDir string) error {
 	if check.Warning != "" {
 		fmt.Fprintf(os.Stderr, "WARNING: %s\n", check.Warning)
 	}
-	items := cfg.NormalizedDeliverables()
-	if err := deliverables.Validate(items, m.AllowedDeliverableTypes()); err != nil {
+	if err := m.ValidateDeliverables(); err != nil {
+		return err
+	}
+	items := m.DeliverableSpecs()
+	if err := deliverables.Validate(items, deliverables.P0Types); err != nil {
 		return err
 	}
 	fmt.Printf("✓ config valid: project=%s gp=%s pin=%s resolved=%s deliverables=%d\n",

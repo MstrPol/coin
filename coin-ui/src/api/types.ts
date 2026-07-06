@@ -37,9 +37,16 @@ export type GPRelease = {
   name: string;
   version: string;
   status: string;
+  destinations: GPDestinations;
   manifestHash?: string;
   manifestUrl?: string;
   createdAt: string;
+};
+
+export type GPDestinations = {
+  imageRegistryPrefix: string;
+  buildCacheEnabled: boolean;
+  artifactRepositoryBase: string;
 };
 
 export type CompositionItem = {

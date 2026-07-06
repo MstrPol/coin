@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import type { GPRelease } from "../api/types";
+import type { GPDestinations, GPRelease } from "../api/types";
 import { api, getActor, setActor } from "../lib/api";
 import {
   defaultAgentStackName,
@@ -43,6 +43,12 @@ function nextSnapshotVersion(drafts: GPRelease[], base: string): string {
   return `${cleanBase}-snapshot.${maxN + 1}`;
 }
 
+const defaultDestinations: GPDestinations = {
+  imageRegistryPrefix: "localhost:8082/coin-docker",
+  buildCacheEnabled: true,
+  artifactRepositoryBase: "http://nexus:8081/repository/maven-releases",
+};
+
 export default function PublishWizard({ scopedGpName }: PublishWizardProps = {}) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -52,11 +58,10 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
   const [gpName, setGpName] = useState(scopedGpName ?? searchParams.get("name") ?? "");
   const [branchingModelName, setBranchingModelName] = useState("");
   const [branchingModelOptions, setBranchingModelOptions] = useState<string[]>([]);
-  const [gpContentName, setGpContentName] = useState("");
-  const [gpContentOptions, setGpContentOptions] = useState<string[]>([]);
   const [agentStackName, setAgentStackName] = useState(defaultAgentStackName());
   const [agentStackOptions, setAgentStackOptions] = useState<string[]>([]);
   const [composition, setComposition] = useState<Record<string, string>>({});
+  const [destinations, setDestinations] = useState<GPDestinations>(defaultDestinations);
   const [versionOptions, setVersionOptions] = useState<SlotVersions>({});
   const [versionStatuses, setVersionStatuses] = useState<Record<string, Record<string, string>>>({});
   const [version, setVersion] = useState("");
@@ -68,7 +73,6 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [catalogEmpty, setCatalogEmpty] = useState(false);
 
   useEffect(() => {
     if (scopedGpName) {
@@ -101,8 +105,6 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
       setVersionStatuses({});
       setBranchingModelName("");
       setBranchingModelOptions([]);
-      setGpContentName("");
-      setGpContentOptions([]);
       setAgentStackName(defaultAgentStackName());
       setAgentStackOptions([]);
       return;
@@ -122,13 +124,6 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
           .sort();
         setBranchingModelOptions(bmNames);
 
-        const gcNames = components.items
-          .filter((c) => c.type === "gp-content")
-          .map((c) => c.name)
-          .sort();
-        setGpContentOptions(gcNames);
-        setCatalogEmpty(gcNames.length === 0);
-
         const agentNames = components.items
           .filter((c) => c.type === "agent")
           .map((c) => c.name)
@@ -140,21 +135,17 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
         setDrafts(draftItems);
 
         let bmName = defaultBm;
-        let gcName = "";
         let agentName = defaultAgentStackName();
         let defaults: Record<string, string> = {};
 
         const latest = published[0] ?? draftItems[0];
         if (latest) {
           const detail = await api.gpRelease(gpName, latest.version);
+          setDestinations(detail.destinations ?? defaultDestinations);
           for (const c of detail.composition) {
             if (c.type === "agent") {
               defaults.agent = c.version;
               agentName = c.name;
-            }
-            if (c.type === "gp-content") {
-              defaults["gp-content"] = c.version;
-              gcName = c.name;
             }
             if (c.type === "branching-model") {
               defaults["branching-model"] = c.version;
@@ -166,10 +157,6 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
           }
         }
 
-        if (!gcName) {
-          if (gcNames.includes(gpName)) gcName = gpName;
-          else if (gcNames.length > 0) gcName = gcNames[0];
-        }
         if (!bmNames.includes(bmName) && bmNames.length > 0) {
           bmName = bmNames.includes(defaultBm) ? defaultBm : bmNames[0];
         }
@@ -178,7 +165,6 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
             ? defaultAgentStackName()
             : agentNames[0];
         }
-        setGpContentName(gcName);
         setBranchingModelName(bmName);
         setAgentStackName(agentName);
 
@@ -193,16 +179,6 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
           }
         } else {
           versions.agent = [];
-        }
-        if (gcName) {
-          const gcR = await api.componentVersionsOptional("gp-content", gcName);
-          versions["gp-content"] = versionLabels(gcR?.items ?? [], false);
-          statuses["gp-content"] = versionStatusMap(gcR?.items ?? []);
-          if (!defaults["gp-content"] && versions["gp-content"].length > 0) {
-            defaults["gp-content"] = versions["gp-content"][0];
-          }
-        } else {
-          versions["gp-content"] = [];
         }
         if (bmName) {
           const bmR = await api.componentVersions("branching-model", bmName);
@@ -247,25 +223,6 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
   }, [gpName, branchingModelName]);
 
   useEffect(() => {
-    if (!gpContentName) return;
-    api
-      .componentVersionsOptional("gp-content", gpContentName)
-      .then((r) => {
-        const vers = versionLabels(r?.items ?? [], false);
-        setVersionOptions((prev) => ({ ...prev, "gp-content": vers }));
-        setVersionStatuses((prev) => ({
-          ...prev,
-          "gp-content": versionStatusMap(r?.items ?? []),
-        }));
-        setComposition((prev) => {
-          if (prev["gp-content"] && vers.includes(prev["gp-content"])) return prev;
-          return { ...prev, "gp-content": vers[0] ?? "" };
-        });
-      })
-      .catch(() => {});
-  }, [gpContentName]);
-
-  useEffect(() => {
     if (!agentStackName) return;
     api
       .componentVersions("agent", agentStackName)
@@ -288,24 +245,16 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
   }, [tab, baseVersion, drafts]);
 
   const draftBlocked =
-    catalogEmpty ||
     !agentStackName ||
-    !gpContentName ||
     !branchingModelName ||
+    !destinations.imageRegistryPrefix.trim() ||
+    !destinations.artifactRepositoryBase.trim() ||
     GP_DRAFT_SLOT_ORDER.some((key) => !(versionOptions[key] ?? []).length);
 
   async function onSubmitDraft(e: FormEvent) {
     e.preventDefault();
     if (!version.trim()) {
       setError("Version обязательна");
-      return;
-    }
-    if (catalogEmpty) {
-      setError("Нет gp-content в registry — опубликуйте build stack");
-      return;
-    }
-    if (!gpContentName) {
-      setError("Выберите gp-content");
       return;
     }
     if (!branchingModelName) {
@@ -331,9 +280,9 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
     try {
       const result = await api.createDraftGPRelease(gpName, {
         version: version.trim(),
+        destinations,
         composition,
         agentStackName,
-        gpContentName,
         branchingModelName,
         actor: actor.trim() || undefined,
       });
@@ -343,8 +292,8 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
       }, 1200);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "create draft failed";
-      if (msg.includes("gp-content") || msg.includes("gpContentName")) {
-        setError("Проверьте gp-content: выберите компонент и версию из каталога");
+      if (msg.includes("pipeline") || msg.includes("composition")) {
+        setError("Проверьте composition и pipeline на GP release detail");
       } else if (msg.includes("component")) {
         setError(msg);
       } else {
@@ -399,7 +348,7 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
         </h1>
         <p className="mt-1 text-zinc-400">
           {isScoped
-            ? `Draft snapshot для ${gpName} — agent + gp-content + branching-model`
+            ? `Draft snapshot для ${gpName} — agent + branching-model`
             : "Создайте draft snapshot или promote draft → published"}
         </p>
       </div>
@@ -461,33 +410,16 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
         <>
           {!isScoped && <GpSelector gpNames={gpNames} gpName={gpName} onChange={setGpName} />}
 
-          {catalogEmpty && (
-            <div className="rounded-lg border border-amber-900/40 bg-amber-950/20 px-4 py-4 text-sm text-amber-200">
-              <p>Нет gp-content в platform registry.</p>
-              <p className="mt-2 text-zinc-400">
-                Platform team публикует build stacks до создания GP draft.
-              </p>
-              <p className="mt-2">
-                <Link to="/platform/build-stacks" className="text-sky-400 hover:underline">
-                  Build stacks →
-                </Link>
-              </p>
-            </div>
-          )}
-
           <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
-            <h2 className="font-medium">GP composition (3 pins)</h2>
+            <h2 className="font-medium">GP composition</h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Agent stack — только published. gp-content и branching-model — draft или published.
-              Promote GP заблокирован, пока хотя бы один pin в draft.
+              Agent stack — только published. Branching-model — draft или published. Pipeline
+              редактируется на release detail после создания draft.
             </p>
             <GpCompositionForm
               agentStackName={agentStackName}
               agentStackOptions={agentStackOptions}
               onAgentStackChange={setAgentStackName}
-              gpContentName={gpContentName}
-              gpContentOptions={gpContentOptions}
-              onGpContentChange={setGpContentName}
               branchingModelName={branchingModelName}
               branchingModelOptions={branchingModelOptions}
               onBranchingModelChange={setBranchingModelName}
@@ -496,6 +428,47 @@ export default function PublishWizard({ scopedGpName }: PublishWizardProps = {})
               versionStatuses={versionStatuses}
               onCompositionChange={setComposition}
             />
+          </section>
+
+          <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
+            <h2 className="font-medium">Destinations</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Publish/cache base URLs хранятся в GP version и попадают в resolved manifest.
+            </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Field label="Image registry prefix *">
+                <input
+                  value={destinations.imageRegistryPrefix}
+                  onChange={(e) =>
+                    setDestinations((prev) => ({ ...prev, imageRegistryPrefix: e.target.value }))
+                  }
+                  placeholder="localhost:8082/coin-docker"
+                  className={inputClass}
+                  required
+                />
+              </Field>
+              <Field label="Artifact repository base *">
+                <input
+                  value={destinations.artifactRepositoryBase}
+                  onChange={(e) =>
+                    setDestinations((prev) => ({ ...prev, artifactRepositoryBase: e.target.value }))
+                  }
+                  placeholder="http://nexus:8081/repository/maven-releases"
+                  className={inputClass}
+                  required
+                />
+              </Field>
+              <label className="flex items-center gap-2 text-sm text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={destinations.buildCacheEnabled}
+                  onChange={(e) =>
+                    setDestinations((prev) => ({ ...prev, buildCacheEnabled: e.target.checked }))
+                  }
+                />
+                Build cache enabled
+              </label>
+            </div>
           </section>
 
           {(isScoped || tab === "draft") && (

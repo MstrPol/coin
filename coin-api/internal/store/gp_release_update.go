@@ -12,6 +12,9 @@ func (s *Store) UpdateGPReleaseDraft(ctx context.Context, in PublishGPReleaseInp
 	if in.Name == "" || in.Version == "" {
 		return GPReleaseRow{}, fmt.Errorf("name and version are required")
 	}
+	if err := validateReleaseDestinations(in.Destinations); err != nil {
+		return GPReleaseRow{}, err
+	}
 
 	prep, err := s.prepareGPRelease(ctx, in)
 	if err != nil {
@@ -47,6 +50,17 @@ func (s *Store) UpdateGPReleaseDraft(ctx context.Context, in PublishGPReleaseInp
 	}
 	if status != "draft" {
 		return GPReleaseRow{}, ErrGPReleaseNotDraft
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE gp_releases
+		SET image_registry_prefix = $3,
+		    build_cache_enabled = $4,
+		    artifact_repository_base = $5
+		WHERE name = $1 AND version = $2
+	`, in.Name, in.Version, in.Destinations.ImageRegistryPrefix, in.Destinations.BuildCacheEnabled, in.Destinations.ArtifactRepositoryBase)
+	if err != nil {
+		return GPReleaseRow{}, fmt.Errorf("update destinations: %w", err)
 	}
 
 	_, err = tx.Exec(ctx, `DELETE FROM gp_composition WHERE gp_release_id = $1`, releaseID)

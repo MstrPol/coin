@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"coin.local/coin-api/internal/manifest"
 )
 
 type CompositionItem struct {
@@ -15,24 +17,28 @@ type CompositionItem struct {
 }
 
 type GPReleaseDetail struct {
-	Name         string            `json:"name"`
-	Version      string            `json:"version"`
-	Status       string            `json:"status"`
-	ManifestHash *string           `json:"manifestHash,omitempty"`
-	ManifestURL  *string           `json:"manifestUrl,omitempty"`
-	GitExportTag *string           `json:"gitExportTag,omitempty"`
-	CreatedAt    time.Time         `json:"createdAt"`
-	Composition  []CompositionItem `json:"composition"`
+	Name         string                `json:"name"`
+	Version      string                `json:"version"`
+	Status       string                `json:"status"`
+	Destinations manifest.Destinations `json:"destinations"`
+	ManifestHash *string               `json:"manifestHash,omitempty"`
+	ManifestURL  *string               `json:"manifestUrl,omitempty"`
+	GitExportTag *string               `json:"gitExportTag,omitempty"`
+	CreatedAt    time.Time             `json:"createdAt"`
+	Composition  []CompositionItem     `json:"composition"`
 }
 
 func (s *Store) GetGPReleaseDetail(ctx context.Context, name, version string) (GPReleaseDetail, error) {
 	var detail GPReleaseDetail
 	err := s.pool.QueryRow(ctx, `
-		SELECT name, version, status, manifest_hash, manifest_url, git_export_tag, created_at
+		SELECT name, version, status, image_registry_prefix, build_cache_enabled, artifact_repository_base, manifest_hash, manifest_url, git_export_tag, created_at
 		FROM gp_releases
 		WHERE name = $1 AND version = $2
 	`, name, version).Scan(
 		&detail.Name, &detail.Version, &detail.Status,
+		&detail.Destinations.ImageRegistryPrefix,
+		&detail.Destinations.BuildCacheEnabled,
+		&detail.Destinations.ArtifactRepositoryBase,
 		&detail.ManifestHash, &detail.ManifestURL, &detail.GitExportTag, &detail.CreatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {

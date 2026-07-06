@@ -93,12 +93,14 @@ fi
 
 echo "==> publish GP ${GP}@${GP_CANARY} with canary branching-model@${BM_VER}"
 comp="$(curl -fsS "${API}/v1/admin/golden-paths/${GP}/versions/${GP_STABLE}" "${AUTH[@]}" | jq -c '.composition')"
+destinations="$(curl -fsS "${API}/v1/admin/golden-paths/${GP}/versions/${GP_STABLE}" "${AUTH[@]}" | jq -c '.destinations')"
 agent="$(echo "${comp}" | jq -r '.[] | select(.type=="agent") | .version')"
 content="$(echo "${comp}" | jq -r '.[] | select(.type=="gp-content") | .version')"
 api_post "/v1/admin/golden-paths/${GP}/versions" "$(jq -n \
   --arg ver "${GP_CANARY}" \
+  --argjson destinations "${destinations}" \
   --arg agent "${agent}" --arg content "${content}" --arg bm "${BM_VER}" --arg a "${ACTOR}" \
-  '{version: $ver, agentStackName: "coin-agent", gpContentName: "go-app", branchingModelName: "trunk-based", composition: {agent: $agent, "gp-content": $content, "branching-model": $bm}, actor: $a}')" >/dev/null
+  '{version: $ver, destinations: $destinations, agentStackName: "coin-agent", gpContentName: "go-app", branchingModelName: "trunk-based", composition: {agent: $agent, "gp-content": $content, "branching-model": $bm}, actor: $a}')" >/dev/null
 
 curl -fsS -X PATCH "${API}/v1/admin/golden-paths/${GP}/catalog" "${AUTH[@]}" \
   -d "$(jq -n --arg stable "${GP_STABLE}" --arg canary "${GP_CANARY}" --arg a "${ACTOR}" \

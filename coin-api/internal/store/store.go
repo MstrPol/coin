@@ -25,19 +25,26 @@ func New(pool *pgxpool.Pool) *Store {
 }
 
 type ReleaseRow struct {
-	Name      string
-	Version   string
-	Parts     manifest.Composition
-	Content   manifest.ContentBundle
-	Branching manifest.BranchingBundle
+	Name         string
+	Version      string
+	Destinations manifest.Destinations
+	Parts        manifest.Composition
+	Content      manifest.ContentBundle
+	Branching    manifest.BranchingBundle
 }
 
 func (s *Store) GetGPRelease(ctx context.Context, name, version string) (ReleaseRow, error) {
 	var row ReleaseRow
 	err := s.pool.QueryRow(ctx, `
-		SELECT name, version FROM gp_releases
+		SELECT name, version, image_registry_prefix, build_cache_enabled, artifact_repository_base FROM gp_releases
 		WHERE name=$1 AND version=$2 AND status='published'
-	`, name, version).Scan(&row.Name, &row.Version)
+	`, name, version).Scan(
+		&row.Name,
+		&row.Version,
+		&row.Destinations.ImageRegistryPrefix,
+		&row.Destinations.BuildCacheEnabled,
+		&row.Destinations.ArtifactRepositoryBase,
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ReleaseRow{}, ErrNotFound
 	}

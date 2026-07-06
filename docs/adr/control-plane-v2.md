@@ -28,9 +28,40 @@
 coin:
   goldenPath: go-app   # было: template
   version: "1.0.0"     # было: templateVersion: v1
+
+project:
+  name: demo-go-app
+  groupId: com.example.team
+  artifactId: demo-go-app
+
+jenkins:
+  credentials:
+    docker: nexus-docker
 ```
 
 Strict v2 only — executor не читает v1.
+
+Product config остаётся тонким: он задаёт GP pin, project identity и project-specific Jenkins glue. Product repo не задаёт `project.repository`, `deliverables`, build/publish commands, pipeline stages, cache refs или registry/repository URLs.
+
+## GP-owned build/publish policy
+
+GP/Build Stack является source of truth для parameters, targets, Containerfile artifacts, publish deliverables и destinations. Build Stack vNext разрешает несколько named deliverables одного type и выбирает build engine на уровне target, а не одним top-level полем.
+
+Подробный контракт: [build-stack-vnext-contract.md](build-stack-vnext-contract.md).
+
+Resolved manifest содержит destinations, необходимые build path без live `coin-api`:
+
+```json
+{
+  "destinations": {
+    "imageRegistryPrefix": "docker-dev.registry.domain.ru",
+    "buildCacheEnabled": true,
+    "artifactRepositoryBase": "http://nexus:8081/repository/maven-releases"
+  }
+}
+```
+
+Jenkins credential IDs и secrets остаются вне manifest.
 
 ### Mapping v1 → v2
 
@@ -43,7 +74,7 @@ Semver GP release не равен каталогу `v1/` — это отдель
 
 ## CI flow
 
-1. Jenkins читает `.coin/config.yaml` (goldenPath + version)
+1. Jenkins читает `.coin/config.yaml` (GP pin + project identity + Jenkins glue)
 2. Resolve `coin-api` → manifest JSON (primary)
 3. Fallback: Nexus `manifest-{gp}-{ver}.json` если API down
 4. Pod agent image из `manifest.runtime`

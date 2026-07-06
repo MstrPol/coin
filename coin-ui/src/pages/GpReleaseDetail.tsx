@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import type { BlastRadius, CompositionItem, GPReleaseDetail } from "../api/types";
 import BlastRadiusChart from "../components/BlastRadiusChart";
 import GpCompositionForm from "../components/GpCompositionForm";
+import GpReleasePipelineEditor from "../components/GpReleasePipelineEditor";
 import { useAuth } from "../context/AuthContext";
 import { api, getActor, PromoteBlockedError } from "../lib/api";
 import { useGpCompositionEditor } from "../lib/useGpCompositionEditor";
@@ -11,7 +12,7 @@ import { GP_DRAFT_SLOT_ORDER } from "../lib/gpSlots";
 import { platformDetailPath, platformEditPath } from "../lib/platformComponentPaths";
 
 function componentLink(type: string, name: string, version: string): string | null {
-  if (type === "gp-content" || type === "branching-model" || type === "agent") {
+  if (type === "branching-model" || type === "agent") {
     if (!name || !version) return null;
     const draftEdit = platformEditPath(type, name, version);
     const detail = platformDetailPath(type, name, version);
@@ -39,7 +40,7 @@ export default function GpReleaseDetailPage() {
   const canEdit = isDraft && can("publisher");
   const hubBase = `/gp/${encodeURIComponent(name)}`;
 
-  const editor = useGpCompositionEditor(name, canEdit ? detail?.composition : undefined);
+  const editor = useGpCompositionEditor(name, detail?.composition);
 
   const draftPinCount = useMemo(() => {
     if (!canEdit) return 0;
@@ -116,8 +117,8 @@ export default function GpReleaseDetailPage() {
     try {
       const updated = await api.updateGPReleaseDraft(name, version, {
         agentStackName: editor.agentStackName,
-        gpContentName: editor.gpContentName,
         branchingModelName: editor.branchingModelName,
+        destinations: detail.destinations,
         composition: editor.composition,
         actor: getActor() || undefined,
       });
@@ -222,6 +223,13 @@ export default function GpReleaseDetailPage() {
           <Field label="Status" value={detail.status} />
           <Field label="Created" value={new Date(detail.createdAt).toLocaleString()} />
           <Field label="Manifest hash" value={detail.manifestHash ?? "—"} mono />
+          <Field label="Image registry prefix" value={detail.destinations.imageRegistryPrefix} mono />
+          <Field
+            label="Artifact repository base"
+            value={detail.destinations.artifactRepositoryBase}
+            mono
+          />
+          <Field label="Build cache" value={detail.destinations.buildCacheEnabled ? "enabled" : "disabled"} />
           {detail.manifestUrl && (
             <div className="sm:col-span-2">
               <dt className="text-xs text-zinc-500">Manifest URL</dt>
@@ -237,15 +245,15 @@ export default function GpReleaseDetailPage() {
             <h2 className="font-medium">Composition</h2>
             <p className="mt-1 text-sm text-zinc-500">
               {canEdit
-                ? "Редактируйте pins до promote (agent, gp-content, branching-model)."
-                : "Pins для этой версии GP (agent, gp-content, branching-model)."}
+                ? "Внешние pins: agent и branching-model."
+                : "Pins для этой версии GP (agent, branching-model)."}
             </p>
           </div>
           {canEdit && (
             <button
               type="button"
               onClick={saveComposition}
-              disabled={saving || editor.loading}
+              disabled={saving}
               className="rounded bg-sky-600 px-4 py-2 text-sm font-medium hover:bg-sky-500 disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save composition"}
@@ -254,16 +262,10 @@ export default function GpReleaseDetailPage() {
         </div>
 
         {canEdit ? (
-          editor.loading ? (
-            <p className="mt-4 text-sm text-zinc-500">Загрузка каталога…</p>
-          ) : (
             <GpCompositionForm
               agentStackName={editor.agentStackName}
               agentStackOptions={editor.agentStackOptions}
               onAgentStackChange={editor.setAgentStackName}
-              gpContentName={editor.gpContentName}
-              gpContentOptions={editor.gpContentOptions}
-              onGpContentChange={editor.setGpContentName}
               branchingModelName={editor.branchingModelName}
               branchingModelOptions={editor.branchingModelOptions}
               onBranchingModelChange={editor.setBranchingModelName}
@@ -272,13 +274,16 @@ export default function GpReleaseDetailPage() {
               versionStatuses={editor.versionStatuses}
               onCompositionChange={editor.setComposition}
             />
-          )
         ) : (
           <CompositionReadOnlyTable
             rows={detail.composition ?? []}
             canLink={can("publisher")}
           />
         )}
+      </section>
+
+      <section className="rounded-lg border border-zinc-800 bg-zinc-900 p-6">
+        <GpReleasePipelineEditor gpName={name} version={version} canEdit={canEdit} />
       </section>
 
       {blast && !isDraft && (
@@ -322,11 +327,6 @@ function CompositionReadOnlyTable({
                 {href && canLink && (
                   <Link to={href} className="text-sky-400 hover:underline">
                     Edit
-                  </Link>
-                )}
-                {c.type === "gp-content" && !canLink && (
-                  <Link to="/platform/build-stacks" className="text-sky-400 hover:underline">
-                    Build stacks
                   </Link>
                 )}
               </td>

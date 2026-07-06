@@ -42,6 +42,7 @@ echo "==> ensure stable GP ${GP}@${GP_STABLE}"
 curl -fsS "${API}/v1/admin/golden-paths/${GP}/versions/${GP_STABLE}" "${AUTH[@]}" >/dev/null
 
 comp="$(curl -fsS "${API}/v1/admin/golden-paths/${GP}/versions/${GP_STABLE}" "${AUTH[@]}" | jq -c '.composition')"
+destinations="$(curl -fsS "${API}/v1/admin/golden-paths/${GP}/versions/${GP_STABLE}" "${AUTH[@]}" | jq -c '.destinations')"
 agent="$(echo "${comp}" | jq -r '.[] | select(.type=="agent") | .version')"
 bm="$(echo "${comp}" | jq -r '.[] | select(.type=="branching-model") | .version')"
 
@@ -57,8 +58,8 @@ if [[ "${gc_status}" != "draft" && "${gc_status}" != "published" ]]; then
   exit 1
 fi
 
-draft_body="$(jq -n --arg ver "${GP_DRAFT}" --arg agent "${agent}" --arg gc "${GC_DRAFT}" --arg bm "${bm}" --arg gcName "${GC_NAME}" --arg a "${ACTOR}" \
-  '{version: $ver, agentStackName: "coin-agent", gpContentName: $gcName, branchingModelName: "trunk-based", composition: {agent: $agent, "gp-content": $gc, "branching-model": $bm}, actor: $a}')"
+draft_body="$(jq -n --arg ver "${GP_DRAFT}" --arg agent "${agent}" --arg gc "${GC_DRAFT}" --arg bm "${bm}" --arg gcName "${GC_NAME}" --arg a "${ACTOR}" --argjson destinations "${destinations}" \
+  '{version: $ver, destinations: $destinations, agentStackName: "coin-agent", gpContentName: $gcName, branchingModelName: "trunk-based", composition: {agent: $agent, "gp-content": $gc, "branching-model": $bm}, actor: $a}')"
 
 echo "==> GP draft ${GP}@${GP_DRAFT} with draft gp-content pin"
 code="$(curl -sS -o /tmp/coin-e2e-gp-draft.json -w '%{http_code}' -X POST \

@@ -21,8 +21,6 @@ export function gpSlotEmptyVersionHint(slot: string): string {
   switch (slot) {
     case "agent":
       return "Нет published версий — опубликуйте agent на Platform → Runtime";
-    case "gp-content":
-      return "Нет версий — создайте draft на Platform → Build stacks";
     case "branching-model":
       return "Нет версий — создайте draft на Platform → Branching models";
     default:

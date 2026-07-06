@@ -40,7 +40,7 @@ func TestComponentResolveModeForGPDraftEdit(t *testing.T) {
 	if componentResolveModeForGPDraftEdit("agent") != ComponentResolveStable {
 		t.Fatal("agent must be stable-only in GP draft")
 	}
-	if componentResolveModeForGPDraftEdit("gp-content") != ComponentResolveDraft {
-		t.Fatal("gp-content allows draft in GP draft")
+	if componentResolveModeForGPDraftEdit("branching-model") != ComponentResolveDraft {
+		t.Fatal("branching-model allows draft in GP draft")
 	}
 }

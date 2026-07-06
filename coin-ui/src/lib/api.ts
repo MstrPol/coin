@@ -14,6 +14,7 @@ import type {
   DraftComponentResult,
   DashboardStats,
   DraftGPResult,
+  GPDestinations,
   GPProfile,
   GPRelease,
   GPReleaseDetail,
@@ -296,9 +297,9 @@ export const api = {
     name: string,
     body: {
       version: string;
+      destinations: GPDestinations;
       composition: Record<string, string>;
       agentStackName: string;
-      gpContentName: string;
       branchingModelName: string;
       actor?: string;
     },
@@ -312,8 +313,8 @@ export const api = {
     version: string,
     body: {
       composition: Record<string, string>;
+      destinations: GPDestinations;
       agentStackName: string;
-      gpContentName: string;
       branchingModelName: string;
       actor?: string;
     },
@@ -326,9 +327,9 @@ export const api = {
     name: string,
     body: {
       version: string;
+      destinations: GPDestinations;
       composition: Record<string, string>;
       agentStackName?: string;
-      gpContentName?: string;
       branchingModelName?: string;
       actor?: string;
     },
@@ -491,13 +492,36 @@ export const api = {
     }
     return data;
   },
-  gpContentPreview: async (model: import("./gpContentYaml").GpContentModel, componentName: string) => {
-    const { serializeGpContent } = await import("./gpContentYaml");
-    return apiPost<import("./gpContentYaml").GpContentPreviewResult>("/v1/admin/gp-content/preview", {
-      contentYaml: serializeGpContent(model),
-      componentName,
-    });
+  gpReleasePipelinePreview: async (
+    gpName: string,
+    version: string,
+    model: import("./gpContentYaml").GpContentModel,
+  ) => {
+    return apiPost<import("./gpContentYaml").GpContentPreviewResult>(
+      `/v1/admin/golden-paths/${encodeURIComponent(gpName)}/versions/${encodeURIComponent(version)}/pipeline/preview`,
+      { model },
+    );
   },
+  getGPReleasePipeline: (gpName: string, version: string) =>
+    apiGet<{ schemaVersion: number; body: unknown; sha256: string }>(
+      `/v1/admin/golden-paths/${encodeURIComponent(gpName)}/versions/${encodeURIComponent(version)}/pipeline`,
+    ),
+  saveGPReleasePipeline: (
+    gpName: string,
+    version: string,
+    model: import("./gpContentYaml").GpContentModel,
+  ) =>
+    fetch(`${base}/v1/admin/golden-paths/${encodeURIComponent(gpName)}/versions/${encodeURIComponent(version)}/pipeline`, {
+      method: "PUT",
+      headers: { ...headers(), "Content-Type": "application/json" },
+      body: JSON.stringify(model),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? `${res.status}`);
+      }
+      return res.json() as Promise<{ status: string }>;
+    }),
   deleteComponentVersionDraft: (type: string, name: string, version: string, actor?: string) => {
     const q = actor ? `?actor=${encodeURIComponent(actor)}` : "";
     return apiDelete(

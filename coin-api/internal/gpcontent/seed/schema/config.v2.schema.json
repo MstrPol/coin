@@ -27,7 +27,7 @@
     "project": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "artifactId"],
+      "required": ["name", "groupId", "artifactId"],
       "properties": {
         "name": {
           "type": "string",
@@ -38,10 +38,8 @@
           "minLength": 1
         },
         "groupId": {
-          "type": "string"
-        },
-        "repository": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       }
     },
@@ -76,23 +74,6 @@
             }
           }
         }
-      }
-    },
-    "pipeline": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "test": { "$ref": "#/$defs/stage" },
-        "build": { "$ref": "#/$defs/stage" },
-        "publish": { "$ref": "#/$defs/stage" }
-      }
-    },
-    "rn": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "serviceUrl": { "type": "string" },
-        "codeRepository": { "type": "string" }
       }
     }
   },

@@ -8,7 +8,6 @@ import (
 
 var gpSlotKeys = map[string]bool{
 	"agent":           true,
-	"gp-content":      true,
 	"branching-model": true,
 }
 
@@ -16,20 +15,16 @@ var platformSlotKeys = map[string]bool{
 	"lib": true,
 }
 
-func gpDraftCompositionSlots(agentStackName, gpContentName, branchingModelName string) []compatibility.CompositionSlot {
+func gpDraftCompositionSlots(agentStackName, branchingModelName string) []compatibility.CompositionSlot {
 	return []compatibility.CompositionSlot{
 		{Key: "agent", Type: "agent", Name: agentStackName},
-		{Key: "gp-content", Type: "gp-content", Name: gpContentName},
 		{Key: "branching-model", Type: "branching-model", Name: branchingModelName},
 	}
 }
 
-func validateNewGPComposition(agentStackName, gpContentName, branchingModelName string, composition map[string]string) ([]compatibility.CompositionSlot, error) {
+func validateNewGPComposition(agentStackName, branchingModelName string, composition map[string]string) ([]compatibility.CompositionSlot, error) {
 	if agentStackName == "" {
 		return nil, fmt.Errorf("agentStackName is required")
-	}
-	if gpContentName == "" {
-		return nil, fmt.Errorf("gpContentName is required")
 	}
 	if branchingModelName == "" {
 		return nil, fmt.Errorf("branchingModelName is required")
@@ -41,17 +36,17 @@ func validateNewGPComposition(agentStackName, gpContentName, branchingModelName 
 		if platformSlotKeys[key] {
 			return nil, fmt.Errorf("composition must not include platform slot %q", key)
 		}
-		if key == "executor" {
-			return nil, fmt.Errorf("composition must not include standalone executor (bundled in agent stack)")
+		if key == "executor" || key == "gp-content" {
+			return nil, fmt.Errorf("composition must not include %q slot", key)
 		}
 		if !gpSlotKeys[key] {
 			return nil, fmt.Errorf("unknown composition key %q", key)
 		}
 	}
-	for _, required := range []string{"agent", "gp-content", "branching-model"} {
+	for _, required := range []string{"agent", "branching-model"} {
 		if composition[required] == "" {
 			return nil, fmt.Errorf("composition.%s is required", required)
 		}
 	}
-	return gpDraftCompositionSlots(agentStackName, gpContentName, branchingModelName), nil
+	return gpDraftCompositionSlots(agentStackName, branchingModelName), nil
 }

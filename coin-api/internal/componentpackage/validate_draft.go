@@ -6,8 +6,6 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
-
-	"coin.local/coin-api/internal/gpcontent"
 )
 
 type DraftArtifact struct {
@@ -73,7 +71,10 @@ func ValidateDraftPackage(componentType, componentName, version string, bodies [
 	case "branching-model":
 		issues = append(issues, validateBranchingModelArtifact(bodies, componentName)...)
 	case "gp-content":
-		issues = append(issues, validateGPContentArtifacts(bodies, componentName)...)
+		issues = append(issues, ValidationIssue{
+			Field:   "componentType",
+			Message: "gp-content component type is removed; edit pipeline on GP release detail",
+		})
 	default:
 		issues = append(issues, ValidationIssue{
 			Field:   "componentType",
@@ -137,39 +138,6 @@ func validateBranchingModelArtifact(bodies []DraftArtifact, componentName string
 				Message: "versioning.template is required",
 			})
 		}
-	}
-	return issues
-}
-
-func validateGPContentArtifacts(bodies []DraftArtifact, componentName string) []ValidationIssue {
-	var issues []ValidationIssue
-	var contentRaw []byte
-	hasContainerfile := false
-	for _, b := range bodies {
-		switch b.Path {
-		case "content.yaml":
-			contentRaw = b.Body
-		case "dockerfiles/Containerfile":
-			hasContainerfile = len(b.Body) > 0
-		}
-	}
-	if len(contentRaw) == 0 {
-		return []ValidationIssue{{Field: "content.yaml", Message: "required primary artifact is missing"}}
-	}
-
-	doc, err := gpcontent.ParseDoc(contentRaw)
-	if err != nil {
-		return []ValidationIssue{{Field: "content.yaml", Message: fmt.Sprintf("invalid yaml: %v", err)}}
-	}
-	gpIssues, _ := gpcontent.ValidateDoc(doc, gpcontent.PreviewOptions{
-		ComponentName:            componentName,
-		HasContainerfileArtifact: hasContainerfile,
-	})
-	for _, iss := range gpIssues {
-		issues = append(issues, ValidationIssue{Field: iss.Field, Message: iss.Message})
-	}
-	if strings.TrimSpace(doc.Build.Engine) == "buildkit" && !hasContainerfile {
-		issues = append(issues, ValidationIssue{Field: "dockerfiles/Containerfile", Message: "required containerfile artifact is missing for buildkit engine"})
 	}
 	return issues
 }

@@ -9,7 +9,6 @@ func TestEncodePromoteBlockers(t *testing.T) {
 	t.Parallel()
 
 	blockers := []CompositionPinBlocker{
-		{Type: "gp-content", Name: "go-app", Version: "1.0.1-draft", Status: "draft"},
 		{Type: "branching-model", Name: "trunk-based", Version: "2.0.0-draft", Status: "draft"},
 	}
 	raw := encodePromoteBlockers(blockers)
@@ -20,10 +19,10 @@ func TestEncodePromoteBlockers(t *testing.T) {
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		t.Fatal(err)
 	}
-	if len(payload.BlockingPins) != 2 {
+	if len(payload.BlockingPins) != 1 {
 		t.Fatalf("blockingPins len = %d", len(payload.BlockingPins))
 	}
-	if payload.BlockingPins[0].Type != "gp-content" || payload.BlockingPins[0].Status != "draft" {
+	if payload.BlockingPins[0].Type != "branching-model" || payload.BlockingPins[0].Status != "draft" {
 		t.Fatalf("unexpected first blocker: %+v", payload.BlockingPins[0])
 	}
 }

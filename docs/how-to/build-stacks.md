@@ -1,83 +1,114 @@
-# Build stacks (gp-content v2)
+# Build stacks (pipeline-inline v3)
 
-Редактирование build stack — через **Component Studio** (`/platform/build-stacks/.../edit`) или YAML `content.yaml` в `coin-gp-content/stacks/<name>/`.
+Редактирование build stack — через **Component Studio** (`/platform/build-stacks/.../edit`) как structured model. Raw YAML не является primary UX.
 
-**Schema:** `coin-gp-content/schemas/gp-content.schema.json` (`schemaVersion: 2`).
+ADR: [pipeline-inline-build-stack](../adr/pipeline-inline-build-stack.md).
 
-## Два build engine
+## Основные секции
 
-| Engine | GP profile | Containerfile | Deliverables |
-|--------|------------|---------------|--------------|
-| `buildkit` | `go-app` | Managed в gp-content package (`dockerfiles/Containerfile`) | `image`, `artifact` |
-| `dockerfile` (BYO) | `go-app-docker` | Dockerfile **в репозитории продукта** | `image` only |
+| Секция | Назначение |
+|--------|------------|
+| Parameters | Типизированные non-secret параметры: `string`, `boolean`, `number`, `enum` |
+| Pipeline stages | Stages со steps `run`, `build`, `publish`; buildkit steps содержат inline `containerfile.body` |
+| Preview | Resolved manifest preview + validation issues |
 
-Buildpack и managed `dockerfile` engine (старый `go-app-df`) **не поддерживаются** (hard cut).
+**Нет** отдельных секций `build.targets`, `deliverables`, `artifacts.containerfiles` — всё inline в pipeline steps.
 
-## content.yaml v2 (минимум)
+Buildpack **не поддерживается** (hard cut).
 
-### buildkit (`go-app`)
+## Минимальная модель (`schemaVersion: 3`)
+
+Пример Build Stack для `go-app`:
 
 ```yaml
-schemaVersion: 2
+schemaVersion: 3
 name: go-app
 kind: gp-content
-capabilities:
-  deliverables: [image, artifact]
-build:
-  engine: buildkit
-  buildkit:
-    targets:
-      validate: validate
-      test: test
-      image: runtime
-      artifact: artifact
-    cacheRefTemplate: "{{registryHost}}/coin-cache/{{project}}:buildkit"
+validateSchema: schemas/config.v2.schema.json
+
+parameters:
+  - name: GO_VERSION
+    type: string
+    default: "1.22"
+    required: true
+
 pipeline:
   stages:
-    - { id: validate, name: Validate }
-    - { id: test, name: Test }
-    - { id: build, name: Build }
-    - { id: publish, name: Publish }
-artifacts:
-  validateSchema: schemas/config.v2.schema.json
-  containerfile: dockerfiles/Containerfile
+    - id: validate
+      name: Validate
+      steps:
+        - action: run
+          run:
+            engine: buildkit
+            target: validate
+            output: validate
+            containerfile:
+              body: |
+                FROM golang:1.22-bookworm AS base
+                ...
+    - id: build
+      name: Build
+      steps:
+        - action: build
+          build:
+            id: app
+            type: image
+            engine: buildkit
+            target: runtime
+            containerfile:
+              body: |
+                FROM golang:1.22-bookworm AS base
+                ...
+        - action: publish
+          publish:
+            buildStepId: app
 ```
 
-### BYO dockerfile (`go-app-docker`)
+### Step actions
+
+| action | Назначение |
+|--------|------------|
+| `run` | validate / test / промежуточный target |
+| `build` | materialize output (`build.id`, `type`, engine config) |
+| `publish` | publish по `publish.buildStepId` → `build.id` |
+
+Machine ids (`stage.id`, `build.id`) — short hash **5–6 символов** `^[a-z0-9]{5,6}$`; UI генерирует при создании. Человекочитаемые имена — в `stage.name`.
+
+### Containerfile inline
+
+Buildkit `run` / `build` steps содержат `containerfile.body` в author model. Resolved manifest materializer добавляет на тот же step `containerfile.contentRef` + `digest` (без top-level catalog).
+
+### BYO Dockerfile
+
+Для product-owned Dockerfile (`go-app-docker`):
 
 ```yaml
-schemaVersion: 2
-name: go-app-docker
-kind: gp-content
-capabilities:
-  deliverables: [image]
-build:
-  engine: dockerfile
-  dockerfile:
-    path: Dockerfile
-    imageTarget: runtime
-    testTarget: test
-    cacheRefTemplate: "{{registryHost}}/coin-cache/{{project}}:dockerfile"
-pipeline:
-  stages: [...]
-artifacts:
-  validateSchema: schemas/config.v2.schema.json
+- action: build
+  build:
+    id: app
+    type: image
+    engine: dockerfile
+    dockerfile:
+      path: Dockerfile
+      target: runtime
 ```
 
-Продуктовый `config.yaml` **не** задаёт путь к Dockerfile — только `coin.goldenPath: go-app-docker`.
+Продуктовый `config.yaml` **не** задаёт путь к Dockerfile — только GP pin и project identity.
+
+`content.yaml` не содержит registry/cache/artifact repository URLs. Physical destinations задаются полями GP version и материализуются в manifest `destinations`.
 
 ## Validate и preview
 
 | API | Назначение |
 |-----|------------|
-| `POST /v1/admin/components/gp-content/.../validate` | Draft package (content.yaml + artifacts) |
+| `POST /v1/admin/components/gp-content/.../validate` | Draft package (content.yaml + validateSchema artifact) |
 | `POST /v1/admin/gp-content/preview` | Manifest subset preview |
 
-Studio вызывает preview при редактировании карточек.
+Studio вызывает preview при редактировании pipeline steps.
 
 ## Publish flow
 
-1. Author в Studio → draft `content.yaml` + `dockerfiles/Containerfile` (buildkit only).
+1. Author в Studio → pipeline-inline v3 model (containerfile inline в buildkit steps).
 2. Validate → Register → Promote component version.
 3. Pin `gp-content` в GP composition draft.
 4. GP promote → resolve manifest.
