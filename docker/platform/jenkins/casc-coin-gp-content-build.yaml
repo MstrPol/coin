@@ -1,0 +1,19 @@
+jobs:
+  - script: >
+      pipelineJob('coin-gp-content') {
+        description('Platform: gp-content zip → Nexus maven2 + coin-api register')
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('http://gitea:3000/coin/coin-gp-content.git')
+                  credentials('gitea-git')
+                }
+                branch('main')
+              }
+            }
+            scriptPath('Jenkinsfile')
+          }
+        }
+      }

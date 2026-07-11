@@ -1,0 +1,46 @@
+# Multi-stage coin-agent: golang builder → jenkins inbound-agent runtime + podman + buildkit.
+# Compatible with Jenkins legacy docker builder (no buildx / RUN --mount).
+ARG REGISTRY=""
+ARG GO_VERSION=1.24
+ARG JENKINS_INBOUND_AGENT_TAG=3327.v868139a_d00e0-8
+ARG BUILDKIT_VERSION=v0.17.3
+ARG VERSION=0.1.0-dev
+ARG GOPROXY=https://proxy.golang.org,direct
+
+FROM ${REGISTRY}golang:${GO_VERSION}-bookworm AS executor-builder
+
+ARG VERSION
+ARG GOPROXY
+ENV GOPROXY=${GOPROXY}
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false \
+    -ldflags "-X main.Version=${VERSION}" \
+    -o /coin-executor ./cmd/coin-executor
+
+FROM ${REGISTRY}moby/buildkit:${BUILDKIT_VERSION} AS buildkit-bin
+
+FROM ${REGISTRY}jenkins/inbound-agent:${JENKINS_INBOUND_AGENT_TAG}
+
+USER root
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends podman fuse-overlayfs \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY --from=buildkit-bin /usr/bin/buildkitd /usr/local/bin/buildkitd
+COPY --from=buildkit-bin /usr/bin/buildctl /usr/local/bin/buildctl
+COPY --from=buildkit-bin /usr/bin/buildkit-runc /usr/local/bin/runc
+RUN ln -sf /usr/local/bin/runc /usr/bin/runc
+COPY buildkitd.toml /etc/buildkit/buildkitd.toml
+COPY podman-containers.conf /etc/containers/containers.conf
+COPY podman-storage.conf /etc/containers/storage.conf
+COPY podman-registries.conf /etc/containers/registries.conf
+COPY --from=executor-builder /coin-executor /usr/local/bin/coin-executor
+RUN chmod +x /usr/local/bin/coin-executor /usr/local/bin/buildkitd /usr/local/bin/buildctl /usr/local/bin/runc
+
+# buildkitd/podman require root in privileged k8s pod. Jenkins remoting ok as root.
+USER root

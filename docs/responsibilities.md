@@ -1,63 +1,56 @@
-# Разделение ответственности
-
-Границы владения между командами разработки и DevOps/Platform (Coin).
+# Разделение ответственности (v2)
 
 ## Принцип
 
-- **Проект** — код, зависимости, optional overrides pipeline.
-- **Coin (platform)** — оркестрация Jenkins, agent images, golden paths, managed Dockerfile, политики версий и QG.
+- **Проект** — код, `.coin/config.yaml` (identity + credential IDs).
+- **Platform** — manifest, GP content, `coin-agent`, coin-api/executor/lib.
 
 ## Что управляет разработчик
 
-- **Код и зависимости**: `pyproject.toml` / `pom.xml` / `go.mod` / `requirements.txt`.
-- **`.coin/config.yaml`**: identity, credentials IDs, optional `jenkins.runtime`, pipeline overrides.
-- **Расширения CI** через `pipeline.*.preCommands` / `postCommands` / `commands` (если разрешено политикой).
+- Код и зависимости (`go.mod`, …).
+- `.coin/config.yaml`: `goldenPath`, `version`, `project.*`, `jenkins.credentials`.
+- `Jenkinsfile` — копия `Jenkinsfile.coin` + `@Library('coin-lib@…')`.
 
 ## Что управляет Platform
 
-- **Jenkins оркестрация**: multibranch, K8s pod, credentials binding, QG.
-- **CI agent images**: `coin-jenkins-agents/` — toolchain, coin CLI, docker/kaniko для pack.
-- **Golden paths**: `coin-golden-paths/` — profile (в т.ч. `container.*`), scripts, runtime-only Dockerfile, catalog policy.
-- **Platform CI jobs**: сборка coin-cli и agent images (Jenkinsfiles в monorepo).
-- **Каталог образов**: `coin-lib/resources/images.yaml` — stack → agent image ref.
-- **Версионирование**, **QG**, **security policies**, **managed Dockerfile** (генерируется в `.coin/generated/Dockerfile` при `coin run build`).
+- **coin-api** — composition, catalog policy, resolve, build reports.
+- **coin-gp-content** — `build.engine`, Containerfile, schema → Nexus + PG.
+- **coin-agent** — universal inbound-agent image (`coin-executor/Dockerfile.agent`).
+- **coin-executor** — validate, build engines, publish, report ([CHARTER](../coin-executor/CHARTER.md)).
+- **coin-lib** — Jenkins glue only: resolve, pod, credentials, stage dispatch.
+- **coin-starters** — product scaffolding + thin Jenkinsfile.
+- Platform CI: `coin-executor`, `coin-gp-content`, `coin-lib`, `publish-agent`, `seed-jenkins-lib`.
 
-Модель сборки app: [agent-build-model.md](agent-build-model.md).
+**Superseded:** `coin-jenkins-agents/`, job `agents-build`, GP `scripts/*.sh` в runtime.
 
-## Что не задаётся / запрещено в проекте
+## Граница coin-executor
+
+**В executor:** validate config vs manifest, materialize Containerfile, dispatch `buildkit`/`buildpack`/`dockerfile`, run stages, report.
+
+**Не в executor:** GP publish, semver bump GP release, release notes authoring.
+
+## Что запрещено в проекте
 
 | Запрет | Причина |
 |--------|---------|
-| `Dockerfile` в репо сервиса | Managed runtime-only GP |
-| `build.type`, `agent.stack`, `container.*` | Из `profile.yaml` golden path |
-| Shell CI scripts как стандарт | GP scripts platform-owned |
-| Секреты в config | Только Jenkins/Vault credential IDs |
-| Своя модель версионирования | Corporate `COIN_VERSION` |
+| `Dockerfile` в репо (go GP) | Managed Containerfile из manifest |
+| `template`/`templateVersion` (v1) | Strict v2 only |
+| Pin executor/agent/build engine в config | Только в manifest / GP |
+| Бизнес-логика сборки в Jenkinsfile/Groovy | coin-executor + GP content |
 
-## Артефакты и владельцы
+## Артефакты
 
-| Артефакт | Где | Владелец |
-|----------|-----|----------|
-| `coin-lib` | monorepo `coin` | Platform |
-| `coin-cli` | monorepo `coin` | Platform |
-| `coin-jenkins-agents/*` | monorepo `coin` | Platform |
-| `coin-golden-paths/*` | monorepo `coin` | Platform |
-| `coin-starters/*` | monorepo `coin` | Platform (эталон) |
-| `coin-lib/resources/images.yaml` | monorepo `coin` | Platform |
-| `.coin/config.yaml` | репо сервиса | Команда (policy-enforced) |
-| App runtime Dockerfile | `.coin/generated/` в CI | Platform (render из GP) |
-| App OCI image | registry | Артефакт сервиса |
-
-> **Legacy:** `coin-lib/resources/dockerfiles/` и `resources/scripts/` — устаревшие копии, **не используются**. Канонический источник — `coin-golden-paths/`.
-
-## Диагностика L1/L2
-
-1. Лог: `template=`, `stack=`, `agent=`, `COIN_VERSION`.
-2. `coin validate` OK → проблема platform (agent, credentials, QG) или проектных overrides.
-3. `coin validate` FAIL → контракт проекта или версия GP.
+| Артефакт | Владелец |
+|----------|----------|
+| `coin-api`, `coin-executor` | Platform |
+| GP content (Containerfile, schema, build policy) | `coin-gp-content` → Nexus |
+| `coin-agent` image | Platform (`publish-agent`) |
+| Jenkins glue (`coinPipeline`) | `coin-lib` (Gitea tag) |
+| `.coin/config.yaml` | Команда |
+| App OCI image | Команда (registry) |
 
 ## Связанные документы
 
-- [golden-paths.md](golden-paths.md)
 - [config.md](config.md)
+- [architecture.md](architecture.md)
 - [agent-build-model.md](agent-build-model.md)

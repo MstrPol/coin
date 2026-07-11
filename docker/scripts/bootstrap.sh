@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Подъём инфраструктуры: nexus (+ docker repo), k3s, gitea, jenkins (plugins + k8s agents).
-# Jenkins jobs — make coin-lib / make coin-platform. k3s Dashboard — make dashboard.
+# Platform jobs — make coin-platform / coin-executor / samples. k3s Dashboard — make dashboard.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -105,18 +105,19 @@ cat <<EOF
 Coin local stack is up (infrastructure only).
 
   Jenkins:   http://localhost:${JENKINS_HTTP_PORT:-8080}  (${JENKINS_ADMIN_USER:-admin} / ${JENKINS_ADMIN_PASSWORD:-admin})
-             plugins + Kubernetes cloud + creds (k3s, gitea, nexus), без coin-lib/jobs
+             plugins + Kubernetes cloud + creds (k3s, gitea, nexus)
   Gitea:     http://localhost:${GITEA_HTTP_PORT:-3000}  (${GITEA_USER:-coin} / ${GITEA_PASSWORD:-coin})
   Nexus:     http://localhost:${NEXUS_HTTP_PORT:-8081}  (admin / ${NEXUS_ADMIN_PASSWORD:-coin12345})
   Docker:    localhost:${NEXUS_DOCKER_PORT}/${NEXUS_DOCKER_REPO:-coin-docker}  (${NEXUS_DOCKER_USER:-coin} / ${NEXUS_DOCKER_PASSWORD:-coin})
   k3s UI:    make dashboard  (опционально)
 
 Platform (после bootstrap):
-  make coin-lib            # coin-lib → Gitea + Jenkins Shared Library
-  make coin-platform       # coin-platform → Gitea
-  make coin-cli            # coin-cli → Gitea + job coin-cli
-  make agents-build        # job agents-build (JCasC)
-  make samples             # demo-продукты → samples/ + Gitea
+  make coin-starters         # starters → Gitea coin/coin-starters
+  make coin-executor         # coin-executor → Gitea + job coin-executor
+  make coin-gp-content       # gp-content → Gitea + job coin-gp-content
+  make coin-lib              # Jenkins Shared Library → Gitea (tag 1.0.0) + Global Lib
+  make publish-agent         # coin-agent image → Nexus + coin-api (перед GP seed)
+  make samples               # demo-продукты → samples/ + Gitea
 
 Teardown: make down  |  make reset
 

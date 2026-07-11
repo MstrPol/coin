@@ -1,8 +1,12 @@
+# DEPRECATED (GCP-4): Gitea Modern SCM retriever — use casc-coin-lib-http.yaml (Nexus ZIP).
 unclassified:
   globalLibraries:
     libraries:
-      - name: coin-lib
-        defaultVersion: "main"
+      - name: "coin-lib"
+        defaultVersion: "1.0.0"
+        implicit: false
+        allowVersionOverride: true
+        includeInChangesets: false
         retriever:
           modernSCM:
             scm:

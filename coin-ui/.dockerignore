@@ -1,0 +1,13 @@
+.git
+.github
+.cursor
+terminals
+docker
+tests
+*.md
+Jenkinsfile
+helm-chart-requirements.md
+corp-migration.md
+node_modules
+dist
+.env*

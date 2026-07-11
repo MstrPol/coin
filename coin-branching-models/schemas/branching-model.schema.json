@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://coin.local/schemas/branching-model.schema.json",
+  "title": "Branching model (model.yaml) v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "name", "branches"],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 2
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "branches": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "pattern", "versioning", "publish"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pattern": {
+            "type": "string",
+            "minLength": 1
+          },
+          "versioning": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["template"],
+            "properties": {
+              "template": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "publish": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

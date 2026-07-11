@@ -1,102 +1,222 @@
-import org.coin.ci.Config
-import org.coin.ci.CoinCli
-import org.coin.ci.Platform
-import org.coin.ci.PodTemplate
-import org.coin.ci.ProfileLoader
-import org.coin.ci.StackImages
+// Точка входа Jenkins Shared Library: resolve → pod → creds → stages coin-executor.
 
 /**
- * Единая точка входа Coin CI.
- *
- * Ответственность coin-lib:
- *   1. Checkout coin-platform + выбор K8s dynamic agent (GP profile bundle).
- *   2. Bootstrap coin CLI из Nexus (profile coinCli.version).
- *   3. Credentials binding перед coin run publish.
+ * Возвращает отображаемое имя Jenkins stage из определения в manifest.
+ * Приоритет: поле name, иначе capitalized id.
  */
-def call(Map args = [:]) {
-    def cloudName    = args.cloud ?: null
-    def prepareLabel = args.prepareAgent ?: null
-    def platformOpts = [
-        dir          : args.platformDir ?: '.coin/platform',
-        repo         : args.platformRepo ?: 'http://gitea:3000/coin/coin-platform.git',
-        branch       : args.platformBranch ?: 'main',
-        credentialsId: args.platformCredentials ?: 'gitea-git',
-    ]
+def coinStageName(def stageDef) {
+    return stageDef.name ?: stageDef.id?.toString()?.capitalize()
+}
 
-    def coinCli = new CoinCli(this)
-    def coinBin = coinCli.binDir()
+/**
+ * Возвращает машинный id stage для coin-executor run --stage.
+ * Приоритет: поле id, иначе slug из name (lowercase, пробелы → дефис).
+ */
+def coinStageID(def stageDef) {
+    return stageDef.id ?: stageDef.name?.toString()?.toLowerCase()?.replaceAll(/\s+/, '-')
+}
 
-    def coinSh = { String script ->
-        ansiColor('xterm') {
-            sh "export PATH=\"${coinBin}:\$PATH\" && ${script}"
+/**
+ * Оборачивает body в withCredentials для Docker registry (build/publish).
+ *
+ * @param dockerCredId Jenkins credentialsId (usernamePassword)
+ * @param body closure с шагами, использующими COIN_REGISTRY_USER/PASSWORD
+ */
+def coinWithDockerCredentials(String dockerCredId, Closure body) {
+    withCredentials([usernamePassword(
+        credentialsId: dockerCredId,
+        usernameVariable: 'COIN_REGISTRY_USER',
+        passwordVariable: 'COIN_REGISTRY_PASSWORD',
+    )]) {
+        body()
+    }
+}
+
+/**
+ * Главный пайплайн продукта: вызывается из Jenkinsfile как coinPipeline().
+ *
+ * Фаза 1 (built-in): read config → resolve manifest → merge config → pod YAML.
+ * Фаза 2 (pod): checkout → materialize .coin/ → bootstrap buildkitd → dynamic stages → report.
+ * manifest/cfg между нодами передаются как JSON-строки (CPS serialization).
+ *
+ * Параметры сборки: publish (boolean, default false) — управляет выполнением stage publish.
+ */
+def call() {
+    properties([
+        parameters([
+            booleanParam(
+                name: 'publish',
+                defaultValue: false,
+                description: 'Выполнить stage publish (публикация артефактов в registry)',
+            ),
+        ]),
+    ])
+
+    coinLog.banner()
+    coinLog.kv('📋', 'Параметры', "publish=${params.publish}")
+
+    // CPS: Map/объекты из node('built-in') не передаются в pod node — только примитивы/строки через внешний scope.
+    def manifestJson   // resolved manifest → JSON для coinParseJson / coinMaterializeDotCoin в pod
+    def cfgJson        // merged config → JSON для coinParseJson / coinPodYaml уже отработал на controller
+    def dockerCredId   // Jenkins credential ID для withCredentials (build/publish)
+    def apiTokenCredId // Jenkins credential ID для coin-executor report → coin-api
+    def podYaml        // rendered K8s pod template → podTemplate(yaml: …)
+
+    node('built-in') {
+        stage('Resolve manifest') {
+            coinLog.section('🔍', 'Resolve manifest')
+
+            def projectCfg = coinReadProjectConfig()
+            def bootstrapCfg = coinLoadConfig([:], projectCfg)
+            coinLog.kv('📌', 'Pin', "${bootstrapCfg.coin?.goldenPath} ${bootstrapCfg.coin?.version}")
+
+            def manifest = coinResolveManifest(bootstrapCfg)
+            def cfg = coinLoadConfig(manifest, projectCfg)
+            coinApplyEnv(cfg)
+
+            dockerCredId = cfg.jenkins?.credentials?.docker ?: 'nexus-docker'
+            apiTokenCredId = cfg.jenkins?.credentials?.apiToken ?: 'coin-api-token'
+
+            manifestJson = groovy.json.JsonOutput.toJson(manifest)
+            cfgJson = groovy.json.JsonOutput.toJson(cfg)
+            podYaml = coinPodYaml(cfgJson)
+
+            coinLog.kv('🎯', 'Resolved GP', "${env.COIN_GP}@${env.COIN_GP_VERSION}")
+            coinLog.kv('🤖', 'Runtime image', cfg.runtime?.image)
+            coinLog.ok('Manifest resolved, pod template ready')
+            coinLog.sectionEnd()
         }
     }
 
-    def stackImage
-    def jnlpImage
-    node(prepareLabel) {
-        checkout scm
-        new Platform(this).checkout(platformOpts)
-        def cfg = new Config(this).load()
-        def images = new StackImages(this)
-        stackImage = images.resolveStackImage(cfg)
-        jnlpImage = images.jnlpImage()
-        def stack = images.resolveStack(cfg)
-        def profile = new ProfileLoader(this).load(cfg)
-        echo "Coin: project=${cfg.project?.name} template=${cfg.coin?.template}/${cfg.coin?.templateVersion ?: 'v1'} stack=${stack} agent=${stackImage} coinCli=${profile.coinCli?.version}"
-    }
-
-    def podYaml = new PodTemplate().build(jnlpImage, stackImage)
     def podLabel = "coin-${env.BUILD_NUMBER}"
-    def podArgs = [yaml: podYaml, label: podLabel]
-    if (cloudName) { podArgs.cloud = cloudName }
 
-    podTemplate(podArgs) {
+    podTemplate(yaml: podYaml, cloud: 'kubernetes', label: podLabel) {
         node(podLabel) {
             checkout scm
-            new Platform(this).checkout(platformOpts)
+            def manifest = coinParseJson(manifestJson)
+            def cfg = coinParseJson(cfgJson)
+            env.COIN_PUBLISH_REQUEST = params.publish ? 'true' : 'false'
+            coinMaterializeDotCoin(manifest, cfg)
 
-            container('stack') {
-                def cfg = new Config(this).load()
-                def profile = new ProfileLoader(this).load(cfg)
-                def minCLI = profile.coinCli?.version
+            stage('Bootstrap') {
+                coinLog.section('⚙️', 'Bootstrap')
+                coinLog.step('Start build services in agent container')
+                sh '''
+                    set -eu
+                    export PATH="/usr/local/bin:${PATH}"
 
-                stage('Bootstrap') {
-                    coinCli.bootstrap(cfg)
+                    if command -v buildkitd >/dev/null 2>&1; then
+                      buildkit_sock="${BUILDKIT_HOST#unix://}"
+                      if [ ! -S "${buildkit_sock}" ]; then
+                        nohup buildkitd --config /etc/buildkit/buildkitd.toml \
+                          --addr "${BUILDKIT_HOST}" >/tmp/buildkitd.log 2>&1 &
+                        echo $! >/tmp/buildkitd.pid
+                      fi
+
+                      buildkit_ready=0
+                      for i in $(seq 1 60); do
+                        if [ -S "${buildkit_sock}" ]; then
+                          buildkit_ready=1
+                          break
+                        fi
+                        if [ -f /tmp/buildkitd.pid ] && ! kill -0 "$(cat /tmp/buildkitd.pid)" 2>/dev/null; then
+                          echo "buildkitd exited" >&2
+                          tail -100 /tmp/buildkitd.log >&2 || true
+                          exit 1
+                        fi
+                        sleep 1
+                      done
+
+                      if [ "${buildkit_ready}" != 1 ]; then
+                        echo "buildkitd not ready after 60s" >&2
+                        tail -100 /tmp/buildkitd.log >&2 || true
+                        exit 1
+                      fi
+                    fi
+
+                    if command -v podman >/dev/null 2>&1; then
+                      if [ ! -S /var/run/docker.sock ]; then
+                        mkdir -p /var/lib/containers/storage /run/containers/storage /run/podman
+                        nohup podman system service --time=0 unix:///var/run/docker.sock \
+                          >/tmp/podman.log 2>&1 &
+                        echo $! >/tmp/podman.pid
+                      fi
+
+                      podman_ready=0
+                      for i in $(seq 1 60); do
+                        if [ -S /var/run/docker.sock ]; then
+                          podman_ready=1
+                          break
+                        fi
+                        if [ -f /tmp/podman.pid ] && ! kill -0 "$(cat /tmp/podman.pid)" 2>/dev/null; then
+                          echo "podman service exited" >&2
+                          tail -100 /tmp/podman.log >&2 || true
+                          exit 1
+                        fi
+                        sleep 1
+                      done
+
+                      if [ "${podman_ready}" != 1 ]; then
+                        echo "podman not ready after 60s" >&2
+                        tail -100 /tmp/podman.log >&2 || true
+                        exit 1
+                      fi
+                    fi
+
+                    coin-executor version
+                '''
+                coinLog.ok('coin-agent ready (buildkit + podman + coin-executor)')
+                coinLog.sectionEnd()
+            }
+
+            def manifestStages = cfg.pipeline?.stages ?: []
+            for (int i = 0; i < manifestStages.size(); i++) {
+                def stageDef = manifestStages[i]
+                def stageID = coinStageID(stageDef)
+                def stageName = coinStageName(stageDef)
+                if (!stageID) {
+                    error "Coin: manifest stage is missing id/name: ${stageDef}"
                 }
-
-                stage('version') {
-                    coinSh 'coin --version'
-                }
-
-                stage('Validate') {
-                    coinSh "coin validate --min-version ${minCLI}"
-                }
-
-                stage('Test') {
-                    coinSh 'coin run test'
-                }
-
-                stage('Build') {
-                    coinSh 'coin run build'
-                }
-
-                stage('Publish') {
-                    def pubCfg = new Config(this).load()
-                    def credId = pubCfg.jenkins?.credentials?.docker ?: 'coin-registry-default'
-                    withCredentials([usernamePassword(
-                        credentialsId: credId,
-                        usernameVariable: 'COIN_REGISTRY_USER',
-                        passwordVariable: 'COIN_REGISTRY_PASSWORD',
-                    )]) {
-                        coinSh '''
-                          REG_HOST="${COIN_REGISTRY_PREFIX%%/*}"
-                          echo "${COIN_REGISTRY_PASSWORD}" | docker login "${REG_HOST}" \
-                            -u "${COIN_REGISTRY_USER}" --password-stdin
-                          coin run publish
-                        '''
+                stage(stageName) {
+                    if (stageID == 'publish' && !params.publish) {
+                        coinLog.section('⏭️', "Stage: ${stageName}")
+                        coinLog.skip('Параметр publish=false — stage пропущен')
+                        coinLog.sectionEnd()
+                    } else {
+                        coinLog.section('▶️', "Stage: ${stageName}")
+                        coinLog.step("coin-executor run --stage ${stageID}")
+                        if (stageID in ['build', 'publish']) {
+                            coinWithDockerCredentials(dockerCredId) {
+                                coinLog.info('Configure registry auth for BuildKit')
+                                coinConfigureRegistryAuth()
+                                coinRunStage(stageID)
+                            }
+                        } else {
+                            coinRunStage(stageID)
+                        }
+                        coinLog.ok("Stage ${stageName} finished")
+                        coinLog.sectionEnd()
                     }
                 }
+            }
+
+            stage('Report') {
+                coinLog.section('📊', 'Report')
+                coinLog.step('Send build report to coin-api')
+                def result = currentBuild.currentResult ?: 'SUCCESS'
+                withCredentials([string(credentialsId: apiTokenCredId, variable: 'COIN_API_TOKEN')]) {
+                    sh """
+                        set -eu
+                        export PATH="/usr/local/bin:\${PATH}"
+                        export COIN_API_URL='${env.COIN_API_URL}'
+                        export COIN_API_TOKEN="\${COIN_API_TOKEN}"
+                        coin-executor report --manifest .coin/manifest.json \\
+                          --project .coin/config.yaml \\
+                          --build-url '${env.BUILD_URL}' --result '${result}'
+                    """
+                }
+                coinLog.ok("Report submitted (result=${currentBuild.currentResult ?: 'SUCCESS'})")
+                coinLog.sectionEnd()
             }
         }
     }

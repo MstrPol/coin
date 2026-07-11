@@ -38,16 +38,16 @@ fix: исправить NPE в обработчике MYTEAM-456 MYTEAM-457
 
 ```yaml
 project:
-  name: my-service              # → artifactId
+  name: my-service              # → service name
   groupId: com.example.team     # → groupId в QGM
-  repository: Nexus_PROD        # → repository в QGM
+  artifactId: my-service        # → artifactId в QGM
 ```
 
 | Поле | Обязательно | Описание |
 |------|-------------|----------|
-| `project.name` | **Да** | Имя сервиса (`artifactId`). |
+| `project.name` | **Да** | Имя сервиса. |
 | `project.groupId` | **Да** | Домен команды (`groupId` в QGM). |
-| `project.repository` | **Да** | Репозиторий Nexus (`repository` в QGM). |
+| `project.artifactId` | **Да** | Artifact ID (`artifactId` в QGM). |
 
 **QGM в pipeline пока не подключён.** Когда интеграция появится:
 

@@ -7,7 +7,7 @@ REPO_ROOT="$(cd "${ROOT}/.." && pwd)"
 LIB="${ROOT}/scripts/lib/common.sh"
 MANIFEST="${ROOT}/samples.yaml"
 SAMPLES_DIR="${REPO_ROOT}/samples"
-STARTERS="${REPO_ROOT}/coin-platform/starters"
+STARTERS="${REPO_ROOT}/coin-starters"
 
 # shellcheck source=lib/common.sh
 source "${LIB}"
@@ -38,19 +38,24 @@ REPOS=()
 
 write_jenkinsfile() {
   local dest="$1"
-  cat > "${dest}/Jenkinsfile" <<'EOF'
-@Library('coin-lib') _
-
-coinPipeline(cloud: 'kubernetes')
-EOF
+  cp "${STARTERS}/Jenkinsfile.coin" "${dest}/Jenkinsfile"
 }
 
-patch_config() {
-  local cfg="$1"
+patch_sample_project() {
+  local dest="$1"
   local project="$2"
+  local golden_path="${3:-go-app}"
+  local cfg="${dest}/.coin/config.yaml"
+
   sed -i.bak "s/^  name: .*/  name: ${project}/" "${cfg}"
-  sed -i.bak 's|^  serviceUrl: .*|  serviceUrl: http://nexus:8081|' "${cfg}"
-  rm -f "${cfg}.bak"
+  sed -i.bak "s/^  artifactId: .*/  artifactId: ${project}/" "${cfg}"
+  sed -i.bak "s/^  goldenPath: .*/  goldenPath: ${golden_path}/" "${cfg}"
+  sed -i.bak 's|^const serviceName = .*|const serviceName = "'"${project}"'"|' "${dest}/main.go" 2>/dev/null || true
+  if [[ -f "${dest}/go.mod" ]]; then
+    sed -i.bak "s|^module .*|module example.com/${project}|" "${dest}/go.mod"
+    rm -f "${dest}/go.mod.bak"
+  fi
+  rm -f "${cfg}.bak" "${dest}/main.go.bak"
 }
 
 ensure_sample_git_repo() {
@@ -87,6 +92,7 @@ EOF
                 credentialsId('gitea-git')
                 traits {
                   gitBranchDiscovery()
+                  gitTagDiscovery()
                 }
               }
             }
@@ -114,8 +120,42 @@ EOF
   done
 }
 
+process_sample() {
+  local repo="$1"
+  local starter="$2"
+  local golden_path="${3:-${starter}}"
+
+  local src="${STARTERS}/${starter}"
+  local dest="${SAMPLES_DIR}/${repo}"
+
+  [[ -d "${src}" ]] || { echo "starter not found: ${src}" >&2; exit 1; }
+
+  echo "==> sample ${repo} (starter=${starter}, gp=${golden_path})"
+  gitea_create_repo "${repo}"
+  REPOS+=("${repo}")
+
+  rsync -a --delete --exclude '.git' "${src}/" "${dest}/"
+  write_jenkinsfile "${dest}"
+  patch_sample_project "${dest}" "${repo}" "${golden_path}"
+
+  local url="http://${GITEA_USER}:${GITEA_PASSWORD}@localhost:${GITEA_HTTP_PORT}/coin/${repo}.git"
+
+  ensure_sample_git_repo "${dest}"
+  if git -C "${dest}" remote get-url origin >/dev/null 2>&1; then
+    git -C "${dest}" remote set-url origin "${url}"
+  else
+    git -C "${dest}" remote add origin "${url}"
+  fi
+  git -C "${dest}" add -A
+  git -C "${dest}" diff --staged --quiet || git -C "${dest}" commit -m "sample product repo (${golden_path})"
+  git -C "${dest}" push --force -u origin main
+
+  echo "    http://localhost:${GITEA_HTTP_PORT}/coin/${repo}"
+}
+
 repo=""
 starter=""
+golden_path=""
 while IFS= read -r line; do
   line="${line%%#*}"
   line="${line#"${line%%[![:space:]]*}"}"
@@ -123,44 +163,27 @@ while IFS= read -r line; do
   line="${line#- }"
 
   if [[ "${line}" =~ ^repo:[[:space:]]*(.+)$ ]]; then
+    if [[ -n "${repo}" && -n "${starter}" ]]; then
+      process_sample "${repo}" "${starter}" "${golden_path:-${starter}}"
+    fi
     repo="${BASH_REMATCH[1]}"
+    starter=""
+    golden_path=""
     continue
   fi
   if [[ "${line}" =~ ^starter:[[:space:]]*(.+)$ ]]; then
     starter="${BASH_REMATCH[1]}"
-    [[ -z "${repo}" || -z "${starter}" ]] && continue
-
-    src="${STARTERS}/${starter}"
-    dest="${SAMPLES_DIR}/${repo}"
-
-    [[ -d "${src}" ]] || { echo "starter not found: ${src}" >&2; exit 1; }
-
-    echo "==> sample ${repo} (from ${starter})"
-    gitea_create_repo "${repo}"
-    REPOS+=("${repo}")
-
-    rsync -a --delete --exclude '.git' "${src}/" "${dest}/"
-    write_jenkinsfile "${dest}"
-    patch_config "${dest}/.coin/config.yaml" "${repo}"
-
-    url="http://${GITEA_USER}:${GITEA_PASSWORD}@localhost:${GITEA_HTTP_PORT}/coin/${repo}.git"
-
-    ensure_sample_git_repo "${dest}"
-    if git -C "${dest}" remote get-url origin >/dev/null 2>&1; then
-      git -C "${dest}" remote set-url origin "${url}"
-    else
-      git -C "${dest}" remote add origin "${url}"
-    fi
-    git -C "${dest}" add -A
-    git -C "${dest}" diff --staged --quiet || git -C "${dest}" commit -m "sample product repo (${starter})"
-    git -C "${dest}" push --force -u origin main
-
-    echo "    http://localhost:${GITEA_HTTP_PORT}/coin/${repo}"
-
-    repo=""
-    starter=""
+    continue
+  fi
+  if [[ "${line}" =~ ^goldenPath:[[:space:]]*(.+)$ ]]; then
+    golden_path="${BASH_REMATCH[1]}"
+    continue
   fi
 done < "${MANIFEST}"
+
+if [[ -n "${repo}" && -n "${starter}" ]]; then
+  process_sample "${repo}" "${starter}" "${golden_path:-${starter}}"
+fi
 
 if [[ ${#REPOS[@]} -eq 0 ]]; then
   echo "no samples pushed (check ${MANIFEST})" >&2

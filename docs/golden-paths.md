@@ -1,245 +1,186 @@
-# Golden paths
+# Golden Paths (Control Plane v2)
 
-Golden path — **готовый профиль доставки** от кода до реестра.  
-Разработчик выбирает один шаблон (`coin.template`), платформа берёт на себя всё остальное: toolchain, тип сборки, артефакты, публикацию, агент.
+> **2026-07:** Pipeline-inline v3 хранится как **embedded body** GP release (не component `gp-content`). Composition — 2 pin: `agent` + `branching-model`. Authoring — GP hub → release detail. См. [adr/gp-embedded-pipeline.md](adr/gp-embedded-pipeline.md).
 
----
+## Модель
 
-## Что такое golden path
+| Сущность | Описание |
+|----------|----------|
+| **Golden Path (GP)** | Именованный профиль: `go-app`, `go-app-docker`, … |
+| **GP release** | Semver pin в продукте: `go-app@1.0.0` |
+| **Platform component** | Версионируемый артефакт платформы (`gp-content`, `lib`, `agent`, …) |
+| **Manifest** | JSON от Resolve: `build`, `runtime`, `pipeline`, `lib`, `validateSchema` |
 
-Это не «стек сборки» и не «тип артефакта» по отдельности, а **закрытый контракт**:
-
-| Что задаёт шаблон | Пример |
-|-------------------|--------|
-| Toolchain | Java 17 + Gradle |
-| Роль проекта | приложение / библиотека |
-| Что собираем | OCI image, JAR, wheel |
-| Куда публикуем | Docker registry, Maven, PyPI |
-| Стадии pipeline | test → build → publish |
-| Образ агента | `coin/ci-jvm-gradle:17` (см. `coin-jenkins-agents/`) |
-| Managed Dockerfile | runtime-only шаблон из Coin (COPY артефактов после native build) |
-| Когда публикуем | по умолчанию `when: tag` |
-
-**Правило:** если поведение можно вывести из шаблона — оно **не** настраивается в `.coin/config.yaml` проекта.
-
----
-
-## Именование
-
-```
-{stack}-{role}
-```
-
-| Часть | Значение | Примеры |
-|-------|----------|---------|
-| `stack` | Язык + сборщик | `java-gradle`, `java-maven`, `python-uv`, `go` |
-| `role` | Роль артефакта | `app` — деплоится; `lib` — переиспользуется другими проектами |
-
-Примеры:
-
-- `java-gradle-app` — Java-приложение, Gradle, образ для деплоя
-- `java-gradle-lib` — Java-библиотека, Gradle, JAR в Maven
-- `go-app` — Go-сервис, образ для деплоя
-
----
-
-## Матрица golden paths (v1)
-
-### Приложения (`*-app`)
-
-Деплоятся как сервис. Сборка → OCI image → Docker registry.
-
-| Шаблон | Toolchain | Артефакт | Publish | Статус |
-|--------|-----------|----------|---------|--------|
-| `go-app` | Go | OCI image | Docker registry | ✅ v1 |
-| `java-gradle-app` | Java 17 + Gradle | OCI image | Docker registry | ✅ v1 |
-| `java-maven-app` | Java 17 + Maven | OCI image | Docker registry | ✅ v1 |
-| `python-uv-app` | Python + uv | OCI image | Docker registry | ✅ v1 |
-| `python-pip-app` | Python + pip | OCI image | Docker registry | ✅ v1 |
-
-> **Дистрибутив для ПСИ (zip):** если организации нужен zip в Nexus помимо образа — это часть профиля `*-app`, а не отдельный шаблон. Планируется для `java-*-app` (roadmap).
-
-### Библиотеки (`*-lib`)
-
-Переиспользуются другими проектами. Без контейнеризации.
-
-| Шаблон | Toolchain | Артефакт | Publish | Статус |
-|--------|-----------|----------|---------|--------|
-| `java-gradle-lib` | Java 17 + Gradle | JAR | Maven (Nexus) | 📋 запланировано |
-| `java-maven-lib` | Java 17 + Maven | JAR | Maven (Nexus) | 📋 запланировано |
-| `python-uv-lib` | Python + uv | wheel | PyPI / Nexus | 📋 запланировано |
-
-### Node.js
-
-| Шаблон | Toolchain | Артефакт | Publish | Статус |
-|--------|-----------|----------|---------|--------|
-| `node-app` | Node.js | OCI image | Docker registry | 📋 запланировано |
-
----
-
-## Что задаёт проект
-
-Минимальный `.coin/config.yaml` — только привязка к GP, credentials и идентичность:
+Продукт указывает только:
 
 ```yaml
 coin:
-  template: java-gradle-app
-  templateVersion: v1
-
-jenkins:
-  credentials:
-    docker: nexus-docker
-
-project:
-  name: my-service
-  groupId: com.example.team
-  repository: Nexus_PROD
+  goldenPath: go-app
+  version: "1.0.0"
 ```
 
-### Что **не** задаётся в проекте
+## Enabling team playbook
 
-| Поле | Почему не нужно |
-|------|-----------------|
-| `build.type` | Определяется шаблоном (`app` → container, `lib` → package) |
-| `agent.stack` | Дублирует `coin.template` |
-| `container.port` / `container.command` | Задаётся в `profile.yaml` golden path |
-| `dockerfileTemplate` | Зашито в profile шаблона |
-| `publish.repository` (отдельно) | Тип publish задаёт шаблон; `project.repository` — координата для RN/QGM |
+Единый путь выпуска platform content (UI-first):
 
----
-
-## Где живёт profile шаблона
-
-Profile — platform-owned, разработчик не редактирует:
-
-```
-coin-golden-paths/
-  catalog.yaml
-  _shared/
-    pack-image.sh
-  java-gradle-app/
-    v1/
-      profile.yaml          # build, publish, pipeline, agent defaults
-      Dockerfile            # runtime-only (COPY артефактов)
-      scripts/
-      config.yaml
+```mermaid
+flowchart TD
+  A["Platform editor"] --> B["Draft в PG"]
+  B --> C["Validate"]
+  C --> D["Register → content_ref"]
+  D --> E["Promote → Nexus + published"]
+  E --> F["Pin в GP composition"]
+  F --> G["GP promote (all pins published)"]
+  G --> H["Resolve → manifest blob"]
 ```
 
-Пример `profile.yaml`:
+| Шаг | UI / API | Результат |
+|-----|----------|-----------|
+| 1. Author | `/platform/build-stacks/.../edit`, `/platform/branching-models/.../edit` | `component_artifact_bodies` (draft) |
+| 2. Register | Validate → Register package | PG `content_ref` v2 (без Nexus `package.url`) |
+| 3. Publish | Promote component | Nexus upload + `component_versions.status = published` |
+| 4. GP pin | GP hub draft | `gp_composition` (draft pins допустимы на canary line) |
+| 5. GP promote | Release detail | GP `published`; gate — все pins `published` |
+
+**Local bootstrap** (без UI): `make seed-jenkins-lib` — публикует lib + gp-content + GP profiles.  
+**Deprecated:** `/studio`, `publish-canary`, `publish-content.sh`, `make coin-lib` (Gitea).
+
+Platform types: `branching-model` (`model.yaml`), `gp-content` (`content.yaml` + Containerfile).
+
+## Component lifecycle → GP composition
+
+```mermaid
+flowchart LR
+  subgraph registry["Platform registry (independent)"]
+    AG["agent/*"]
+    GC["gp-content/*"]
+    BM["branching-model/*"]
+  end
+  subgraph gp["GP entity"]
+    P["Profile: name + description"]
+    D["Draft: agent + gpContent + branching pins"]
+    R["Release: promote"]
+  end
+  AG --> D
+  GC --> D
+  BM --> D
+  P --> D
+  D --> R
+  R --> Resolve
+```
+
+1. **Platform team** публикует `gp-content` и `branching-model` в registry (Studio / publish scripts) — **без** GP profile.
+2. **Enabling team** создаёт GP profile (`name`, `description`) — identity для `coin.goldenPath` в product repos.
+3. **Draft** выбирает из каталога: `agentStackName`, `gpContentName`, `branchingModelName` + versions. Имя profile **может отличаться** от `gpContentName` (например profile `xxx` → `go-app@1.0.0`).
+4. **Resolve** мержит GP composition (3 pins) + derived executor из agent stack → manifest для coin-executor (без секции `lib`).
+5. **Draft edit** — operator может менять composition pins на draft (`PATCH`); published immutable в Nexus.
+6. **Draft deletion** — operator может удалить draft; published нельзя удалить.
+
+## Composition (GP draft 3-pin)
+
+**GP composition** (per release version, draft/promote) — 3 слота:
+
+| Slot | Component type | Выбор | Manifest section |
+|------|----------------|-------|------------------|
+| `agent` | `agent` | `agentStackName` + version | `runtime` (+ executor derived) |
+| `gp-content` | `gp-content` | `gpContentName` + version | `build`, `pipeline`, `validateSchema` |
+| `branching-model` | `branching-model` | `branchingModelName` + version | `branching` |
+
+При resolve coin-api **мержит** GP composition + executor из agent bundle → manifest для coin-executor.
+
+**coin-lib** (Jenkins glue) — вне control plane: версия задаётся в Jenkins org (`@Library`), publish только в Nexus. См. [adr/jenkins-lib-outside-platform.md](adr/jenkins-lib-outside-platform.md).
+
+GP profile (`gp_profiles`) — только `name` + optional `description`; **нет** связи profile ↔ build stack. gp-content pin виден на **release detail** (composition table).
+
+Legacy 4-slot direct publish (bootstrap scripts) поддерживается для migration; новый UI — draft → promote only.
+
+**Superseded:** platform lib pin; 2-slot GP; per-GP pins agent/executor/lib в profile slots; Build stack tab на GP hub.
+
+## Component types (platform)
+
+| Type | Authoring (primary) | Consumer |
+|------|---------------------|----------|
+| `gp-content` | Component Studio | coin-executor (`build`, stages) |
+| `agent` | `publish-agent.sh` | Jenkins pod (`runtime`) |
+| `executor` | `publish-executor.sh` | coin-agent (binary) |
+| `branching-model` | Component Studio | coin-executor (`manifest.branching`) |
+
+**Вне registry:** `coin-lib` — Nexus ZIP + Jenkins HTTP retriever ([ADR](adr/jenkins-lib-outside-platform.md)).
+
+Package layout: `maven-releases/coin/{type}/{name}/{version}/package.manifest.json` + artifacts.
+
+## Build engines (go family, local pilot)
+
+| GP | `build.engine` | Sample repo | Jenkins job |
+|----|----------------|-------------|-------------|
+| `go-app` | `buildkit` | `samples/demo-go-app` | `demo-go-app` |
+| `go-app-docker` | `dockerfile` (BYO) | `samples/demo-go-app-docker` | `demo-go-app-docker` |
+
+Content SoT (reference + Studio export):
+
+```
+coin-gp-content/stacks/
+├── go-app/content.yaml
+└── go-app-docker/content.yaml
+```
+
+## Runtime pod
+
+Один container — `manifest.runtime.image` (`coin-agent`), не отдельный stack agent.
+
+См. [adr/coin-ci-runtime.md](adr/coin-ci-runtime.md).
+
+## Pipeline stages
+
+Typed stages в gp-content `content.yaml` — **без** script URLs:
 
 ```yaml
-agent:
-  stack: java-gradle
-  runtime:
-    java: "17"
-
-build:
-  type: container
-  dockerfile: Dockerfile
-
-publish:
-  kind: registry
-  when: tag
-
 pipeline:
-  test:
-    enabled: true
-  build:
-    enabled: true
-  publish:
-    enabled: true
-
-container:
-  port: 8080
-  command: ["java", "-jar", "/app/app.jar"]
+  stages:
+    - id: validate
+      name: Validate
+    - id: test
+      name: Test
+    - id: build
+      name: Build
+    - id: publish
+      name: Publish
 ```
 
-Coin CLI при `coin run build` загружает bundle по `coin.template` + `templateVersion` и выполняет сценарий.  
-Модель сборки: **native compile в agent → runtime-only Dockerfile → registry**. Подробнее — [agent-build-model.md](agent-build-model.md), [golden-path-versioning.md](golden-path-versioning.md).
+Publish eligibility: Jenkins `params.publish` + `manifest.branching` (не `when: tag` в gp-content v2). Reference `content.yaml` может содержать legacy `when: tag` до change `gp-content-schema-v2`.
 
----
+Orchestration — `coin-lib` + `coin-executor`, не Groovy/shell из Nexus.
 
-## Скелетоны новых проектов (`coin-starters/`)
-
-Golden path **не копируется** в репозиторий сервиса целиком — там только platform-owned артефакты доставки.
-
-Для bootstrap нового репозитория используйте **starter** — минимальный рабочий проект:
-
-```
-coin-starters/
-  python-uv-app/
-    .coin/config.yaml
-    Jenkinsfile
-    pyproject.toml
-    src/
-    tests/
-  go-app/
-    ...
-```
+## Seed и publish (local)
 
 ```bash
-cp -r coin-starters/python-uv-app/* /path/to/my-new-service/
-# или
-coin init
+cd docker
+make publish-agent GOARCH=arm64   # при необходимости
+make seed-jenkins-lib             # lib ZIP + gp-content + GP + coin-lib-http
+make samples
+make e2e-build-engines            # acceptance 3/3
 ```
 
-| Каталог | Владелец | Куда попадает |
-|---------|----------|---------------|
-| `coin-golden-paths/` | Platform | Загружается coin CLI в CI |
-| `coin-starters/` | Platform (эталон) | Копируется командой в свой репо |
+Новый gp-content / branching: **Component Studio** → canary → promote → обновить GP composition semver.
 
-Подробнее — [coin-starters/README.md](../coin-starters/README.md).
+How-to: [publish-gp-release.md](how-to/publish-gp-release.md).
 
----
+## Catalog (local pilot)
 
-## Разделение «repository»
+| GP | Typical pin | Notes |
+|----|-------------|-------|
+| `go-app` | `1.0.2` | buildkit + Containerfile fixes |
+| `go-app-bp` | `1.0.0` | buildpack |
+| `go-app-df` | `1.0.2` | dockerfile targets |
 
-В конфиге одно поле `project.repository`, но смысл зависит от контекста:
+Продукты могут pin `1.0.0` если GP release опубликован; после content bump — новый GP semver.
 
-| Контекст | Что означает `project.repository` |
-|----------|-----------------------------------|
-| Release notes (QGM) | Логическое имя репозитория Nexus (`Nexus_PROD`) |
-| Maven coordinates | Репозиторий для метаданных артефакта |
-| Физический URL registry | **Не** в проекте — mapping платформы + credentials |
-
----
-
-## Текущее состояние
-
-1. Матрица `*-app` зафиксирована ✅
-2. Структура `coin-golden-paths/<name>/v1/` + `catalog.yaml` ✅
-3. `profile.yaml` в каждом v1 ✅
-4. Упрощённый `.coin/config.yaml` в шаблонах ✅
-5. `coin-starters/` — скелетоны для bootstrap ✅
-6. `*-lib` шаблоны — по мере появления кейсов
-
-Новые сервисы: `cp -r coin-starters/<name>/*` → свой репозиторий.
-
----
-
-## Как выбрать шаблон
-
-```
-Это библиотека для других проектов?
-  ├─ Да  →  {stack}-lib
-  └─ Нет →  {stack}-app
-
-Какой стек?
-  ├─ Go                          →  go-app
-  ├─ Java + Gradle               →  java-gradle-app / java-gradle-lib
-  ├─ Java + Maven                →  java-maven-app / java-maven-lib
-  ├─ Python + uv                 →  python-uv-app / python-uv-lib
-  └─ Python + pip                 →  python-pip-app
-```
-
----
+Canary: `catalog.latest_canary`, `project.canary_mode`, заголовок `X-Coin-Channel`. См. [canary.md](canary.md).
 
 ## Связанные документы
 
-- [agent-build-model.md](agent-build-model.md) — native build + runtime-only Dockerfile
-- [config.md](config.md) — структура `.coin/config.yaml`
-- [golden-path-versioning.md](golden-path-versioning.md) — v1/v2, доставка каталога
-- [coin-starters/README.md](../coin-starters/README.md) — скелетоны новых репозиториев
-- [responsibilities.md](responsibilities.md) — кто управляет шаблонами и конфигом
-- [architecture.md](architecture.md) — как Coin CLI выполняет стадии pipeline
-- [jenkins-setup.md](jenkins-setup.md) — platform и service jobs
+- [control-plane.md](control-plane.md) — три слоя SoT, manifest, materializers
+- [adr/gp-component-package-model.md](adr/gp-component-package-model.md) — package model, deprecations
+- [runbooks/gp-artifact-bodies-migration.md](runbooks/gp-artifact-bodies-migration.md) — dual-write cleanup plan
+- [golden-path-versioning.md](golden-path-versioning.md)
+- [config.md](config.md)

@@ -1,0 +1,13 @@
+.git
+.github
+.cursor
+terminals
+docker
+tests
+*.md
+Jenkinsfile
+corp-migration.md
+coin-executor
+.go
+.cache
+pack.*

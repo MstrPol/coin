@@ -1,0 +1,19 @@
+jobs:
+  - script: >
+      pipelineJob('coin-executor') {
+        description('Platform: coin-executor bump → build → Nexus maven2 + coin-api')
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('http://gitea:3000/coin/coin-executor.git')
+                  credentials('gitea-git')
+                }
+                branch('main')
+              }
+            }
+            scriptPath('Jenkinsfile')
+          }
+        }
+      }

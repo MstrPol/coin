@@ -1,176 +1,237 @@
-# Модель сборки: agent + runtime-only Dockerfile
+# Build engines и runtime agent
 
-Единая модель сборки для всех `*-app` golden paths. Обязательна для platform и сервисных pipeline.
+Operational runbook. **Каноническая модель:** ADR [coin-ci-runtime](adr/coin-ci-runtime.md). Решение о `build.engine`: [build-engine-contract](adr/build-engine-contract.md).
+
+Продукт **не** выбирает engine — он зафиксирован в GP content (`coin-gp-content/stacks/<gp>/content.yaml`) и приходит в manifest как `build.engine`.
 
 ---
 
-## Решение
+## Компоненты
 
 | Слой | Роль |
 |------|------|
-| **Agent stack image** | CI runtime: test + native compile |
-| **Managed Dockerfile** | runtime-only: `COPY` артефактов в минимальный base |
-| **docker / kaniko** | factory OCI image → registry (не компилятор) |
+| **GP content** | SoT: `build.engine`, managed Containerfile (buildkit), schema, `capabilities.deliverables`, typed `pipeline.stages` |
+| **coin-api** | Resolve → manifest с `build`, `runtime.image`, typed stages |
+| **coin-agent** | Единый Jenkins inbound-agent image: `coin-executor`, `podman`, buildkit binaries (fallback) |
+| **coin-executor** | `validate` / `run --stage` / `publish` — dispatch по `manifest.build.engine` |
+| **coin-lib** | Jenkins glue: resolve, pod, credentials, bootstrap podman, вызов executor |
 
-Multi-stage Dockerfile с builder stage (`AS builder`) **запрещён** в managed GP.
+**Не используется:** language-specific stack agents (`coin-jenkins-agents/`), GP `scripts/*.sh` в runtime, dual-container pod (`jnlp` + `stack`), bootstrap `curl coin-executor`.
 
 ---
 
-## Поток стадий
+## Два build engine (local pilot)
+
+| Engine | Golden path (sample) | Сборка образа | Containerfile |
+|--------|----------------------|---------------|---------------|
+| `buildkit` | `go-app` | BuildKit targets через **podman build** | Managed в gp-content → `.coin/Containerfile` |
+| `dockerfile` (BYO) | `go-app-docker` | **podman build** по `imageTarget` / `testTarget` | Dockerfile в репозитории продукта |
+
+Эталон content:
+
+- [`coin-gp-content/stacks/go-app/content.yaml`](../coin-gp-content/stacks/go-app/content.yaml)
+- [`coin-gp-content/stacks/go-app-docker/content.yaml`](../coin-gp-content/stacks/go-app-docker/content.yaml)
+
+E2E на стенде:
+
+```bash
+cd docker
+make seed-jenkins-lib          # lib + gp-content + GP profiles
+make publish-agent             # coin-agent → Nexus (arm64: GOARCH=arm64)
+make samples                   # demo-go-app, demo-go-app-docker
+make e2e-build-engines         # обе job → SUCCESS
+```
+
+---
+
+## Поток CI
 
 ```mermaid
 flowchart TB
-  subgraph agent["K8s pod: stack container"]
-    V["coin validate"]
-    T["coin run test\nnative toolchain"]
-    B1["coin run build\nnative compile"]
-    B2["pack-image.sh\ndocker/kaniko"]
-    P["coin run publish"]
+  subgraph jenkins["Jenkins controller"]
+    R["coin-lib: Resolve manifest"]
   end
 
-  V --> T --> B1 --> B2 --> P
-  B2 --> REG["Docker registry\napp image"]
+  subgraph pod["K8s pod: один container jnlp = coin-agent"]
+    B["Bootstrap: podman system service"]
+    V["coin-executor run --stage validate"]
+    T["coin-executor run --stage test"]
+    BI["coin-executor run --stage build"]
+    P["coin-executor run --stage publish"]
+    REP["coin-executor report"]
+  end
+
+  R --> pod
+  B --> V --> T --> BI --> P --> REP
+  BI --> REG["Nexus Docker registry"]
 ```
 
-### `coin run test`
+### Стадии (typed, без script URL)
 
-Нативно в agent: `go test`, `uv run pytest`, `gradle test`, …
+| Stage | Поведение |
+|-------|-----------|
+| `validate` | JSON schema `.coin/config.yaml` + manifest capabilities |
+| `test` | buildkit: target `test` в Containerfile; BYO dockerfile: `testTarget` в product Dockerfile |
+| `build` | Сборка image → `.coin/outputs.json` |
+| `publish` | Push image; skip — `params.publish=false` (coin-lib); deny — branching policy |
 
-### `coin run build` (`build.type: container`)
-
-1. **Native compile** — toolchain agent image (тот же, что для test).
-2. **Pack** — `_shared/pack-image.sh`: docker/kaniko + runtime-only Dockerfile из GP.
-
-Артефакты по стекам:
-
-| GP | Native output | Runtime Dockerfile |
-|----|---------------|-------------------|
-| `go-app` | `dist/app` | distroless + `COPY dist/app` |
-| `python-uv-app` | `.venv/` + `src/` | python-slim + `COPY .venv`, `src` |
-| `python-pip-app` | `.venv/` + `src/` | python-slim + `COPY .venv`, `src` |
-| `java-gradle-app` | `build/libs/*.jar` | JRE + `COPY *.jar` |
-| `java-maven-app` | `target/*.jar` | JRE + `COPY *.jar` |
-
-### `coin run build` (`build.type: package`, `*-lib`)
-
-Только native compile, docker не используется.
+Orchestration — только `coin-lib` (`coinPipeline()`), не Groovy из Nexus.
 
 ---
 
-## Связь golden path ↔ agent image
+## Manifest: секция `build`
 
-Связь **не** «1 GP = 1 образ», а **stack + runtime version**:
+Схема: [`coin-api/manifest.schema.json`](../coin-api/manifest.schema.json).
 
-```mermaid
-flowchart LR
-  CFG[".coin/config.yaml\ncoin.template"]
-  CAT["catalog.yaml\ntemplate → stack"]
-  PROF["profile.yaml\nagent.stack + agent.runtime"]
-  IMG["images.yaml\nstacks[stack][version]"]
-  AGENT["Agent image\nci-python-uv:3.13"]
-  DF["Managed Dockerfile\n{{PYTHON_VERSION}}"]
+Пример (`go-app`, buildkit):
 
-  CFG --> CAT --> PROF
-  PROF --> IMG
-  CFG --> IMG
-  IMG --> AGENT
-  PROF --> DF
+```json
+{
+  "destinations": {
+    "imageRegistryPrefix": "localhost:8082/coin-docker",
+    "buildCacheEnabled": true,
+    "artifactRepositoryBase": "http://nexus:8081/repository/maven-releases"
+  },
+  "build": {
+    "engine": "buildkit",
+    "buildkit": {
+      "dockerfile": ".coin/Containerfile",
+      "targets": {
+        "validate": "validate",
+        "test": "test",
+        "image": "runtime",
+        "artifact": "artifact"
+      },
+      "containerfile": {
+        "url": "http://nexus:8081/repository/maven-releases/coin/gp/content/go-app/1.0.2/...",
+        "sha256": "sha256:..."
+      }
+    }
+  },
+  "pipeline": {
+    "stages": [
+      { "id": "validate", "name": "Validate" },
+      { "id": "test", "name": "Test" },
+      { "id": "build", "name": "Build" },
+      { "id": "publish", "name": "Publish" }
+    ]
+  }
+}
 ```
 
-| Шаг | Источник | Пример |
-|-----|----------|--------|
-| 1 | `coin.template` | `python-uv-app` |
-| 2 | `catalog.yaml` | stack `python-uv` |
-| 3 | `profile.agent.runtime` | `python: "3.13"` (дефолт GP) |
-| 4 | `jenkins.runtime` (optional) | override в проекте |
-| 5 | `images.yaml` | `coin/ci-python-uv:3.13` |
-| 6 | coin-lib | K8s pod stack container |
-| 7 | coin-cli render | `{{PYTHON_VERSION}}` = та же версия |
+Publish gate: Jenkins `params.publish` → `COIN_PUBLISH_REQUEST`; ветка — `manifest.branching`. См. [adr/gp-branching-model.md](adr/gp-branching-model.md).
 
-Несколько GP (`python-uv-app`, будущий `python-uv-lib`) → **один** agent `python-uv:3.13`.
+`buildpack` и `dockerfile` — поля `build.buildpack` / `build.dockerfile` (см. schema).
+
+Managed Containerfile materialize в workspace: `.coin/Containerfile` (путь из `build.*.dockerfile`).
 
 ---
 
-## Структура `coin-golden-paths/`
+## coin-agent image
 
-```
-coin-golden-paths/
-  _shared/
-    pack-image.sh              # docker/kaniko после native build
-  catalog.yaml
-  python-uv-app/
-    v1/
-      profile.yaml             # agent.stack, agent.runtime, build.type
-      Dockerfile               # runtime-only
-      scripts/
-        test.sh                # native
-        build.sh               # native + source pack-image.sh
-        publish.sh
-      config.yaml
-```
+Кратко — см. [adr/coin-ci-runtime.md](adr/coin-ci-runtime.md) §2. Собирается из [`coin-executor/Dockerfile.agent`](../coin-executor/Dockerfile.agent), публикуется скриптом `coin-executor/scripts/publish-agent.sh`.
 
----
+| Компонент | Назначение |
+|-----------|------------|
+| `jenkins/inbound-agent` | JNLP remoting |
+| `coin-executor` | Baked binary (не curl в bootstrap) |
+| `podman` | Container builds + socket для `pack` |
+| `pack` | Buildpack engine |
+| `buildkitd` / `buildctl` | В образе для fallback; **не** стартуют в bootstrap на local pilot |
+| `paketo-builder.tar` | Baked builder для buildpack (load в bootstrap) |
 
-## Agent images (`coin-jenkins-agents/`)
+Registry (runtime): `nexus:8082/coin-docker/coin-agent:{semver}`.
 
-Agent = **CI build environment**, не app runtime.
+**Publish flow (draft → published):**
 
-| Компонент | Зачем |
-|-----------|-------|
-| Toolchain (go, uv, jdk+gradle, …) | test + native compile |
-| `coin-golden-paths/` | scripts + Dockerfile (или fetch из Nexus) |
-| `docker` CLI или kaniko | pack на build-стадии |
-| git, ca-certificates | checkout, deps |
+1. `publish-agent.sh` builds and pushes image to Nexus Docker.
+2. `POST /v1/admin/components/agent/coin-agent/versions/drafts` — register draft with metadata `{image, digest}` (без `goarch`).
+3. **Promote только вручную** — Platform UI или `POST .../versions/{version}/promote` (publisher). CI **не** auto-promote.
+4. Platform UI (`/platform/runtime/coin-agent`) — CI path: read-only metadata + Publish; manual catch-up: **Image ref + Digest** (version = тег образа, preview read-only).
 
-`coin` CLI в agent image **не** зашивается — доставляется в pipeline (coin-lib, Nexus Maven).
+Promote gate: coin-api отклоняет promote без `metadata.image` и `metadata.digest` (HTTP 422); тег в image MUST совпадать с `component_versions.version` (version derive из image при create).
 
-### Именование и каталог
+**Cleanup:** orphan drafts (тестовые профили, неудачный CI register) — удалить в Platform UI: `/platform/runtime/{profile}/releases` → Delete, или `DELETE /v1/admin/components/agent/{profile}/versions/{version}` (только `status=draft`).
 
-```
-coin-jenkins-agents/
-  catalog.yaml              # manifest: rev, tag, digest
-  Jenkinsfile               # единый platform CI
-  stacks/<stack>/<runtime>/
-    Dockerfile              # build context = monorepo root
-```
-
-Индекс: `coin-jenkins-agents/catalog.yaml`. Runtime lookup: `images.yaml` → `stacks.<stack>.<runtime>` (после promote через `sync-agent-images.sh`).
-
-| Job | Параметры | GP |
-|-----|-----------|-----|
-| `coin-agents` | `STACK`, `RUNTIME`, `BUILD_ALL` | GP: `profile.agent.stack` + runtime |
-
-Image tag: `{runtime}-r{N}` (например `3.13-r2`); в `images.yaml` — `coin/ci-<name>:<tag>`.
+Composition slot: `agent` → `coin-agent@version` (не stack-specific images).
 
 ---
 
-## Версионирование (три независимых слоя)
+## Pod template (coin-lib)
 
-| Слой | Частота | Пример |
-|------|---------|--------|
-| Agent image | редко | Python 3.13 → 3.14 |
-| coin-cli | часто | `dev`, `0.2.0` |
-| GP catalog | очень часто | правки scripts/Dockerfile в v1 |
+[`coin-lib/resources/coin-pod-template.yaml`](../coin-lib/resources/coin-pod-template.yaml):
 
-Смена runtime: новый agent + запись в `images.yaml` + GP v2 или обновление `profile.agent.runtime`.
+- один container `jnlp` = `manifest.runtime.image`
+- `securityContext.privileged: true`, `procMount: Unmasked` (nested containers)
+- `emptyDir` 12Gi → `/var/lib/containers/storage` (podman graph)
+- env `COIN_BUILD_ENGINE` из manifest (`buildkit` | `buildpack` | `dockerfile`)
 
 ---
 
-## Pack: local dev vs prod
+## Bootstrap (coinPipeline)
 
-| Окружение | Pack |
-|-----------|------|
-| Local compose (k3s) | docker CLI + mount `docker.sock` (`PodTemplate.local.groovy`) |
-| Prod K8s | kaniko (sidecar — roadmap) |
+1. `podman system service` → `unix:///var/run/docker.sock`
+2. **buildpack only:** `podman load` из `/usr/share/coin/paketo-builder.tar` (если builder ещё не в store)
+3. `coin-executor version`
 
-`pack-image.sh` поддерживает оба: сначала kaniko, fallback docker.
+`buildkitd` **не** запускается на local pilot arm64 — см. ниже.
+
+---
+
+## Реализация engine в coin-executor
+
+| Engine | Implementation |
+|--------|----------------|
+| `buildkit` | `RunTarget()` → **podman build** если socket есть, иначе `buildctl` |
+| `dockerfile` | то же (другие targets из manifest) |
+| `buildpack` | `pack build` с `--docker-host inherit`, `--network host`, pinned `BP_GO_VERSION` |
+
+Buildpack на arm64 pilot: builder jammy-base amd64, работает через baked tar + host network.
+
+### Local pilot arm64: почему podman, а не buildctl
+
+В k3s на Apple Silicon `buildctl` + `RUN` в Dockerfile даёт `exec /bin/sh: invalid argument` (nested runc). **Обходной путь pilot:** container builds через podman в том же privileged pod. Контракт `build.engine: buildkit` сохранён; implementation — podman на этом стенде.
+
+На amd64 corp (roadmap) — нативный buildkitd + buildctl без podman-fallback.
+
+---
+
+## Registry cache
+
+Registry cache ref вычисляет `coin-executor` из `manifest.destinations.imageRegistryPrefix`, `project.groupId`, `project.artifactId`, `project.name` и suffix `-cache`.
+
+Пример: `localhost:8082/coin-docker/com.example.team/demo-go-app/demo-go-app-cache`.
+
+---
+
+## Операционные заметки (local pilot)
+
+| Симптом | Причина | Действие |
+|---------|---------|----------|
+| Pod `TerminationByKubelet` ephemeral-storage | Диск k3s полон (agent image ~3GiB + podman load) | `make e2e-build-engines` (с prune) или `bash docker/scripts/prune-k3s-disk.sh --all` |
+| `short-name golang:… did not resolve` | podman registries.conf | В agent image: `unqualified-search-registries = ["docker.io"]` |
+| manifest sha256 mismatch | Nexus immutable + обновлён gp-content metadata | Новый gp-content semver + **новый GP release** (не UPDATE blob) |
+| Старый bootstrap (buildkitd) в логе | Jenkins cache Shared Library | `make coin-lib` (очищает `caches/git-*`) |
+| `component_version` seed берёт 1.0.0 | API order ≠ semver max | Исправлено в `seed-jenkins-lib-stack.sh` |
+
+---
+
+## Superseded (не документировать / не реализовывать)
+
+- `coin-jenkins-agents/`, `agents-build`, stack catalog `images.yaml`
+- Native compile в language agent + `pack-image.sh`
+- `coin-golden-paths/` monolith tree с `scripts/test.sh`
+- Host `docker.sock` mount
+- `manifest.pipeline.stages[].script.url`
+- `manifest.jnlp` / отдельный stack container
 
 ---
 
 ## См. также
 
-- [golden-paths.md](golden-paths.md) — матрица GP
-- [config.md](config.md) — `coin.template`, `jenkins.runtime`
-- [architecture.md](architecture.md) — компоненты
-- [jenkins-setup.md](jenkins-setup.md) — platform jobs
-- [docker/README.md](../docker/README.md) — локальный стенд
+- [adr/coin-ci-runtime.md](adr/coin-ci-runtime.md) — canonical CI runtime ADR
+- [golden-paths.md](golden-paths.md) — composition, samples
+- [jenkins-setup.md](jenkins-setup.md) — credentials, platform jobs
+- [config.md](config.md) — что в проекте vs manifest
+- [how-to/troubleshoot-ci.md](how-to/troubleshoot-ci.md) — CI errors
+- [docker/README.md](../docker/README.md) — make targets, стенд

@@ -1,0 +1,12 @@
+coin:
+  goldenPath: go-app
+  version: "*"
+
+jenkins:
+  credentials:
+    docker: nexus-docker
+
+project:
+  name: my-service
+  artifactId: my-service
+  groupId: com.example.team

@@ -1,10 +1,16 @@
 # Примеры продуктовых репозиториев → Gitea (make samples).
 # repo — имя репозитория в Gitea (coin/<repo>).
-# starter — каталог в coin-platform/starters/.
+# starter — каталог в coin-starters/.
+# goldenPath — GP profile (по умолчанию = starter без суффикса -app, иначе явно).
 
 samples:
   - repo: demo-go-app
     starter: go-app
+    goldenPath: gp-01-07
+
+  - repo: demo-go-app-docker
+    starter: go-app-docker
+    goldenPath: go-app-docker
 
   - repo: demo-python-uv
     starter: python-uv-app
