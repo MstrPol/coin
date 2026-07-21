@@ -1,7 +1,0 @@
-{
-  "database": "dolt",
-  "backend": "dolt",
-  "dolt_mode": "embedded",
-  "dolt_database": "coin",
-  "project_id": "4974547a-95b5-488c-b8bf-def72b82a78d"
-}
