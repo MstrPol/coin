@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
-# Bootstrap publish: branching-model draft → register-package → canary → published.
+# Local pilot seed: branching-model draft → register-package → promote (published).
+# Fixtures: docker/testdata/branching-models/<name>/model.yaml
 set -euo pipefail
 
 MODEL="${1:?model name (e.g. trunk-based)}"
 VERSION="${2:?version (e.g. 1.0.0)}"
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MODEL_DIR="${ROOT}/models/${MODEL}"
-MODEL_YAML="${MODEL_DIR}/model.yaml"
-OUT_DIR="${ROOT}/dist"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+DOCKER_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+MODEL_YAML="${DOCKER_ROOT}/testdata/branching-models/${MODEL}/model.yaml"
+OUT_DIR="$(mktemp -d)"
+trap 'rm -rf "${OUT_DIR}"' EXIT
 COMP_TYPE="branching-model"
 
 COIN_API_URL="${COIN_API_URL:-http://localhost:8090}"
 API_KEY="${COIN_API_KEY:-dev-local-admin-key}"
-ACTOR="${COIN_PUBLISH_ACTOR:-coin-branching-models-ci}"
+ACTOR="${COIN_PUBLISH_ACTOR:-coin-docker-seed}"
 AUTH=(-H "X-API-Key: ${API_KEY}" -H "Content-Type: application/json")
 
 for cmd in curl jq python3; do
@@ -24,8 +26,6 @@ if [[ ! -f "${MODEL_YAML}" ]]; then
   echo "model not found: ${MODEL_YAML}" >&2
   exit 1
 fi
-
-mkdir -p "${OUT_DIR}"
 
 api_post() {
   local path="$1" body="$2"

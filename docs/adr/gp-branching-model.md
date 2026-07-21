@@ -24,8 +24,9 @@ Component Studio уже поддерживает authoring `branching-model` (GC
 |------|----------|
 | Type | `branching-model` |
 | Primary artifact | `model.yaml` |
-| Authoring | Component Studio → Nexus package → registry |
-| Reference catalog | `coin-branching-models/models/<name>/` (human docs + export) |
+| Authoring | Platform hub (`/platform/branching-models`) → PG → Nexus |
+| SoT | PostgreSQL (draft) + Nexus package (`published`); schema docs — `docs/schemas/branching-model.schema.json` |
+| Local pilot fixtures | `docker/testdata/branching-models/<name>/model.yaml` (seed/E2E only) |
 
 Первая пара моделей local pilot:
 
@@ -90,7 +91,7 @@ Materializer загружает `model.yaml` из Nexus package (или `content
 
 ### 5. Schema
 
-- `branching-model.schema.json` — валидация `model.yaml` при Studio validate/register.
+- `docs/schemas/branching-model.schema.json` — документация контракта `model.yaml` v2 (runtime-валидация в coin-api Go + coin-ui).
 - `manifest.schema.json` + OpenAPI — секция `branching`.
 
 ### 6. UI-first lifecycle
@@ -105,7 +106,8 @@ Promote wizard (GCP-2) применим к `branching-model` versions.
 
 | Документ / решение | Замена |
 |--------------------|--------|
-| Глобальная модель только в `docs/branching.md` | GP-pinned `manifest.branching` + каталог моделей |
+| Глобальная модель только в `docs/branching.md` | GP-pinned `manifest.branching` + Platform catalog |
+| Папка `coin-branching-models/` как reference catalog | Platform SoT + `docker/testdata/` для local seed |
 | 4-slot GP composition | 5-slot с `branching-model` |
 | Implicit trunk-based для всех GP | Explicit pin per GP profile |
 
@@ -133,9 +135,9 @@ Promote wizard (GCP-2) применим к `branching-model` versions.
 ## Rollout (local pilot)
 
 1. GBM-0: ADR + 5-slot profile API
-2. GBM-1: manifest materializer + `coin-branching-models` catalog
+2. GBM-1: manifest materializer + Platform branching-model catalog (fixtures seed в `docker/testdata/`)
 3. GBM-2: executor branching package
 4. GBM-3: seed 5-slot + `demo-go-app` E2E publish policy
-5. GBM-4: docs index (`branching.md` → catalog)
+5. GBM-4: docs index (`branching.md` → how-to + Platform)
 
 См. [openspec/changes/gp-branching-model/tasks.md](../../openspec/changes/gp-branching-model/tasks.md).

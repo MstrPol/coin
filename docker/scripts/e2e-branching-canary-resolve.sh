@@ -3,7 +3,6 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-REPO_ROOT="$(cd "${ROOT}/.." && pwd)"
 LIB="${ROOT}/scripts/lib/common.sh"
 # shellcheck source=lib/common.sh
 source "${LIB}"
@@ -51,7 +50,7 @@ api_post "/v1/admin/components/${COMP_TYPE}/${MODEL}/versions/drafts" \
 status="$(curl -fsS "${API}/v1/admin/components/${COMP_TYPE}/${MODEL}/versions/${BM_VER}" "${AUTH[@]}" | jq -r '.status' 2>/dev/null || echo "")"
 if [[ "${status}" != "draft" && "${status}" != "published" ]]; then
   MODEL_YAML="$(mktemp)"
-  python3 - "${REPO_ROOT}/coin-branching-models/models/${MODEL}/model.yaml" "${MODEL_YAML}" <<'PY'
+  python3 - "${ROOT}/testdata/branching-models/${MODEL}/model.yaml" "${MODEL_YAML}" <<'PY'
 import pathlib, sys, yaml
 src, dst = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 doc = yaml.safe_load(src.read_text())
@@ -66,7 +65,7 @@ PY
     "${AUTH[@]}" -d @- >/dev/null
   rm -f "${MODEL_YAML}"
 
-  MANIFEST_SUBSET="$(python3 - "${REPO_ROOT}/coin-branching-models/models/${MODEL}/model.yaml" <<'PY'
+  MANIFEST_SUBSET="$(python3 - "${ROOT}/testdata/branching-models/${MODEL}/model.yaml" <<'PY'
 import json, pathlib, sys, yaml
 doc = yaml.safe_load(pathlib.Path(sys.argv[1]).read_text())
 for br in doc.get("branches", []):

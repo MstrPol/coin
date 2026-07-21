@@ -75,10 +75,10 @@ NEXUS_PASSWORD="${NEXUS_ADMIN_PASSWORD:-coin12345}" \
   "${REPO_ROOT}/coin-lib/scripts/publish-lib.sh" 1.0.0
 
 echo "==> publish branching-model/trunk-based@1.0.0"
-chmod +x "${REPO_ROOT}/coin-branching-models/scripts/"*.sh "${REPO_ROOT}/coin-branching-models/scripts/lib/"*.sh
+chmod +x "${ROOT}/scripts/seed-branching-model.sh"
 COIN_API_URL="${API}" \
 COIN_API_KEY="${KEY}" \
-  "${REPO_ROOT}/coin-branching-models/scripts/publish-branching-model.sh" trunk-based 1.0.0
+  "${ROOT}/scripts/seed-branching-model.sh" trunk-based 1.0.0
 
 AGENT_VER="$(component_version agent coin-agent)"
 BRANCHING_VER="$(component_version branching-model trunk-based)"

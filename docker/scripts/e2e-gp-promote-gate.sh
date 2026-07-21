@@ -3,7 +3,6 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-REPO_ROOT="$(cd "${ROOT}/.." && pwd)"
 LIB="${ROOT}/scripts/lib/common.sh"
 # shellcheck source=lib/common.sh
 source "${LIB}"
@@ -19,7 +18,7 @@ BM_TYPE="branching-model"
 BM_NAME="trunk-based"
 BM_DRAFT="${COIN_BM_GATE_VERSION:-9.9.9-bm-gate}"
 AUTH=(-H "X-API-Key: ${KEY}" -H "Content-Type: application/json")
-MODEL_YAML="${REPO_ROOT}/coin-branching-models/models/${BM_NAME}/model.yaml"
+MODEL_YAML="${ROOT}/testdata/branching-models/${BM_NAME}/model.yaml"
 
 need() { command -v "$1" >/dev/null || { echo "missing: $1" >&2; exit 1; }; }
 for cmd in curl jq python3; do need "${cmd}"; done

@@ -19,6 +19,8 @@ branches:           # ordered — first match wins
 - **template** — mini-DSL: `{base}`, `{jira}`, `{n}`, `{branch}` + литералы.
 - **publish** — допуск публикации по ветке (не auto-publish).
 
+JSON Schema (документация контракта): [`docs/schemas/branching-model.schema.json`](../schemas/branching-model.schema.json). Runtime-валидация — в coin-api (Go) и coin-ui.
+
 ## Два уровня publish
 
 1. Jenkins `params.publish` → coin-lib выставляет `COIN_PUBLISH_REQUEST=true`.
@@ -26,9 +28,11 @@ branches:           # ordered — first match wins
 
 `requestPublish=true` + `publish: false` на ветке → **FAIL** stage publish (не skip).
 
-## Каталог
+## Source of truth
 
-Эталоны: [`coin-branching-models/models/`](../coin-branching-models/models/).
+Authoring и lifecycle: Platform hub → coin-api (PG drafts) → Nexus (`published`).
+
+Local pilot seed/E2E fixtures: [`docker/testdata/branching-models/`](../../docker/testdata/branching-models/) (`trunk-based`, `semver-tag`). Seed: `docker/scripts/seed-branching-model.sh`.
 
 GP pin: branching-model slot в composition → `manifest.branching` при resolve.
 
@@ -43,4 +47,3 @@ Runtime behavior (versioning and publish eligibility) is evaluated by `coin-exec
 ## См. также
 
 - [ADR: GP branching model](../adr/gp-branching-model.md)
-- [coin-branching-models README](../coin-branching-models/README.md)
