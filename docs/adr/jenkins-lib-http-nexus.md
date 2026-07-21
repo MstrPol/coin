@@ -1,8 +1,10 @@
-# ADR: Jenkins Shared Library — coin-lib + gp-content
+# ADR: Jenkins Shared Library — coin-lib
 
-**Статус:** accepted  
+**Статус:** accepted; **amended** — gp-content package path removed (embedded GP pipeline)  
 **Дата:** 2026-06  
-**Связанный plan:** [jenkins-lib-nexus.plan.md](../jenkins-lib-nexus.plan.md)
+
+> **Live:** `coin-lib` = Jenkins glue only. GP pipeline content — embedded на GP release + `coin-api` seed.  
+> Исторический заголовок «coin-lib + gp-content» и 5-slot composition ниже — superseded. См. [gp-embedded-pipeline](gp-embedded-pipeline.md), [jenkins-lib-outside-platform](jenkins-lib-outside-platform.md).
 
 ## Контекст
 

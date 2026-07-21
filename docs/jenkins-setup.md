@@ -68,12 +68,12 @@ cd docker && make endpoints
 | `make coin-executor` | Gitea repo + job `coin-executor` |
 | `make coin-lib` | Gitea tag `1.0.0` + Global Shared Library |
 | `make publish-agent` | `coin-agent` image → Nexus + coin-api |
-| `make seed-jenkins-lib` | lib + gp-content + GP go-app / go-app-docker |
+| `make seed-jenkins-lib` | lib + branching-model + GP (embedded pipeline) |
 | `make samples` | demo repos → Gitea + multibranch |
 | `make e2e-build-engines` | E2E: demo-go-app, demo-go-app-docker |
 | `make e2e-mvp1` | Smoke resolve + Nexus без Jenkins |
 
-**Superseded:** `make coin-jenkins-agents`, job `agents-build`.
+**Superseded:** `make coin-jenkins-agents`, `make coin-gp-content`, job `agents-build`.
 
 ## Prod-like стенд (quick path)
 
@@ -81,7 +81,7 @@ cd docker && make endpoints
 cd docker
 make bootstrap && make endpoints
 make publish-agent GOARCH=arm64    # Apple Silicon
-make seed-jenkins-lib              # lib ZIP + gp-content + GP + coin-lib-http
+make seed-jenkins-lib              # lib + branching + GP + coin-lib-http
 make samples
 make e2e-build-engines
 ```

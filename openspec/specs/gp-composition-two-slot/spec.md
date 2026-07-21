@@ -61,9 +61,9 @@ coin-api SHALL accept catalog policy updates where `latestCanary` references any
 - **THEN** coin-api MUST require referenced GP versions to be `published`
 - **AND** MUST reject snapshot semver for those fields
 
-### Requirement: Composition documentation cross-links
+### Requirement: Documentation consistency for two-pin composition
 
-GP composition documentation in `docs/architecture.md` and `docs/control-plane.md` SHALL remain consistent with the two-pin composition requirements in this specification and SHALL cross-link `docs/adr/coin-ci-runtime.md`.
+GP composition documentation in `docs/architecture.md`, `docs/control-plane.md`, and `docs/golden-paths.md` SHALL remain consistent with the two-pin composition requirements in this specification and SHALL cross-link `docs/adr/coin-ci-runtime.md` and `docs/adr/gp-embedded-pipeline.md`.
 
 #### Scenario: Architecture references composition spec
 
@@ -71,3 +71,10 @@ GP composition documentation in `docs/architecture.md` and `docs/control-plane.m
 - **THEN** it MUST list exactly `agent` and `branching-model` as external pins
 - **AND** MUST describe embedded pipeline as GP release payload (not a composition pin)
 - **AND** MUST link to `docs/adr/coin-ci-runtime.md` for runtime slot materialization
+
+#### Scenario: Golden paths doc matches two-pin
+
+- **WHEN** reader opens `docs/golden-paths.md` for composition rules
+- **THEN** the document MUST describe pins `agent` and `branching-model` only
+- **AND** MUST state that pipeline-inline lives on the GP release body
+- **AND** MUST NOT present `gp-content` as a required composition pin for new releases

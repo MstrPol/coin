@@ -1,20 +1,20 @@
 # ADR: GP Branching Model
 
-> **Текущая GP composition:** three pins (`agent`, `gp-content`, `branching-model`) — [coin-ci-runtime](coin-ci-runtime.md).  
-> Исторические упоминания 4/5-slot в этом ADR — эволюция до three-pin + branching.
+> **Текущая GP composition:** **2 pin** (`agent`, `branching-model`) + embedded pipeline — [gp-embedded-pipeline](gp-embedded-pipeline.md), [coin-ci-runtime](coin-ci-runtime.md).  
+> Исторические упоминания 4/5-slot и three-pin с `gp-content` в теле ADR — эволюция; live SoT — two-pin.
 
 **Статус:** accepted (GBM-0.1, 2026-06-23)  
 **Контекст:** [gp-branching-model](../../openspec/changes/archive/2026-06-24-gp-branching-model/)  
-**Prerequisite:** [gp-component-package-model](gp-component-package-model.md) (archived ✅)  
+**Prerequisite:** [gp-component-package-model](gp-component-package-model.md) (amended; gp-content removed)  
 **Связанные ADR:** [coin-ci-runtime.md](coin-ci-runtime.md), [control-plane-v2.md](control-plane-v2.md), [build-engine-contract.md](build-engine-contract.md)
 
 ## Контекст
 
 Модель ветвления — GP-pinned component `branching-model` (см. [how-to/branching-models.md](../how-to/branching-models.md)), не глобальный документ.
 
-Разные типы продуктов (сервисы vs библиотеки) требуют разных правил. Платформа должна pin'ить модель ветвления на уровне **Golden Path release**, симметрично `gp-content`, `lib`, `executor`, `agent`.
+Разные типы продуктов (сервисы vs библиотеки) требуют разных правил. Платформа pin'ит модель ветвления на уровне **Golden Path release** вместе с `agent` (2-pin composition; pipeline embedded отдельно).
 
-Component Studio уже поддерживает authoring `branching-model` (GCP-1 green field). Следующий шаг — 5-й composition slot и runtime в coin-executor.
+> Исторический контекст ниже (5-slot, Component Studio) — не live path. Authoring: `/platform/branching-models`.
 
 ## Решение
 

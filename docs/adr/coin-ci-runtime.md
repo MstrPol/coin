@@ -1,22 +1,22 @@
 # ADR: Coin CI Runtime
 
-**Статус:** accepted (2026-06-16)  
+**Статус:** accepted (2026-06-16); **amended** 2026-07 — two-pin + embedded pipeline  
 **Operational SoT** для Jenkins CI pod, agent image, build engines и publish gate.
 
-**Связанные ADR:** [build-engine-contract](build-engine-contract.md) (решение о введении `build.engine`), [gp-branching-model](gp-branching-model.md) (publish policy), [jenkins-lib-http-nexus](jenkins-lib-http-nexus.md) (coin-lib glue), [cicd-corp-migration-standards](cicd-corp-migration-standards.md) (corp target).
+> **Amendment (2026-07):** GP composition — **2 pin** (`agent`, `branching-model`). Pipeline — embedded на GP release ([gp-embedded-pipeline](gp-embedded-pipeline.md)). Pin `gp-content` **удалён**. Исторические упоминания three-pin ниже — superseded.
 
-**Runbook:** [agent-build-model.md](../agent-build-model.md) (E2E, troubleshooting).
+**Связанные ADR:** [build-engine-contract](build-engine-contract.md), [gp-branching-model](gp-branching-model.md), [jenkins-lib-http-nexus](jenkins-lib-http-nexus.md), [gp-embedded-pipeline](gp-embedded-pipeline.md).
+
+**Runbook:** [agent-build-model.md](../agent-build-model.md). Layout: [workspace-layout.md](../workspace-layout.md).
 
 ## Контекст
 
-Coin CI runtime после hard cut:
+Coin CI runtime (актуально):
 
-- один universal **`coin-agent`** image вместо language-specific stack agents;
-- build policy в **gp-content** → `manifest.build.engine`;
-- orchestration в **coin-lib** (glue only), execution в **coin-executor**;
-- GP composition — **three pins** (`agent`, `gp-content`, `branching-model`).
-
-Этот ADR фиксирует **текущую** модель. Исторический контекст hard cut — в [build-engine-contract](build-engine-contract.md).
+- один universal **`coin-agent`** image;
+- build/pipeline policy — **embedded GP release** → resolved manifest;
+- orchestration в **coin-lib** (glue only), execution в **coin-executor** (baked в agent);
+- GP composition — **two pins** (`agent`, `branching-model`).
 
 ## Решение
 
@@ -64,6 +64,7 @@ Coin CI runtime после hard cut:
 
 Источник SoT: embedded pipeline GP release → resolved manifest (`build` / pipeline stages). Bootstrap defaults: `coin-api/internal/gpcontent/seed/`.
 
+
 | Engine | Sample GP | Containerfile | Реализация (pilot arm64) |
 |--------|-----------|---------------|--------------------------|
 | `buildkit` | `go-app` | managed → `.coin/Containerfile` | **podman build** по targets |
@@ -73,7 +74,7 @@ Buildpack superseded (hard cut 2026-06).
 
 `coin-executor` dispatch по `manifest.build.engine`. `coin-lib` **не** интерпретирует engine.
 
-Managed Containerfile materialize в workspace только для **buildkit** (content ref из gp-content package).
+Managed Containerfile materialize в workspace только для **buildkit** (из embedded GP pipeline / manifest content refs).
 
 ### 5. Pilot vs corp
 
@@ -103,27 +104,29 @@ Stages — typed ids; **нет** `pipeline.stages[].script.url`.
 | 2. Jenkins → executor | `params.publish=true` → `COIN_PUBLISH_REQUEST=true` |
 | 3. Executor | `manifest.branching` → deny publish с запрещённой ветки |
 
-**Primary gate** — branching + Jenkins param. `pipeline.stages[].when: tag` **не** документируется как primary gate (legacy в reference `content.yaml`; cleanup в change `gp-content-schema-v2`).
+**Primary gate** — branching + Jenkins param. `pipeline.stages[].when: tag` **не** документируется как primary gate.
 
 См. [gp-branching-model](gp-branching-model.md), [how-to/branching-models.md](../how-to/branching-models.md).
 
-### 8. GP composition (three pins)
+### 8. GP composition (two pins)
 
 Оператор pin'ит в GP release composition:
 
 | Slot | Type | Manifest |
 |------|------|----------|
 | `agent` | `agent` | `runtime.image`, `runtime.digest` (baked `coin-executor` в образе) |
-| `gp-content` | `gp-content` | `build`, `pipeline`, `validateSchema`, capabilities |
 | `branching-model` | `branching-model` | `branching` |
+
+Embedded pipeline на GP release → `pipeline` / related build fragments в manifest (**не** pin).
 
 | Не в GP composition | Где |
 |---------------------|-----|
-| `lib` | Platform pin; Jenkins `@Library`; не в `gp_composition` map |
+| `lib` | Jenkins `@Library`; вне `gp_composition` |
+| `gp-content` / `executor` | **удалены** как composition slots |
 
 Resolved manifest v1 **не содержит** секцию `executor` — CI runtime полностью описан agent pin.
 
-OpenSpec: `gp-composition-two-slot` (id retained; фактически three-pin).
+OpenSpec: `gp-release-two-pin`, `gp-composition-two-slot`, `gp-embedded-pipeline`.
 
 ### 10. Runtime agent registry (Platform)
 
@@ -157,4 +160,4 @@ OpenSpec: `gp-composition-two-slot` (id retained; фактически three-pin
 
 - Language-specific agents — см. build-engine-contract.
 - Project-level `build.engine` override — отдельный ADR.
-- `controls` в gp-content как declarative Jenkins parameters — не реализовано; не часть runtime contract.
+- declarative Jenkins parameters из pipeline — вне этого ADR; не путать с product config.

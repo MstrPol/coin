@@ -10,13 +10,13 @@ Operational runbook. **Каноническая модель:** ADR [coin-ci-run
 
 | Слой | Роль |
 |------|------|
-| **GP content** | SoT: `build.engine`, managed Containerfile (buildkit), schema, `capabilities.deliverables`, typed `pipeline.stages` |
-| **coin-api** | Resolve → manifest с `build`, `runtime.image`, typed stages |
-| **coin-agent** | Единый Jenkins inbound-agent image: `coin-executor`, `podman`, buildkit binaries (fallback) |
-| **coin-executor** | `validate` / `run --stage` / `publish` — dispatch по `manifest.build.engine` |
+| **GP release (embedded pipeline)** | SoT: engines, stages/steps, managed Containerfiles, schema |
+| **coin-api** | Resolve → manifest; bootstrap seed |
+| **coin-agent** | Единый Jenkins inbound-agent image: `coin-executor`, `podman`, buildkit binaries |
+| **coin-executor** | `validate` / `run --stage` / `publish` |
 | **coin-lib** | Jenkins glue: resolve, pod, credentials, bootstrap podman, вызов executor |
 
-**Не используется:** language-specific stack agents (`coin-jenkins-agents/`), GP `scripts/*.sh` в runtime, dual-container pod (`jnlp` + `stack`), bootstrap `curl coin-executor`.
+**Не используется:** language-specific stack agents, GP `scripts/*.sh` в runtime, dual-container pod, bootstrap `curl coin-executor`, папка `coin-gp-content/`.
 
 ---
 
@@ -24,8 +24,8 @@ Operational runbook. **Каноническая модель:** ADR [coin-ci-run
 
 | Engine | Golden path (sample) | Сборка образа | Containerfile |
 |--------|----------------------|---------------|---------------|
-| `buildkit` | `go-app` | BuildKit targets через **podman build** | Managed в gp-content → `.coin/Containerfile` |
-| `dockerfile` (BYO) | `go-app-docker` | **podman build** по `imageTarget` / `testTarget` | Dockerfile в репозитории продукта |
+| `buildkit` | `go-app` | BuildKit targets через **podman build** | Managed из GP pipeline / manifest |
+| `dockerfile` (BYO) | `go-app-docker` | **podman build** по project Dockerfile | Dockerfile в репозитории продукта |
 
 Эталон seed (bootstrap only):
 
@@ -38,7 +38,7 @@ E2E на стенде:
 
 ```bash
 cd docker
-make seed-jenkins-lib          # lib + gp-content + GP profiles
+make seed-jenkins-lib          # lib + branching + GP profiles (embedded pipeline)
 make publish-agent             # coin-agent → Nexus (arm64: GOARCH=arm64)
 make samples                   # demo-go-app, demo-go-app-docker
 make e2e-build-engines         # обе job → SUCCESS
@@ -212,7 +212,7 @@ Registry cache ref вычисляет `coin-executor` из `manifest.destination
 |---------|---------|----------|
 | Pod `TerminationByKubelet` ephemeral-storage | Диск k3s полон (agent image ~3GiB + podman load) | `make e2e-build-engines` (с prune) или `bash docker/scripts/prune-k3s-disk.sh --all` |
 | `short-name golang:… did not resolve` | podman registries.conf | В agent image: `unqualified-search-registries = ["docker.io"]` |
-| manifest sha256 mismatch | Nexus immutable + обновлён gp-content metadata | Новый gp-content semver + **новый GP release** (не UPDATE blob) |
+| manifest sha256 mismatch | Nexus immutable + новый GP release content | **Новый GP release** (не UPDATE blob) |
 | Старый bootstrap (buildkitd) в логе | Jenkins cache Shared Library | `make coin-lib` (очищает `caches/git-*`) |
 | `component_version` seed берёт 1.0.0 | API order ≠ semver max | Исправлено в `seed-jenkins-lib-stack.sh` |
 

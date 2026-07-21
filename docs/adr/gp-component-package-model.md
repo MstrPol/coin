@@ -4,9 +4,9 @@
 **Контекст:** [gp-component-platform](../../openspec/changes/gp-component-platform/)  
 **Связанные ADR:** [control-plane-v2.md](control-plane-v2.md), [jenkins-lib-http-nexus.md](jenkins-lib-http-nexus.md), [build-engine-contract.md](build-engine-contract.md)
 
-> **Amendment (2026-06):** component-level `canary` **superseded**. Lifecycle: `draft` → `published` only. Canary rollout — **GP-level** (`catalog.latest_canary`); draft pins на canary line разрешены для `gp-content` / `branching-model`. Component Studio (`/studio`) удалён в пользу Platform entity routes.
+> **Amendment (2026-06):** component-level `canary` **superseded**. Lifecycle: `draft` → `published` only. Canary — **GP-level**. Component Studio (`/studio`) удалён в пользу Platform routes.
 
-> **Superseded (2026-07):** platform component type **`gp-content`** удалён. Pipeline-inline v3 — embedded body GP release. Composition — 2 pin (`agent`, `branching-model`). См. [gp-embedded-pipeline.md](gp-embedded-pipeline.md).
+> **Superseded (2026-07):** platform component type **`gp-content`** удалён. Pipeline — embedded GP release. Composition — **2 pin** (`agent`, `branching-model`). См. [gp-embedded-pipeline.md](gp-embedded-pipeline.md). Тело ADR ниже — исторический as-is; не использовать как live composition guide.
 
 ## Контекст
 

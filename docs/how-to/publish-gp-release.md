@@ -26,7 +26,7 @@ Agent pin = полный CI runtime stack (`coin-executor` baked в образ).
 
 Manifest собирается из embedded pipeline + composition pins: `pipeline.stages`, `validateSchema`, `branching`, `runtime.image`.
 
-См. [adr/gp-embedded-pipeline.md](../adr/gp-embedded-pipeline.md), [adr/coin-ci-runtime.md](../adr/coin-ci-runtime.md).
+См. [adr/gp-embedded-pipeline.md](../adr/gp-embedded-pipeline.md), [adr/coin-ci-runtime.md](../adr/coin-ci-runtime.md), [workspace-layout.md](../workspace-layout.md).
 
 ## Local seed (рекомендуется)
 

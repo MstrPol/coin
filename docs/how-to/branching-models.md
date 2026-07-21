@@ -40,6 +40,8 @@ GP pin: branching-model slot в composition → `manifest.branching` при reso
 
 Platform hub (`/platform/branching-models`): rule builder + YAML/card editing. Draft lifecycle: validate → register → publish.
 
+Layout репозиториев: [workspace-layout.md](../workspace-layout.md).
+
 Runtime behavior (versioning and publish eligibility) is evaluated by `coin-executor` from `manifest.branching` during CI; `coin-api` does not expose a branching scenario preview endpoint.
 
 **Удаление draft:** Releases tab → **Delete** на строке draft, или в редакторе (`/platform/branching-models/{name}/{version}/edit`) → **Delete draft** в lifecycle panel (publisher+). Published версии удалить нельзя.

@@ -1,82 +1,72 @@
 # Prod repo split (P4-03)
 
 > **⚠️ Corp gate:** выполнять только после доступа в corp-сеть и завершения Wave 3 prep (P3-04).  
-> **Ticket:** P4-03
+> **Ticket:** P4-03  
+> **Local layout сейчас:** [workspace-layout.md](../workspace-layout.md) — sibling checkouts; этот runbook **не** меняет local pilot.
 
 ## Цель
 
-Split monorepo dev layout → production Gitea repos:
+Из integration workspace (sibling folders) извлечь **production Gitea repos**:
 
-- `coin/coin-api`
-- `coin/coin-executor`
-- `coin/coin-ui`
-- `coin/coin-lib`
-- `coin/coin-starters`
+| Corp Gitea | Source (workspace) | Назначение |
+|------------|-------------------|------------|
+| `coin/coin-api` | `coin-api/` | Control plane API |
+| `coin/coin-executor` | `coin-executor/` | CLI + coin-agent image |
+| `coin/coin-ui` | `coin-ui/` | Admin / Platform SPA |
+| `coin/coin-lib` | `coin-lib/` | Jenkins Shared Library |
+| `coin/coin-starters` | `coin/coin-starters/` | Product scaffolding |
 
-> **Removed:** отдельный corp/local repo `coin-gp-content` — bootstrap seed в `coin-api/internal/gpcontent/seed/`; authoring на GP release.
+**Не extract targets (удалены / не нужны как prod content repos):**
 
-**Superseded:** `coin/coin-jenkins-agents` — заменён universal `coin-agent` из `coin-executor`.
+- `coin-gp-content` — seed в `coin-api/internal/gpcontent/seed/`; authoring на GP release
+- `coin-branching-models` — Platform + `coin/docker/testdata/`
+- `coin-jenkins-agents` — superseded `coin-agent`
+
+Meta `coin/docs`, `coin/openspec`, `coin/docker` — docs/pilot tooling; стратегия corp docs repo — вне обязательного P4-03 app split.
 
 ## Prerequisites
 
 - [ ] Wave 3 runbook reviewed ([wave-3-migration.md](wave-3-migration.md))
-- [ ] Fleet scanner green на corp Gitea
+- [ ] Fleet / build-reports green на corp Gitea (по актуальному acceptance)
 - [ ] coin-api HA (P1-05) или accepted SPOF window
-- [ ] OIDC prod ([coin-ui user guide](../coin-ui-user-guide.md) RBAC section)
-- [ ] Jenkins corp использует v2 только (audit: нет v1 Jenkinsfile в product repos)
-
-## Monorepo layout (PF-16 — dev prep)
-
-В integration monorepo split **уже отражён**:
-
-| Corp repo | Monorepo path | Local Gitea |
-|-----------|---------------|-------------|
-| `coin/coin-lib` | `coin-lib/` | `make coin-lib` |
-| `coin/coin-starters` | `coin-starters/` | `make coin-starters` |
-| — | *(removed)* | `coin-jenkins-agents/` superseded by `coin-agent` |
-
-## Extract prod repos
-
-Для каждого компонента:
-
-| Repo | Source path | CI |
-|------|-------------|-----|
-| `coin/coin-api` | `coin-api/` | Jenkinsfile in repo, image → registry |
-| `coin/coin-executor` | `coin-executor/` | publish to Nexus maven-releases |
-| `coin/coin-ui` | `coin-ui/` | image + static nginx |
-| `coin/coin-lib` | `coin-lib/` | Gitea tag + Shared Library |
-| `coin/coin-starters` | `coin-starters/` | product scaffolding |
-
-### Checklist per repo
-
-- [ ] `git filter-repo` или subtree split из monorepo
-- [ ] Перенести migrations, openapi, Dockerfile
-- [ ] Jenkins multibranch / platform job
-- [ ] VERSION / semver policy ([branching-models.md](../how-to/branching-models.md))
-- [ ] Update import paths if module rename (keep `coin.local/coin-api` or corp module path)
-- [ ] Deploy manifest (k8s) — out of scope local pilot
-
-| Monorepo after split | — |
-|------|-----|
-| `coin-jenkins-agents/` | **удалён** — `coin-agent` в `coin-executor/Dockerfile.agent` |
-| `samples/*` | E2E в monorepo или отдельный `coin/samples` repo |
-
-## Verify
-
-- [ ] corp Jenkins build demo-go-app against prod coin-api URL
-- [ ] coin-ui prod SSO login
-- [ ] Publish GP release через prod coin-ui (publisher role)
-- [ ] No references to monorepo paths in corp Jenkins env
-
-## Rollback
-
-**Откат на config v1 / Shared Library не поддерживается.** При проблемах split — fix forward в prod repos.
+- [ ] OIDC prod ([coin-ui user guide](../coin-ui-user-guide.md) RBAC)
+- [ ] Jenkins corp — product config v2 only
 
 ## Local pilot (сейчас)
 
-Monorepo остаётся единственным dev layout. Этот runbook — подготовка; команды **не выполняют** split на local Gitea.
+Monorepo/workspace layout уже **разделён по каталогам** (см. [workspace-layout](../workspace-layout.md)).  
+Команды **не выполняют** corp `git filter-repo` на local Gitea. Local Gitea зеркала (`make coin-lib`, …) — только pilot.
+
+## Extract prod repos
+
+### Checklist per repo
+
+- [ ] `git filter-repo` или subtree split из соответствующего sibling path
+- [ ] Перенести migrations / openapi / Dockerfile (для api/ui/executor)
+- [ ] Jenkins multibranch / platform job
+- [ ] VERSION / semver policy ([branching-models.md](../how-to/branching-models.md))
+- [ ] Module path (`coin.local/...` или corp module path)
+- [ ] Deploy manifest (k8s) — out of scope local pilot
+
+| После split | |
+|-------------|--|
+| `coin/samples` или corp `coin/samples` | E2E demos |
+| `coin/docker` | остаётся local-only |
+
+## Verify
+
+- [ ] corp Jenkins build `demo-go-app` against prod coin-api URL
+- [ ] coin-ui prod SSO login
+- [ ] Publish GP release через prod coin-ui (publisher+)
+- [ ] No references to local monorepo-only paths in corp Jenkins env
+
+## Rollback
+
+**Откат на config v1 не поддерживается.** При проблемах split — fix forward в prod repos.
 
 ## Связанные документы
 
+- [workspace-layout.md](../workspace-layout.md)
+- [architecture.md](../architecture.md)
 - [onboarding-15min.md](../how-to/onboarding-15min.md)
 - [docs/README.md](../README.md)

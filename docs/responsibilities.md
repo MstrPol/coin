@@ -3,7 +3,7 @@
 ## Принцип
 
 - **Проект** — код, `.coin/config.yaml` (identity + credential IDs).
-- **Platform** — manifest, GP content, `coin-agent`, coin-api/executor/lib.
+- **Platform** — manifest, embedded GP pipeline, `coin-agent`, coin-api/executor/lib.
 
 ## Что управляет разработчик
 
@@ -20,7 +20,7 @@
 - **coin-starters** — product scaffolding + thin Jenkinsfile.
 - Platform CI: `coin-executor`, `coin-lib`, `publish-agent`, `seed-jenkins-lib`.
 
-**Superseded:** `coin-jenkins-agents/`, job `agents-build`, GP `scripts/*.sh` в runtime, папка `coin-gp-content/`.
+**Superseded:** `coin-jenkins-agents/`, job `agents-build`, GP `scripts/*.sh` в runtime, папки `coin-gp-content/`, `coin-branching-models/`. Layout: [workspace-layout.md](workspace-layout.md).
 
 ## Граница coin-executor
 
@@ -35,7 +35,8 @@
 | `Dockerfile` в репо (go GP) | Managed Containerfile из manifest |
 | `template`/`templateVersion` (v1) | Strict v2 only |
 | Pin executor/agent/build engine в config | Только в manifest / GP |
-| Бизнес-логика сборки в Jenkinsfile/Groovy | coin-executor + GP content |
+| Бизнес-логика сборки в Jenkinsfile/Groovy | coin-executor + embedded GP pipeline |
+
 
 ## Артефакты
 

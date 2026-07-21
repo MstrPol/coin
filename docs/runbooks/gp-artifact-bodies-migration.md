@@ -1,9 +1,11 @@
 # Migration: gp_artifact_bodies dual-write → Nexus-only
 
+> **Historical / largely superseded (2026-07):** `gp-content` packages и Component Studio path удалены. Pipeline — embedded на GP release. Этот runbook сохраняет план dual-write cleanup; не использовать как guide для нового authoring. См. [gp-embedded-pipeline](../adr/gp-embedded-pipeline.md), [control-plane](../control-plane.md).
+
 **Audience:** Platform team  
-**Scope:** local pilot → corp fleet  
-**ADR:** [gp-component-package-model](../adr/gp-component-package-model.md) (Q1, deprecations)  
-**Status:** plan accepted (GCP-5.1)
+**Scope:** local pilot → corp fleet (legacy cleanup)  
+**ADR:** [gp-component-package-model](../adr/gp-component-package-model.md)  
+**Status:** plan accepted (GCP-5.1); narrative outdated after embedded pipeline
 
 ## Проблема
 

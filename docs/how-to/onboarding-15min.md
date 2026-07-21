@@ -14,7 +14,7 @@
 
 - Docker Desktop запущен (8 GB+ RAM, 20+ GB disk для k3s)
 - `make`, `curl` в PATH
-- Клон monorepo `coin/`
+- Клон integration workspace (sibling `coin-api`, `coin-executor`, … + `coin/`) — [workspace-layout](../workspace-layout.md)
 
 ## Шаг 1 — Infra (5 min)
 

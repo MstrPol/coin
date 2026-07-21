@@ -1,8 +1,8 @@
 # ADR: GP composition — четыре компонента
 
-> **Статус: superseded** (2026-06-10)  
-> Заменено: three-pin GP composition (`agent`, `gp-content`, `branching-model`) — [coin-ci-runtime](coin-ci-runtime.md), OpenSpec `gp-composition-two-slot`.  
-> Slot `executor` как platform component **удалён** (2026-06) — agent = полный CI runtime stack.
+> **Статус: superseded** (2026-06-10; further superseded 2026-07)  
+> Актуальная модель: **2 pin** (`agent`, `branching-model`) + embedded pipeline — [gp-embedded-pipeline](gp-embedded-pipeline.md), [coin-ci-runtime](coin-ci-runtime.md), OpenSpec `gp-release-two-pin`.  
+> Промежуточная three-pin модель (`agent`, `gp-content`, `branching-model`) также **superseded**. Slot `executor` удалён — agent = полный CI runtime stack.
 
 **Статус (исторический):** accepted  
 **Дата:** 2026-06-10
