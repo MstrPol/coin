@@ -1,9 +1,0 @@
-.git
-.github
-.cursor
-terminals
-docker
-tests
-*.md
-Jenkinsfile
-helm-chart-requirements.md
