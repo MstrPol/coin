@@ -27,7 +27,7 @@ build:
   engine: buildkit | dockerfile
 ```
 
-Источник SoT: `coin-gp-content/stacks/<gp>/content.yaml` (schema v2).
+Источник SoT: embedded pipeline на GP release (seed defaults: `coin-api/internal/gpcontent/seed/pipelines/`). Engine policy приходит в resolved manifest из GP body.
 
 > **2026-06 update:** buildpack hard cut; BYO `dockerfile` — отдельный GP (`go-app-docker`), не managed Containerfile duplicate.
 

@@ -42,11 +42,10 @@ flowchart TD
 | 4. GP pin | GP hub draft | `gp_composition` (draft pins допустимы на canary line) |
 | 5. GP promote | Release detail | GP `published`; gate — все pins `published` |
 
-**Local bootstrap** (без UI): `make seed-jenkins-lib` — публикует lib + gp-content + GP profiles.  
-**Deprecated:** `/studio`, `publish-canary`, `publish-content.sh`, `make coin-lib` (Gitea).
+**Local bootstrap** (без UI): `make seed-jenkins-lib` — публикует lib + branching-model + GP profiles с embedded pipeline.  
+**Deprecated:** `/studio`, `publish-canary`, `publish-content.sh`, отдельная папка `coin-gp-content/`, `make coin-lib` (Gitea).
 
-Platform types: `branching-model` (`model.yaml`), `gp-content` (`content.yaml` + Containerfile).
-
+Platform types: `branching-model` (`model.yaml`); pipeline — embedded на GP release (не отдельный `gp-content` pin).
 ## Component lifecycle → GP composition
 
 ```mermaid
@@ -116,13 +115,15 @@ Package layout: `maven-releases/coin/{type}/{name}/{version}/package.manifest.js
 | `go-app` | `buildkit` | `samples/demo-go-app` | `demo-go-app` |
 | `go-app-docker` | `dockerfile` (BYO) | `samples/demo-go-app-docker` | `demo-go-app-docker` |
 
-Content SoT (reference + Studio export):
+Content SoT (bootstrap seed + GP authoring):
 
 ```
-coin-gp-content/stacks/
-├── go-app/content.yaml
-└── go-app-docker/content.yaml
+coin-api/internal/gpcontent/seed/pipelines/
+├── go-app.yaml
+└── go-app-docker.yaml
 ```
+
+Изменения pipeline — на GP release draft в Platform UI (не отдельный component package).
 
 ## Runtime pod
 

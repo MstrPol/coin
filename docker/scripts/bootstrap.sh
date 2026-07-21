@@ -114,7 +114,6 @@ Coin local stack is up (infrastructure only).
 Platform (после bootstrap):
   make coin-starters         # starters → Gitea coin/coin-starters
   make coin-executor         # coin-executor → Gitea + job coin-executor
-  make coin-gp-content       # gp-content → Gitea + job coin-gp-content
   make coin-lib              # Jenkins Shared Library → Gitea (tag 1.0.0) + Global Lib
   make publish-agent         # coin-agent image → Nexus + coin-api (перед GP seed)
   make samples               # demo-продукты → samples/ + Gitea

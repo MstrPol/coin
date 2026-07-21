@@ -34,7 +34,9 @@ coinPipeline()
 | Репозиторий | Роль |
 |-------------|------|
 | `coin-lib/` | Jenkins Shared Library — только glue (resolve, pod, creds, вызов coin-executor) |
-| `coin-gp-content/` | scripts, Dockerfile, schema per GP stack; publish ZIP → Nexus → coin-api |
+| GP pipeline | Embedded на GP release; bootstrap seed в `coin-api/internal/gpcontent/seed/` |
+
+> **Superseded:** отдельная папка/repo `coin-gp-content/` (ZIP → Nexus gp-content packages).
 
 ### Версионирование lib
 
@@ -61,7 +63,7 @@ coinPipeline()
 ## Последствия
 
 - `coin-lib-scope` получает исключение: Shared Library разрешена **только** как Jenkins glue
-- `coin-pipeline-bundles/` удаляется; контент мигрирует в `coin-gp-content/`, Groovy — в `coin-lib/`
+- `coin-pipeline-bundles/` удаляется; Groovy — в `coin-lib/`; content → embedded GP pipeline + coin-api seed (исторически через `coin-gp-content/`, папка удалена)
 - ADR `gp-pipeline-bundle-layer.md` и `gp-composition-four-components.md` superseded этим ADR
 - UI не показывает raw gp-content artifacts на GP release detail
 

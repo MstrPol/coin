@@ -75,7 +75,6 @@ coin/
 ├── coin-api/           # HTTP API (control plane)
 ├── coin-executor/      # CLI runtime + coin-agent image
 ├── coin-ui/            # Admin SPA
-├── coin-gp-content/    # GP stacks (build engines, Containerfile)
 ├── coin-lib/           # Jenkins Shared Library (glue)
 ├── coin-starters/      # Product repo scaffolding
 ├── docker/             # Compose стенд

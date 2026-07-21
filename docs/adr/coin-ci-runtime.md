@@ -62,7 +62,7 @@ Coin CI runtime после hard cut:
 
 ### 4. Два build engine
 
-Источник SoT: `coin-gp-content/stacks/<gp>/content.yaml` → manifest `build`.
+Источник SoT: embedded pipeline GP release → resolved manifest (`build` / pipeline stages). Bootstrap defaults: `coin-api/internal/gpcontent/seed/`.
 
 | Engine | Sample GP | Containerfile | Реализация (pilot arm64) |
 |--------|-----------|---------------|--------------------------|
@@ -151,7 +151,7 @@ OpenSpec: `gp-composition-two-slot` (id retained; фактически three-pin
 
 - Документация runtime: этот ADR → [agent-build-model.md](../agent-build-model.md) → [architecture.md](../architecture.md).
 - [build-engine-contract](build-engine-contract.md) — decision record о введении контракта; operational details — здесь.
-- Reference `content.yaml` в `coin-gp-content` может содержать legacy поля до `gp-content-schema-v2`.
+- Seed pipeline YAML в `coin-api/internal/gpcontent/seed/` — bootstrap only; live SoT — GP release body / published manifest.
 
 ## Отклонённые альтернативы
 

@@ -13,15 +13,14 @@
 
 ## Что управляет Platform
 
-- **coin-api** — composition, catalog policy, resolve, build reports.
-- **coin-gp-content** — `build.engine`, Containerfile, schema → Nexus + PG.
+- **coin-api** — composition, catalog policy, resolve, build reports; bootstrap pipeline seed (`internal/gpcontent/seed/`).
 - **coin-agent** — universal inbound-agent image (`coin-executor/Dockerfile.agent`).
 - **coin-executor** — validate, build engines, publish, report ([CHARTER](../coin-executor/CHARTER.md)).
 - **coin-lib** — Jenkins glue only: resolve, pod, credentials, stage dispatch.
 - **coin-starters** — product scaffolding + thin Jenkinsfile.
-- Platform CI: `coin-executor`, `coin-gp-content`, `coin-lib`, `publish-agent`, `seed-jenkins-lib`.
+- Platform CI: `coin-executor`, `coin-lib`, `publish-agent`, `seed-jenkins-lib`.
 
-**Superseded:** `coin-jenkins-agents/`, job `agents-build`, GP `scripts/*.sh` в runtime.
+**Superseded:** `coin-jenkins-agents/`, job `agents-build`, GP `scripts/*.sh` в runtime, папка `coin-gp-content/`.
 
 ## Граница coin-executor
 
@@ -43,7 +42,7 @@
 | Артефакт | Владелец |
 |----------|----------|
 | `coin-api`, `coin-executor` | Platform |
-| GP content (Containerfile, schema, build policy) | `coin-gp-content` → Nexus |
+| GP pipeline (embedded body + seed defaults) | GP release / `coin-api` seed |
 | `coin-agent` image | Platform (`publish-agent`) |
 | Jenkins glue (`coinPipeline`) | `coin-lib` (Gitea tag) |
 | `.coin/config.yaml` | Команда |

@@ -10,9 +10,10 @@ Split monorepo dev layout → production Gitea repos:
 - `coin/coin-api`
 - `coin/coin-executor`
 - `coin/coin-ui`
-- `coin/coin-gp-content`
 - `coin/coin-lib`
 - `coin/coin-starters`
+
+> **Removed:** отдельный corp/local repo `coin-gp-content` — bootstrap seed в `coin-api/internal/gpcontent/seed/`; authoring на GP release.
 
 **Superseded:** `coin/coin-jenkins-agents` — заменён universal `coin-agent` из `coin-executor`.
 
@@ -30,7 +31,6 @@ Split monorepo dev layout → production Gitea repos:
 
 | Corp repo | Monorepo path | Local Gitea |
 |-----------|---------------|-------------|
-| `coin/coin-gp-content` | `coin-gp-content/` | `make coin-gp-content` |
 | `coin/coin-lib` | `coin-lib/` | `make coin-lib` |
 | `coin/coin-starters` | `coin-starters/` | `make coin-starters` |
 | — | *(removed)* | `coin-jenkins-agents/` superseded by `coin-agent` |
@@ -44,7 +44,6 @@ Split monorepo dev layout → production Gitea repos:
 | `coin/coin-api` | `coin-api/` | Jenkinsfile in repo, image → registry |
 | `coin/coin-executor` | `coin-executor/` | publish to Nexus maven-releases |
 | `coin/coin-ui` | `coin-ui/` | image + static nginx |
-| `coin/coin-gp-content` | `coin-gp-content/` | publish stacks → Nexus |
 | `coin/coin-lib` | `coin-lib/` | Gitea tag + Shared Library |
 | `coin/coin-starters` | `coin-starters/` | product scaffolding |
 

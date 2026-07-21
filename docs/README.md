@@ -51,8 +51,9 @@
 | [coin-ui/README.md](../coin-ui/README.md) | Admin SPA (local :8091) |
 | [coin-executor/README.md](../coin-executor/README.md) | CLI runtime, coin-agent, build engines |
 | [coin-lib/README.md](../coin-lib/README.md) | Jenkins Shared Library (glue) |
-| [coin-gp-content/README.md](../coin-gp-content/README.md) | GP stacks, content.yaml |
 | [coin-starters/README.md](../coin-starters/README.md) | Product scaffolding |
+| [how-to/publish-gp-release.md](how-to/publish-gp-release.md) | GP release + embedded pipeline |
+| [adr/gp-embedded-pipeline.md](adr/gp-embedded-pipeline.md) | Seed: coin-api `internal/gpcontent/seed/` |
 
 ## Прочее
 

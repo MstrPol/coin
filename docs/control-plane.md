@@ -44,9 +44,8 @@ ADR: [adr/gp-component-package-model.md](adr/gp-component-package-model.md) (ame
 
 | Компонент | Роль |
 |-----------|------|
-| **coin-api** | Resolve manifest, registry, GP admin, component lifecycle, build report |
+| **coin-api** | Resolve manifest, registry, GP admin, component lifecycle, build report; bootstrap seed `internal/gpcontent/seed/` |
 | **coin-executor** | `validate`, `run --stage`, `publish`, `report` |
-| **coin-gp-content** | Reference stacks; primary authoring — Platform editor |
 | **coin-lib** | Jenkins glue (resolve, pod, stages); ZIP из Nexus HTTP |
 | **coin-ui** | Admin SPA + Platform catalogs + promote wizard |
 

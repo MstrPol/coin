@@ -66,7 +66,6 @@ cd docker && make endpoints
 | Команда | Назначение |
 |---------|------------|
 | `make coin-executor` | Gitea repo + job `coin-executor` |
-| `make coin-gp-content` | Gitea + job `coin-gp-content` |
 | `make coin-lib` | Gitea tag `1.0.0` + Global Shared Library |
 | `make publish-agent` | `coin-agent` image → Nexus + coin-api |
 | `make seed-jenkins-lib` | lib + gp-content + GP go-app / go-app-docker |

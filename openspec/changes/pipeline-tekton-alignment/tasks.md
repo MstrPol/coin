@@ -1,7 +1,7 @@
 ## 1. ADR и схема
 
 - [ ] 1.1 ADR `docs/adr/pipeline-tekton-mapping.md` — entity mapping Tekton→Coin, v4 overview
-- [ ] 1.2 JSON Schema `pipeline-inline.v4.schema.json` в coin-api и coin-gp-content seed
+- [ ] 1.2 JSON Schema `pipeline-inline.v4.schema.json` в coin-api и `internal/gpcontent/seed/`
 - [ ] 1.3 Обновить `manifest.schema.json` — `containerfiles`, `pipeline.tasks`
 
 ## 2. coin-api — validate и storage
@@ -45,8 +45,8 @@
 
 ## 7. Seed и контент
 
-- [ ] 7.1 Мигрировать `coin-gp-content/stacks/go-app` на v4 shape
-- [ ] 7.2 Мигрировать `coin-gp-content/stacks/go-app-docker` на v4 shape
+- [ ] 7.1 Мигрировать `coin-api/internal/gpcontent/seed/pipelines/go-app.yaml` на v4 shape
+- [ ] 7.2 Мигрировать `coin-api/internal/gpcontent/seed/pipelines/go-app-docker.yaml` на v4 shape
 - [ ] 7.3 Обновить `docker/scripts/seed-jenkins-lib-stack.sh` для v4
 - [ ] 7.4 `make seed-jenkins-lib` — green после reseed
 

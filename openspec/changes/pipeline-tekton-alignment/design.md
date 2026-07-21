@@ -181,7 +181,7 @@ Pilot: wipe/reseed допустим; fleet migration — post corp gate.
 
 ## Migration Plan
 
-1. JSON Schema `pipeline-inline.v4.schema.json` в coin-api + coin-gp-content seed.
+1. JSON Schema `pipeline-inline.v4.schema.json` в coin-api + `internal/gpcontent/seed/`.
 2. coin-api: validate/preview/migrate v3→v4; extend `gp_release_pipeline_bodies.schema_version`.
 3. Manifest builder: materialize `containerfiles` + `pipeline.tasks`.
 4. coin-executor: dispatch v4 step kinds; `--task` flag.

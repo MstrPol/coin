@@ -2,7 +2,7 @@
 
 Operational runbook. **Каноническая модель:** ADR [coin-ci-runtime](adr/coin-ci-runtime.md). Решение о `build.engine`: [build-engine-contract](adr/build-engine-contract.md).
 
-Продукт **не** выбирает engine — он зафиксирован в GP content (`coin-gp-content/stacks/<gp>/content.yaml`) и приходит в manifest как `build.engine`.
+Продукт **не** выбирает engine — он зафиксирован в embedded pipeline GP release и приходит в manifest как `build.engine` / pipeline stages.
 
 ---
 
@@ -27,10 +27,12 @@ Operational runbook. **Каноническая модель:** ADR [coin-ci-run
 | `buildkit` | `go-app` | BuildKit targets через **podman build** | Managed в gp-content → `.coin/Containerfile` |
 | `dockerfile` (BYO) | `go-app-docker` | **podman build** по `imageTarget` / `testTarget` | Dockerfile в репозитории продукта |
 
-Эталон content:
+Эталон seed (bootstrap only):
 
-- [`coin-gp-content/stacks/go-app/content.yaml`](../coin-gp-content/stacks/go-app/content.yaml)
-- [`coin-gp-content/stacks/go-app-docker/content.yaml`](../coin-gp-content/stacks/go-app-docker/content.yaml)
+- [`coin-api/internal/gpcontent/seed/pipelines/go-app.yaml`](../../coin-api/internal/gpcontent/seed/pipelines/go-app.yaml)
+- [`coin-api/internal/gpcontent/seed/pipelines/go-app-docker.yaml`](../../coin-api/internal/gpcontent/seed/pipelines/go-app-docker.yaml)
+
+Live authoring: GP release Pipeline section в Platform UI ([gp-embedded-pipeline](adr/gp-embedded-pipeline.md)).
 
 E2E на стенде:
 

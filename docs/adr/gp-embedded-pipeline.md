@@ -36,9 +36,9 @@ Enabling team редактирует pipeline на GP release detail (Pipeline s
 
 `POST /v1/admin/golden-paths/{name}/versions/{version}/pipeline/preview`
 
-### coin-gp-content
+### Bootstrap seed
 
-Git seed source для bootstrap (`stacks/*`); `publish-content.sh` — не primary path.
+Default pipeline bodies для local pilot: `coin-api/internal/gpcontent/seed/` (`pipelines/*.yaml`, schemas). Authoring изменений — GP release detail в Platform UI. Папка `coin/coin-gp-content/` и `publish-content.sh` **удалены** (dual path).
 
 ## Последствия
 

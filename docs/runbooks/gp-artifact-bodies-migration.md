@@ -11,7 +11,7 @@
 
 | Хранилище | Когда пишется | Кто читает |
 |-----------|---------------|------------|
-| **Nexus** (gp-content package, manifest URLs) | `publish-content.sh`, Component Studio register | coin-executor, coin-lib resolve fallback |
+| **Nexus** (legacy gp-content package URLs) | ~~`publish-content.sh`~~ / Studio (superseded by embedded GP pipeline) | coin-executor, coin-lib resolve fallback |
 | **`gp_artifact_bodies`** (PostgreSQL) | GP release draft/publish side-effects, embedded seed | Admin API artifact preview, legacy copy-on-publish |
 | **`component_artifact_bodies`** | Component Studio draft only | validate/register, seed into `gp_artifact_bodies` |
 

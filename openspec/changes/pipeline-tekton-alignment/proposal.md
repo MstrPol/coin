@@ -49,6 +49,6 @@
 | **coin-ui** | pipeline canvas, task editor, containerfiles panel |
 | **coin-executor** | step dispatch; containerfile by ref |
 | **coin-lib** | `coinPipeline` — task DAG → Jenkins stages |
-| **coin-gp-content** | seed templates v4 shape |
+| **coin-api seed** | `internal/gpcontent/seed/` templates v4 shape |
 | **docs/adr** | ADR pipeline-tekton-mapping |
 | **openspec/specs** | 2 new + 7 modified capabilities |

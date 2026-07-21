@@ -37,7 +37,7 @@ make seed-jenkins-lib             # Nexus lib + branching-model + GP (2-pin + em
 ```
 
 Скрипт: `docker/scripts/seed-jenkins-lib-stack.sh`.  
-**Deprecated:** `make coin-lib` (Gitea SCM only); `coin-gp-content/scripts/publish-content.sh` как primary path.
+**Deprecated:** `make coin-lib` (Gitea SCM only); бывший `coin-gp-content/scripts/publish-content.sh` (папка удалена).
 
 ## Publish GP (Admin API)
 

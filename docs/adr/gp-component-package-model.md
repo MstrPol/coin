@@ -109,7 +109,7 @@ CI fallback — **только Nexus** (manifest blob + component packages), н�
 
 | Component | Authoring | Platform CI | PG registry | PG bodies | Nexus | В manifest | Consumer |
 |-----------|-----------|-------------|-------------|-----------|-------|------------|----------|
-| **gp-content** | git `coin-gp-content` | `publish-content.sh` | ✅ metadata + content_ref | dual-write | ZIP + URLs | ✅ build, pipeline | coin-executor |
+| **gp-content** | ~~git `coin-gp-content`~~ **superseded** — embedded GP pipeline + `coin-api/.../seed` | ~~`publish-content.sh`~~ | — | — | — | via GP manifest | coin-executor |
 | **executor** | git | `publish-executor.sh` | ✅ metadata.url | — | maven binary | ✅ executor | coin-agent |
 | **agent** | Dockerfile.agent | `publish-agent.sh` | ✅ metadata.image | — | Docker registry | ✅ runtime.image | Jenkins pod |
 | **lib** | git → Gitea tag | `coin-lib.sh` | partial | — | target ZIP | ✅ `lib` section (GCP-4) | Jenkins `@Library` + manifest zip ref |
