@@ -33,6 +33,10 @@ project:
 |------|-------------|----------|
 | `coin.goldenPath` | **Да** | Имя GP: `go-app`, … |
 | `coin.version` | **Да** | Semver **pin** GP (см. ниже) |
+| `coin.resolve` | Нет | `remote` (default) или `file` — локальный fixture |
+| `coin.manifestFile` | Нет | Путь к fixture при `resolve: file` (default `.coin/manifest.local.yaml`) |
+
+Local resolve: [how-to/local-manifest-file-resolve.md](how-to/local-manifest-file-resolve.md).
 
 ### Pin-синтаксис (MVP-2)
 

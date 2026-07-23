@@ -1,0 +1,68 @@
+jenkins:
+  systemMessage: "Coin local stack"
+  numExecutors: 1
+  mode: NORMAL
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "${JENKINS_ADMIN_USER:-admin}"
+          password: "${JENKINS_ADMIN_PASSWORD:-admin}"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+  clouds:
+    - kubernetes:
+        name: "kubernetes"
+        serverUrl: "https://k3s:6443"
+        skipTlsVerify: true
+        credentialsId: "k3s-token"
+        jenkinsUrl: "http://jenkins:8080"
+        jenkinsTunnel: "jenkins:50000"
+        namespace: "default"
+        containerCapStr: "10"
+        connectTimeout: 300
+        readTimeout: 300
+        maxRequestsPerHost: 32
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - string:
+              scope: GLOBAL
+              id: k3s-token
+              secret: ${K3S_TOKEN}
+              description: "k3s API token (local stack)"
+          - usernamePassword:
+              scope: GLOBAL
+              id: gitea-git
+              username: "${GITEA_USER:-coin}"
+              password: "${GITEA_PASSWORD:-coin}"
+              description: "Gitea Git credentials (dev only)"
+          - usernamePassword:
+              scope: GLOBAL
+              id: nexus-admin
+              username: "admin"
+              password: "${NEXUS_ADMIN_PASSWORD:-coin12345}"
+              description: "Nexus admin (local dev)"
+          - usernamePassword:
+              scope: GLOBAL
+              id: nexus-docker
+              username: "coin"
+              password: "${NEXUS_DOCKER_PASSWORD:-coin1234}"
+              description: "Nexus Docker repo coin-docker (local dev)"
+          - string:
+              scope: GLOBAL
+              id: coin-api-token
+              secret: ${COIN_API_TOKEN:-dev-local-token}
+              description: "coin-api Bearer token (Resolve + report)"
+          - string:
+              scope: GLOBAL
+              id: coin-publisher-api-key
+              secret: ${COIN_PUBLISHER_API_KEY:-dev-local-publisher-key}
+              description: "coin-api publisher API key (agent version register)"
+
+unclassified:
+  location:
+    url: "http://localhost:${JENKINS_HTTP_PORT:-8080}/"

@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://coin.local/schema/pipeline-inline.v4.schema.json",
+  "title": "Coin pipeline-inline / resolved pipeline model schemaVersion 4",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schemaVersion", "pipeline"],
+  "properties": {
+    "schemaVersion": { "const": 4 },
+    "parameters": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/parameter" }
+    },
+    "validateSchema": {},
+    "containerfiles": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/containerfileEntry" }
+    },
+    "destinations": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/destinationEntry" }
+    },
+    "pipeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tasks"],
+      "properties": {
+        "tasks": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/task" }
+        }
+      },
+      "not": { "required": ["stages"] }
+    }
+  },
+  "not": {
+    "anyOf": [
+      { "required": ["build"] },
+      { "required": ["deliverables"] },
+      { "required": ["artifacts"] },
+      { "required": ["capabilities"] }
+    ]
+  },
+  "$defs": {
+    "semanticId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,31}$"
+    },
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
+        "type": { "enum": ["string", "boolean", "number", "enum"] },
+        "description": { "type": "string" },
+        "default": {},
+        "required": { "type": "boolean" },
+        "allowedValues": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "enum" } }, "required": ["type"] },
+          "then": { "required": ["allowedValues"] }
+        }
+      ]
+    },
+    "destinationEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "imageRegistryPrefix"],
+      "properties": {
+        "id": { "$ref": "#/$defs/semanticId" },
+        "host": { "type": "string", "minLength": 1 },
+        "imageRegistryPrefix": { "type": "string", "minLength": 1 },
+        "pull": { "type": "boolean" },
+        "push": { "type": "boolean" },
+        "buildCacheEnabled": { "type": "boolean" },
+        "artifactRepositoryBase": { "type": "string", "minLength": 1 }
+      }
+    },
+    "containerfileEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind"],
+      "properties": {
+        "id": { "$ref": "#/$defs/semanticId" },
+        "kind": { "enum": ["managed", "project"] },
+        "path": { "type": "string", "minLength": 1 },
+        "body": { "type": "string", "minLength": 1 },
+        "contentRef": {
+          "type": "object",
+          "properties": {
+            "url": { "type": "string" },
+            "sha256": { "type": "string" }
+          }
+        },
+        "digest": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "project" } }, "required": ["kind"] },
+          "then": { "required": ["path"] }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "managed" } }, "required": ["kind"] },
+          "then": {
+            "anyOf": [
+              { "required": ["path"] },
+              { "required": ["body"] },
+              { "required": ["contentRef"] }
+            ]
+          }
+        }
+      ]
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "steps"],
+      "properties": {
+        "id": { "$ref": "#/$defs/semanticId" },
+        "name": { "type": "string" },
+        "when": { "type": "string" },
+        "runAfter": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/semanticId" }
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/step" }
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["coin", "containerfile", "sh"] },
+        "action": { "enum": ["validate", "test", "build", "publish"] },
+        "ref": { "$ref": "#/$defs/semanticId" },
+        "run": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "target": { "type": "string" },
+            "engine": { "enum": ["buildkit", "dockerfile"] },
+            "reportsTarget": { "type": "string" }
+          }
+        },
+        "build": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "containerfileRef", "destinationRef"],
+          "properties": {
+            "type": { "enum": ["image", "liquibase-image", "artifact"] },
+            "containerfileRef": { "$ref": "#/$defs/semanticId" },
+            "destinationRef": { "$ref": "#/$defs/semanticId" },
+            "cache": { "type": "boolean" },
+            "engine": { "enum": ["buildkit", "dockerfile"] },
+            "target": { "type": "string" },
+            "image": {
+              "type": "object",
+              "properties": {
+                "repositorySuffix": { "type": "string" }
+              }
+            }
+          }
+        },
+        "test": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "containerfileRef": { "$ref": "#/$defs/semanticId" },
+            "target": { "type": "string" },
+            "reportsTarget": { "type": "string" }
+          }
+        },
+        "publish": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["buildTaskId", "destinationRefs"],
+          "properties": {
+            "buildTaskId": { "$ref": "#/$defs/semanticId" },
+            "destinationRefs": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/semanticId" }
+            }
+          }
+        },
+        "script": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "coin" } }, "required": ["kind"] },
+          "then": { "required": ["action"] }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "containerfile" } }, "required": ["kind"] },
+          "then": { "required": ["ref"] }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "sh" } }, "required": ["kind"] },
+          "then": { "required": ["script"] }
+        }
+      ]
+    }
+  }
+}

@@ -18,6 +18,8 @@ Architecture Decision Records — постоянные архитектурны�
 | GP Component Package Model (UI-first; gp-content removed) | accepted / amended | [`gp-component-package-model.md`](gp-component-package-model.md) |
 | GP composition — четыре компонента | superseded | [`gp-composition-four-components.md`](gp-composition-four-components.md) |
 | Pipeline bundle layer | superseded | [`gp-pipeline-bundle-layer.md`](gp-pipeline-bundle-layer.md) |
+| Pipeline Tekton mapping (schemaVersion 4) | accepted | [`pipeline-tekton-mapping.md`](pipeline-tekton-mapping.md) |
+| Pipeline-inline Build Stack (v3) | superseded by v4 mapping | [`pipeline-inline-build-stack.md`](pipeline-inline-build-stack.md) |
 | Corp CI/CD migration standards | accepted (corp target) | [`cicd-corp-migration-standards.md`](cicd-corp-migration-standards.md) |
 
 **Читать первым для CI:** [coin-ci-runtime.md](coin-ci-runtime.md) → [gp-embedded-pipeline.md](gp-embedded-pipeline.md) → [agent-build-model.md](../agent-build-model.md).  

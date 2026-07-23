@@ -1,0 +1,89 @@
+// Smoke: dynamic agent (jnlp + builder) + coin-lib + coin-executor + buildkit.
+// Podman в builder нет (корп-sidecar) — проверяем наличие отдельно.
+@Library('coin-lib') _
+
+pipeline {
+    agent none
+    options {
+        timeout(time: 15, unit: 'MINUTES')
+    }
+    parameters {
+        string(
+            name: 'COIN_AGENT_VERSION',
+            defaultValue: '1.0.0',
+            description: 'Тег builder-образа в Nexus (coin-agent)',
+        )
+    }
+    stages {
+        stage('Smoke dynamic agent') {
+            steps {
+                script {
+                    def version = params.COIN_AGENT_VERSION ?: '1.0.0'
+                    def cfg = [
+                        runtime: [image: "nexus:8082/coin-docker/coin-agent:${version}"],
+                        build  : [engine: 'buildkit'],
+                        pod    : [:],
+                    ]
+                    def podYaml = coinPodYaml(groovy.json.JsonOutput.toJson(cfg))
+                    def podLabel = "coin-smoke-${env.BUILD_NUMBER}"
+
+                    echo "podTemplate label=${podLabel}"
+                    echo "builder image=nexus:8082/coin-docker/coin-agent:${version}"
+
+                    podTemplate(yaml: podYaml, cloud: 'kubernetes', label: podLabel) {
+                        node(podLabel) {
+                            stage('jnlp') {
+                                echo '✓ jnlp container (remoting)'
+                                sh 'id; echo "hostname=$(hostname)"'
+                            }
+                            container('builder') {
+                                stage('coin-executor') {
+                                    sh 'coin-executor version'
+                                }
+                                stage('buildkit') {
+                                    sh '''
+                                        set -eu
+                                        export HOME="${HOME:-/home/jenkins}"
+                                        export BUILDKIT_HOST="${BUILDKIT_HOST:-unix:///tmp/buildkit.sock}"
+                                        mkdir -p "${HOME}/.local/share/buildkit"
+                                        sock="${BUILDKIT_HOST#unix://}"
+                                        if [ ! -S "${sock}" ]; then
+                                          flags="${BUILDKITD_FLAGS:---oci-worker-no-process-sandbox}"
+                                          # rootless image: через rootlesskit (user namespace)
+                                          # shellcheck disable=SC2086
+                                          nohup rootlesskit buildkitd ${flags} \
+                                            --config /etc/buildkit/buildkitd.toml \
+                                            --addr "${BUILDKIT_HOST}" >/tmp/buildkitd.log 2>&1 &
+                                          for i in $(seq 1 30); do
+                                            [ -S "${sock}" ] && break
+                                            sleep 1
+                                          done
+                                        fi
+                                        [ -S "${sock}" ] || { echo "buildkitd sock missing"; tail -50 /tmp/buildkitd.log; exit 1; }
+                                        buildctl --addr "${BUILDKIT_HOST}" debug workers
+                                        echo "✓ buildkit ok"
+                                    '''
+                                }
+                                stage('podman') {
+                                    sh '''
+                                        if command -v podman >/dev/null 2>&1; then
+                                          podman version
+                                          echo "✓ podman ok"
+                                        else
+                                          echo "⊘ podman не в builder (ожидаемо: корп-sidecar) — skip"
+                                        fi
+                                    '''
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    post {
+        success {
+            echo '✓ smoke: jnlp + builder (coin-executor + buildkit) + coin-lib'
+        }
+    }
+}

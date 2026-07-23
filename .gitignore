@@ -25,8 +25,17 @@ dist/
 
 # Docker local stack artifacts
 docker/.env
+docker/.nexus-admin-initialized
+dev-stand/.nexus-admin-initialized
 docker/.coin-platform-sync.sha256
 docker/.coin-cli-sync.sha256
+
+# Local pilot symlinks to sibling repos (workspace layout)
+/coin-lib
+/coin-executor
+/coin-api
+/coin-ui
+/coin-starters
 
 # Beads / Dolt files (added by bd init)
 .dolt/

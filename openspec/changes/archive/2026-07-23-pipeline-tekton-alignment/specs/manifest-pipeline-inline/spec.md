@@ -1,10 +1,4 @@
-# manifest-pipeline-inline Specification
-
-## Purpose
-
-Resolved manifest shape for pipeline-inline schemaVersion 4: `pipeline.tasks`, top-level `containerfiles[]`, destinations catalog; file or remote resolve.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Pipeline-inline resolved manifest
 
@@ -18,19 +12,6 @@ Resolved manifest MAY be obtained from coin-api/Nexus **or** from product file r
 - **THEN** materialized `.coin/manifest.json` MUST include `pipeline.tasks`
 - **AND** coin-executor MUST run tasks without calling coin-api
 
-#### Scenario: Materialize go-app v3 manifest from GP release
-
-- **WHEN** coin-api resolves GP release `go-app@1.0.0` with embedded pipeline-inline body
-- **THEN** each buildkit run/build step in manifest MUST include inline step config plus `containerfile.contentRef` on that step
-- **AND** manifest MUST NOT include separate `artifacts.containerfiles` array
-- **AND** MUST NOT require loading a `gp-content` component package
-
-#### Scenario: Manifest hash covers embedded pipeline step containerfile
-
-- **WHEN** publisher changes `containerfile.body` on a pipeline step in GP draft
-- **THEN** manifest hash MUST change
-- **AND** resolve output MUST update that step's containerfile ref
-
 ### Requirement: Manifest self-sufficiency for offline execution
 
 Pipeline-inline manifest SHALL be sufficient for coin-executor without live PostgreSQL. Executor MUST obtain Containerfile materialization from manifest `containerfiles` catalog and step refs (or project paths).
@@ -40,12 +21,6 @@ Pipeline-inline manifest SHALL be sufficient for coin-executor without live Post
 - **WHEN** workspace has `.coin/manifest.json` from file resolve and no coin-api
 - **THEN** executor MUST execute `coin` and `containerfile` steps from that manifest
 - **AND** MUST NOT require live GP draft lookup
-
-#### Scenario: Nexus fallback resolve
-
-- **WHEN** Jenkins resolves manifest from Nexus fallback
-- **THEN** manifest MUST contain containerfile catalog refs or per-step materialization needed for buildkit dispatch
-- **AND** MUST NOT require live PostgreSQL for Containerfile lookup
 
 ### Requirement: Publish destinations compatibility
 

@@ -1,10 +1,4 @@
-# pipeline-inline-model Specification
-
-## Purpose
-
-Author-facing pipeline-inline schemaVersion 4: `pipeline.tasks`, typed steps (`coin`, `containerfile`, `sh`), top-level `containerfiles[]` catalog. Legacy v3 stage/step shapes superseded.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Pipeline-inline canonical model
 
@@ -30,3 +24,35 @@ Pipeline-inline SHALL retain typed non-secret parameters with the same validatio
 
 - **WHEN** parameter has `type: enum`
 - **THEN** validation MUST require non-empty `allowedValues`
+
+## REMOVED Requirements
+
+### Requirement: capabilities.deliverables as GP build capability list
+
+**Reason**: schemaVersion 4 declares build outputs via `pipeline.tasks` (`kind: coin` + `action: build` + `build.type`) and `.coin/outputs.json`.
+
+**Migration**: omit `capabilities` / `capabilities.deliverables` from v4 fixtures and resolved manifests.
+
+### Requirement: Typed inline pipeline steps
+
+**Reason**: Superseded by v4 step kinds `coin`, `containerfile`, `sh` on `pipeline.tasks[]`.
+
+**Migration**: Map v3 `action: run|build|publish` to v4 `coin` and `containerfile` steps per migration rules in `pipeline-tekton-model`.
+
+### Requirement: Short hash stage and build ids
+
+**Reason**: Replaced by semantic `task.id` and `publish.buildTaskId` references.
+
+**Migration**: Phase B v3→v4 migration assigns semantic ids; Phase A fixtures use semantic ids directly.
+
+### Requirement: Containerfile inline in buildkit steps
+
+**Reason**: Managed Containerfile content moves to `containerfiles[]` catalog; steps reference by `ref`.
+
+**Migration**: Extract inline `containerfile.body` into catalog entries; materialize `contentRef` in remote manifests (Phase B).
+
+### Requirement: BYO dockerfile inline in step
+
+**Reason**: BYO paths move to `containerfiles[]` catalog entries with `kind: project`.
+
+**Migration**: Map `dockerfile.path` on step to catalog entry `kind: project` referenced by containerfile step.

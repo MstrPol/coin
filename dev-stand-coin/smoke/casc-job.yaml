@@ -1,0 +1,22 @@
+jobs:
+  - script: >
+      pipelineJob('coin-smoke') {
+        description('Smoke: coin-lib + dynamic agent (jnlp + builder/buildkit/executor)')
+        parameters {
+          stringParam('COIN_AGENT_VERSION', '1.0.0', 'Тег coin-agent в Nexus')
+        }
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url('http://gitea:3000/coin/coin-smoke.git')
+                  credentials('gitea-git')
+                }
+                branch('main')
+              }
+            }
+            scriptPath('Jenkinsfile')
+          }
+        }
+      }

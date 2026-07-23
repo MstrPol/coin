@@ -1,6 +1,8 @@
 coin:
   goldenPath: go-app
   version: "*"
+  resolve: file
+  # manifestFile: .coin/manifest.local.yaml
 
 jenkins:
   credentials:

@@ -1,0 +1,37 @@
+jobs:
+  - script: >
+      multibranchPipelineJob('demo-go-app') {
+        description('Sample product: demo-go-app (Gitea → coinPipeline)')
+        branchSources {
+          branchSource {
+            source {
+              git {
+                id('demo-go-app')
+                remote('http://gitea:3000/coin/demo-go-app.git')
+                credentialsId('gitea-git')
+                traits {
+                  gitBranchDiscovery()
+                  gitTagDiscovery()
+                }
+              }
+            }
+          }
+        }
+        factory {
+          workflowBranchProjectFactory {
+            scriptPath('Jenkinsfile')
+          }
+        }
+        triggers {
+          periodicFolderTrigger {
+            interval('15m')
+          }
+        }
+        orphanedItemStrategy {
+          defaultOrphanedItemStrategy {
+            pruneDeadBranches(true)
+            daysToKeepStr('-1')
+            numToKeepStr('5')
+          }
+        }
+      }
