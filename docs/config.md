@@ -64,6 +64,7 @@ Resolve API: `GET /v1/golden-paths/{gp}/resolve?pin=~1.0.0`
 |------|----------------------|----------|
 | `jenkins.credentials.docker` | **Да** (validate) | Jenkins Credential ID для OCI registry (pull/push) |
 | `jenkins.resolveNode` | Нет | Label агента для фазы Resolve (default `built-in`). Приоритет: env `COIN_RESOLVE_NODE` → project → lib defaults |
+| `jenkins.cloud` | Нет | Имя Kubernetes cloud в Jenkins для `podTemplate` (default `kubernetes`). Приоритет: env `COIN_JENKINS_CLOUD` → project → lib defaults |
 
 Agent image, executor, pipeline — **только в manifest**, не в config.
 
