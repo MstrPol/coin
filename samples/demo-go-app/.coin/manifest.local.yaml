@@ -1,0 +1,89 @@
+# Resolved-shape fixture for coin.resolve: file (Phase A pipeline-tekton-alignment).
+# Not a GP authoring draft — includes runtime/branching/destinations for executor.
+manifestVersion: 1
+schemaVersion: 4
+manifestHash: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+goldenPath:
+  name: gp-01-07
+  version: "1.0.0"
+runtime:
+  image: "nexus:8082/coin-docker/coin-agent:1.0.0"
+destinations:
+  - id: nexus-docker
+    host: "nexus:8082"
+    imageRegistryPrefix: "nexus:8082/coin-docker"
+    pull: true
+    push: true
+    buildCacheEnabled: true
+    artifactRepositoryBase: "http://nexus:8081/repository/maven-releases"
+branching:
+  name: trunk-based
+  version: "1.0.0"
+  branches:
+    - name: main
+      pattern: "^main$|^master$"
+      publish: true
+      versioning:
+        template: "v{base}-main-snapshot-{n}"
+    - name: feature
+      pattern: "^feature/.+"
+      publish: false
+      versioning:
+        template: "v{base}-feature-snapshot-{n}"
+parameters:
+  - name: runTest
+    type: boolean
+    default: false
+    required: false
+    description: "Запускать тесты? (stage Test)"
+  - name: publish
+    type: boolean
+    default: false
+    required: false
+    description: "Опубликовать артефакты в registry? (stage Publish)"
+  - name: bump
+    type: enum
+    default: none
+    required: false
+    description: "Semver bump перед {n}; none = только инкремент snapshot N"
+    allowedValues: [none, major, minor, patch]
+validateSchema:
+  url: "http://nexus:8081/repository/maven-releases/coin/schema/config.v2.schema.json"
+  sha256: "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+containerfiles:
+  - id: app
+    kind: managed
+    path: .coin/containerfiles/app
+pipeline:
+  # Validate — built-in в coinPipeline (как Resolve / Bootstrap / Report), не task.
+  tasks:
+    - id: test
+      name: Test
+      when: param:runTest
+      steps:
+        - kind: containerfile
+          ref: app
+          run:
+            target: test
+            reportsTarget: test-reports
+    - id: build-app
+      name: Build
+      runAfter: [test]
+      steps:
+        - kind: coin
+          action: build
+          build:
+            type: image
+            containerfileRef: app
+            destinationRef: nexus-docker
+            target: runtime
+    - id: publish-app
+      name: Publish
+      when: param:publish
+      runAfter: [build-app]
+      steps:
+        - kind: coin
+          action: publish
+          publish:
+            buildTaskId: build-app
+            destinationRefs: [nexus-docker]

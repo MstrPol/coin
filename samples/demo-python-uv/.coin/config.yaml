@@ -1,0 +1,12 @@
+coin:
+  template: python-uv-app
+  templateVersion: v1
+
+jenkins:
+  credentials:
+    docker: nexus-docker
+
+project:
+  name: demo-python-uv
+  groupId: com.example.team
+  artifactId: demo-python-uv

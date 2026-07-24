@@ -1,0 +1,9 @@
+dist/
+.coin/manifest.json
+.coin/effective-config.yaml
+.coin/docker-config.json
+.coin/bundle/
+.coin/bundle.zip
+.coin/pointer.json
+.coin/resolve.headers
+.coin/coinPipeline.groovy

@@ -1,0 +1,13 @@
+coin:
+  goldenPath: go-app-bp
+  version: "*"
+
+jenkins:
+  credentials:
+    docker: nexus-docker
+
+project:
+  name: demo-go-app-bp
+  artifactId: demo-go-app-bp
+  groupId: com.example.team
+  repository: maven-releases

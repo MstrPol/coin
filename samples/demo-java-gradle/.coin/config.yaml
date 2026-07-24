@@ -1,0 +1,12 @@
+coin:
+  template: java-gradle-app
+  templateVersion: v1
+
+jenkins:
+  credentials:
+    docker: nexus-docker
+
+project:
+  name: demo-java-gradle
+  groupId: com.example.team
+  artifactId: demo-java-gradle

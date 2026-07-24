@@ -1,0 +1,13 @@
+coin:
+  goldenPath: go-app-df
+  version: "*"
+
+jenkins:
+  credentials:
+    docker: nexus-docker
+
+project:
+  name: demo-go-app-df
+  artifactId: demo-go-app-df
+  groupId: com.example.team
+  repository: maven-releases

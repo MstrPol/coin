@@ -1,0 +1,12 @@
+coin:
+  template: java-maven-app
+  templateVersion: v1
+
+jenkins:
+  credentials:
+    docker: nexus-docker
+
+project:
+  name: demo-java-maven
+  groupId: com.example.team
+  artifactId: demo-java-maven

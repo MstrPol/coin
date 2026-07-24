@@ -24,7 +24,7 @@ coin-workspace/                          # интеграционный workspac
     ├── openspec/                        # specs + changes (канон требований)
     ├── docker/                          # compose: Gitea, Jenkins, Nexus, k3s, …
     ├── coin-starters/                   # scaffolding продуктовых репо
-    └── samples/                         # E2E product demos (локальные клоны)
+    └── samples/                         # E2E product demos (файлы в coin; sync → Gitea)
 ```
 
 Sibling-репозитории **не** лежат внутри `coin/` — они рядом с ним в workspace.
@@ -40,13 +40,14 @@ Sibling-репозитории **не** лежат внутри `coin/` — он
 | `coin/docs`, `openspec` | Docs + OpenSpec | — | обычно остаётся platform docs repo / monorepo meta |
 | `coin/docker` | Local pilot stack | `make bootstrap` | **не** prod |
 | `coin/coin-starters` | Product scaffolding | `make coin-starters` | `coin/coin-starters` |
-| `coin/samples` | E2E demos | `make samples` → Gitea | опционально `coin/samples` |
+| `coin/samples` | E2E demos (tracked in coin) | `make -C dev-stand-coin demo-go-app` → Gitea | опционально отдельные product repos |
 
 ### Samples (Q1)
 
-**Канон local pilot:** `coin/samples/` — пишет `docker/scripts/samples.sh` (`SAMPLES_DIR="${REPO_ROOT}/samples"`, `REPO_ROOT` = `coin/`).
+**Канон:** `coin/samples/` — обычные каталоги в meta-репо `coin` (GitHub).  
+Публикация в local Gitea как отдельные product repos: `dev-stand-coin/*/push-gitea.sh` (`rsync` без `.git` → fresh clone → force push). Вложенный `.git` у sample **не нужен** и ломал бы GitHub (gitlink).
 
-Каталог `samples/` на корне workspace (рядом с `coin/`), если есть, **не** SoT для скриптов docker; не путать с `coin/samples`.
+Каталог `samples/` на корне workspace (рядом с `coin/`), если есть, **не** SoT; не путать с `coin/samples`.
 
 ## Seed SoT (не отдельные package-репо)
 

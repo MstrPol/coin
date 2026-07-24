@@ -1,0 +1,2 @@
+@Library('coin-lib@main') _
+coinPipeline()

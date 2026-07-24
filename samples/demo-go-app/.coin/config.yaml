@@ -1,0 +1,14 @@
+coin:
+  goldenPath: gp-01-07
+  version: "*"
+  resolve: file
+  # manifestFile: .coin/manifest.local.yaml
+
+jenkins:
+  credentials:
+    docker: nexus-docker
+
+project:
+  name: demo-go-app
+  artifactId: demo-go-app
+  groupId: com.example.team

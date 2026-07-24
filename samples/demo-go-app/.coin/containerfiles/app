@@ -1,0 +1,25 @@
+# syntax=docker/dockerfile:1
+# Managed Containerfile for demo-go-app (file-resolve fixture).
+# Referenced from .coin/manifest.local.yaml containerfiles[].path
+
+FROM golang:1.22-bookworm AS base
+WORKDIR /src
+COPY go.mod ./
+RUN go mod download
+COPY . .
+
+FROM base AS test
+RUN mkdir -p /out && go test ./... -coverprofile=/out/coverage.out
+
+FROM scratch AS test-reports
+COPY --from=test /out/ /
+
+FROM base AS artifact
+RUN mkdir -p /out && CGO_ENABLED=0 go build -buildvcs=false -trimpath -o /out/app .
+
+FROM gcr.io/distroless/static-debian12:nonroot AS runtime
+WORKDIR /app
+COPY --from=artifact /out/app /app/app
+EXPOSE 8080
+USER nonroot:nonroot
+ENTRYPOINT ["/app/app"]

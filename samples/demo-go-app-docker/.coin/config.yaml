@@ -1,0 +1,12 @@
+coin:
+  goldenPath: go-app-docker
+  version: "*"
+
+jenkins:
+  credentials:
+    docker: nexus-docker
+
+project:
+  name: demo-go-app-docker
+  artifactId: demo-go-app-docker
+  groupId: com.example.team
