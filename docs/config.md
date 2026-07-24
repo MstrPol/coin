@@ -68,12 +68,14 @@ Resolve API: `GET /v1/golden-paths/{gp}/resolve?pin=~1.0.0`
 
 Agent image, executor, pipeline — **только в manifest**, не в config.
 
-Платформенный pod (только lib defaults / env, не product schema):
+Платформенный pod (lib defaults; **можно** override в product `.coin/config.yaml`):
 
 | Поле | Default (local) | Описание |
 |------|-----------------|----------|
 | `pod.jnlp.image` | inbound-agent в Nexus | Образ JNLP; env `COIN_JNLP_IMAGE` |
-| `pod.imagePullSecrets` | `[]` | Имена K8s Secret для pull jnlp/builder; corp обязателен; env `COIN_IMAGE_PULL_SECRETS=a,b` |
+| `pod.imagePullSecrets` | `[]` | Имена K8s Secret для pull jnlp/builder; corp; env `COIN_IMAGE_PULL_SECRETS=a,b` |
+| `pod.jnlp.requests/limits` | см. defaults | Ресурсы jnlp |
+| `pod.builder.requests/limits` | см. defaults | Ресурсы builder |
 
 ---
 
