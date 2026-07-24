@@ -63,6 +63,7 @@ Resolve API: `GET /v1/golden-paths/{gp}/resolve?pin=~1.0.0`
 | Поле | Обязательно в product | Описание |
 |------|----------------------|----------|
 | `jenkins.credentials.docker` | **Да** (validate) | Jenkins Credential ID для OCI registry (pull/push) |
+| `jenkins.resolveNode` | Нет | Label агента для фазы Resolve (default `built-in`). Приоритет: env `COIN_RESOLVE_NODE` → project → lib defaults |
 
 Agent image, executor, pipeline — **только в manifest**, не в config.
 
