@@ -24,9 +24,9 @@
 
 ## Граница coin-executor
 
-**В executor:** validate config vs manifest, materialize Containerfile, dispatch `buildkit`/`buildpack`/`dockerfile`, run stages, report.
+**В executor:** validate config vs manifest, materialize Containerfile, dispatch `buildkit`/`buildpack`/`dockerfile`, run stages, plan-version, release notes generate/publish, report.
 
-**Не в executor:** GP publish, semver bump GP release, release notes authoring.
+**Не в executor:** GP publish, semver bump GP release.
 
 ## Что запрещено в проекте
 
