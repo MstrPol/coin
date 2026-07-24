@@ -46,13 +46,21 @@ cd docker && make endpoints
 
 ## Credentials
 
+Четыре ключа контракта Coin (IDs в Jenkins Credentials Store). Подробно: [config.md — Контракт Jenkins Credentials](config.md#контракт-jenkins-credentials-platform).
+
+| Ключ конфига | Default ID (local) | Назначение |
+|--------------|--------------------|------------|
+| `apiToken` | `coin-api-token` | Bearer для Resolve + Report → coin-api |
+| `nexus` | `nexus-admin` | Maven/raw Nexus (platform / corp); injection в build TBD |
+| `docker` | `nexus-docker` | OCI registry pull/push |
+| `git` | `gitea-git` | SCM + git tag fetch/push из executor |
+| `osc` | `osc-proxy` | Corp HTTP(S) proxy (OSC); injection в build TBD |
+
+Дополнительно на стенде (не ключи product config):
+
 | ID | Назначение |
 |----|------------|
-| `nexus-docker` | Docker registry (push/pull) |
-| `nexus-admin` | Platform jobs |
-| `k3s-token` | Jenkins → k8s API |
-| `coin-api-token` | Bearer для Resolve + Report |
-| `gitea-git` | SCM product + coin-lib repos |
+| `k3s-token` | Jenkins → k8s API (cloud agent) |
 
 ### Auth policy
 

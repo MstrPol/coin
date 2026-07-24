@@ -7,3 +7,5 @@ dist/
 .coin/pointer.json
 .coin/resolve.headers
 .coin/coinPipeline.groovy
+.coin/secrets/
+.coin/temp/

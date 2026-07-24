@@ -57,13 +57,77 @@ Resolve API: `GET /v1/golden-paths/{gp}/resolve?pin=~1.0.0`
 
 ## Секция `jenkins`
 
-| Поле | Обязательно | Описание |
-|------|-------------|----------|
-| `jenkins.credentials.docker` | **Да** | Jenkins Credential ID для Docker registry |
+В product config обычно задают только переопределения. Полный набор credential keys
+собирается merge'ем с `coin-lib` defaults (см. ниже).
 
-Agent image, executor version, pipeline stages — **только в manifest**, не в config.
+| Поле | Обязательно в product | Описание |
+|------|----------------------|----------|
+| `jenkins.credentials.docker` | **Да** (validate) | Jenkins Credential ID для OCI registry (pull/push) |
 
-Credentials → env при publish: `COIN_REGISTRY_USER`, `COIN_REGISTRY_PASSWORD`.
+Agent image, executor, pipeline — **только в manifest**, не в config.
+
+---
+
+## Контракт Jenkins Credentials (platform)
+
+Значения — **IDs записей в Jenkins Credentials Store**, не секреты.
+Секреты живут только в Jenkins; в Git — только имена ID.
+
+После merge (`lib` ← `project`) эффективный конфиг **должен** резолвить ключи контракта
+(см. таблицу). Без соответствующих credentials в Jenkins пайплайн Coin неработоспособен
+(для ключей, которые glue уже биндит). Зарезервированные ключи обязаны быть в контракте
+заранее, даже если local pilot их ещё не использует.
+
+| Ключ | Default ID (local) | Зачем | Кто биндит | Env / артефакт |
+|------|--------------------|-------|------------|----------------|
+| `apiToken` | `coin-api-token` | HTTP к coin-api (resolve, report) | coin-lib Resolve / Report | `COIN_API_TOKEN` |
+| `nexus` | `nexus-admin` | Maven/raw Nexus (corp) | **ADR:** materialize → BuildKit secret `coin-nexus-*` | `/run/secrets/coin-nexus-user\|password` |
+| `docker` | `nexus-docker` | OCI registry | build/publish | `COIN_REGISTRY_*` → `~/.docker/config.json` |
+| `git` | `gitea-git` | fetch/push tags | Version / ReleaseNotes / Publish | `COIN_GIT_*` |
+| `osc` | `osc-proxy` | Corp HTTP(S) proxy (OSC) | **ADR:** materialize → BuildKit secret `coin-osc-*` | `/run/secrets/coin-osc-user\|password` |
+
+Proxy **host** (без пароля): build-arg `COIN_CORP_PROXY_URL` ← `coin.corpProxyUrl` (lib defaults).  
+Nexus **deps URL** (без пароля): build-arg `COIN_NEXUS_URL` ← первый `manifest.destinations[].artifactRepositoryBase`.  
+Auth: secret mounts `coin-osc-*` / `coin-nexus-*`. Детали: [ADR buildkit-secrets](adr/buildkit-secrets.md).
+
+Defaults: [`coin-lib/resources/coin-lib-defaults.yaml`](../../coin-lib/resources/coin-lib-defaults.yaml).  
+Создание ID в Jenkins: [jenkins-setup.md](jenkins-setup.md).
+
+### Переопределение в проекте
+
+```yaml
+jenkins:
+  credentials:
+    docker: team-docker-registry   # свой ID вместо nexus-docker
+    # git / apiToken / nexus / osc — опционально; иначе defaults из lib
+```
+
+Merge: `deepMerge` — project побеждает по ключу, остальные ключи остаются из lib.
+
+### Кастомные ключи
+
+| Где добавить | Что произойдёт |
+|--------------|----------------|
+| **Project** `.coin/config.yaml` → `jenkins.credentials.<custom>` | Попадёт в `.coin/effective-config.yaml` (merge). **Не** биндится автоматически. `coin-executor validate` **не** отвергает неизвестные ключи внутри `credentials` (**решение: no-op** / forward-compat). Фактически мёртвый конфиг, пока platform не научит glue читать ключ. |
+| **GP / manifest** | **Нельзя.** Manifest — SoT runtime/pipeline/destinations, **не** Jenkins credential IDs. `coinLoadConfig` не переносит credentials из manifest. Класть секреты/ID в GP release запрещено контрактом. |
+
+Новый credential для платформенного сценария = изменение **platform**:
+
+1. ключ + default в `coin-lib-defaults.yaml`;
+2. `withCredentials` / использование в `coinPipeline` (или узкий glue var);
+3. запись в эту таблицу + JCasC/seed credentials на стенде;
+4. если нужен внутри **Containerfile** — BuildKit secret mount ([ADR buildkit-secrets](adr/buildkit-secrets.md)).
+
+Product-only «добавить credential и ожидать, что stages его увидят» — **не поддерживается**.
+
+### Открытые вопросы / решения
+
+| # | Вопрос | Статус | Решение |
+|---|--------|--------|---------|
+| Q1 | Неизвестные `jenkins.credentials.*` в validate | ✅ | **no-op** (forward-compat) |
+| Q2 | Как `nexus` / `osc` в Containerfile? | ✅ | **BuildKit `RUN --mount=type=secret`** + Jenkins `withCredentials` → `.coin/secrets/` → executor `--secret`. См. [ADR buildkit-secrets](adr/buildkit-secrets.md). |
+
+**Кратко Q2:** lib материализует `coin-nexus-*` / `coin-osc-*`; executor передаёт в `buildctl`; GP Containerfile монтирует по стабильным id. Local samples без mount. Реализация — follow-up checklist в ADR (пока только контракт).
 
 ---
 
@@ -115,9 +179,9 @@ Product config также не содержит секции `deliverables`, bui
 
 | Слой | Источник | Примеры |
 |------|----------|---------|
-| lib | `coin-lib/resources/coin-lib-defaults.yaml` + env | `coin.apiUrl`, credential IDs |
-| GP | resolved `manifest.json` | `runtime.image`, `pipeline.stages`, `build.engine`, `destinations` |
-| project | `.coin/config.yaml` | `coin.goldenPath`, `project.*`, `jenkins.credentials.docker` |
+| lib | `coin-lib/resources/coin-lib-defaults.yaml` + env | `coin.apiUrl`, полный набор `jenkins.credentials.*` |
+| GP | resolved `manifest.json` | `runtime.image`, `pipeline.tasks`, `build.engine`, `destinations` — **без** credentials |
+| project | `.coin/config.yaml` | `coin.goldenPath`, `project.*`, override `jenkins.credentials.*` |
 
 В workspace pod пишутся runtime artifacts (в `.gitignore`):
 
@@ -126,7 +190,7 @@ Product config также не содержит секции `deliverables`, bui
 
 `coin-executor` и GP scripts читают **project** `.coin/config.yaml`, не effective config.
 
-Resolved manifest не содержит Jenkins credential IDs. Если product config задаёт `jenkins.credentials.docker`, это значение имеет приоритет над defaults `coin-lib`.
+Resolved manifest **не** содержит Jenkins credential IDs. Контракт credentials — [выше](#контракт-jenkins-credentials-platform).
 
 ---
 

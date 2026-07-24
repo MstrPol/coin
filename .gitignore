@@ -18,10 +18,11 @@ dist/
 # Локальные материалы (не попадают в репо)
 .workspace/
 
-# Временные артефакты coin CLI
+# Временные артефакты coin CLI / CI
 .coin/temp/
 .coin/cache/
 .coin/generated/
+.coin/secrets/
 
 # Docker local stack artifacts
 docker/.env

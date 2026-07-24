@@ -10,6 +10,7 @@
 | **[how-to/onboarding-15min.md](how-to/onboarding-15min.md)** | Новый dev — стенд |
 | [how-to/local-dev-control-plane.md](how-to/local-dev-control-plane.md) | Platform — стенд, resolve |
 | [how-to/local-manifest-file-resolve.md](how-to/local-manifest-file-resolve.md) | Platform — `resolve: file` fixture |
+| [how-to/containerfile-build-secrets.md](how-to/containerfile-build-secrets.md) | Platform — secret mounts / `COIN_*` build-arg |
 | [how-to/add-new-service-repo.md](how-to/add-new-service-repo.md) | Команда — новый сервис |
 | [how-to/publish-gp-release.md](how-to/publish-gp-release.md) | Platform — GP + embedded pipeline |
 | [how-to/branching-models.md](how-to/branching-models.md) | Platform — branching-model |
